@@ -1,0 +1,25 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "18001:18001"
+    environment:
+      - BACKEND_PORT=18001
+    volumes:
+      - ./backend/data:/app/data
+    depends_on:
+      - mongo
+  frontend:
+    build: ./frontend
+    ports:
+      - "3051:3051"
+    depends_on:
+      - backend
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+volumes:
+  mongo_data:

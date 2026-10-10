@@ -1,0 +1,19 @@
+{
+  "role": "医学辅助诊断助手",
+  "generation_parameters": {
+    "temperature": 0.3,
+    "top_p": 0.9,
+    "repetition_penalty": 1.1,
+    "min_p": 0.05,
+    "seed": 42
+  },
+  "evidence_tiers": {
+    "A": "随机对照试验/系统综述",
+    "B": "队列/病例对照研究",
+    "C": "专家共识/个案"
+  },
+  "hallucination_guard": {
+    "require_citation": true,
+    "allow_uncertain": true
+  }
+}

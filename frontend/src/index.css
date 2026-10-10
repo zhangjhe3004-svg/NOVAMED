@@ -1,0 +1,64 @@
+/* =====================================================
+   MediCode — NocoBase / AntD 清爽风格（保留页面工具类）
+   ===================================================== */
+
+/* ----- Design Tokens (NocoBase palette) ----- */
+:root {
+  /* Primary — AntD blue */
+  --md-primary: #1677ff;
+  --md-on-primary: #ffffff;
+  --md-primary-container: #e6f4ff;
+  --md-on-primary-container: #003eb3;
+
+  /* Success — green */
+  --md-secondary: #52c41a;
+  --md-on-secondary: #ffffff;
+  --md-secondary-container: #f6ffed;
+  --md-on-secondary-container: #237804;
+
+  /* Tertiary — purple accent */
+  --md-tertiary: #722ed1;
+  --md-on-tertiary: #ffffff;
+  --md-tertiary-container: #f9f0ff;
+  --md-on-tertiary-container: #391085;
+
+  /* Error */
+  --md-error: #ff4d4f;
+  --md-on-error: #ffffff;
+  --md-error-container: #fff1f0;
+  --md-on-error-container: #a8071a;
+
+  /* Surface */
+  --md-surface: #ffffff;
+  --md-surface-dim: #f0f0f0;
+  --md-surface-bright: #ffffff;
+  --md-surface-container-lowest: #ffffff;
+  --md-surface-container-low: #f5f5f5;
+  --md-surface-container: #fafafa;
+  --md-surface-container-high: #f0f0f0;
+  --md-surface-container-highest: #e8e8e8;
+
+  /* Background */
+  --md-background: #f5f5f5;
+  --md-on-background: #1f1f1f;
+  --md-on-surface-variant: #6b7280;
+
+  /* Outline */
+  --md-outline: #bfbfbf;
+  --md-outline-variant: #e8e8e8;
+
+  /* Elevation */
+  --md-elevation-1: 0 1px 2px 0 rgba(0,0,0,0.03), 0 1px 6px -1px rgba(0,0,0,0.02), 0 2px 4px 0 rgba(0,0,0,0.02);
+  --md-elevation-2: 0 1px 2px 0 rgba(0,0,0,0.04), 0 2px 6px 2px rgba(0,0,0,0.03);
+  --md-elevation-3: 0 4px 8px 3px rgba(0,0,0,0.04), 0 1px 3px 0 rgba(0,0,0,0.03);
+
+  /* Typography */
+  --md-typescale-display: 400 57px/64px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --md-typescale-headline: 400 28px/36px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --md-typescale-title-large: 500 22px/28px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --md-typescale-title-medium: 500 16px/24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --md-typescale-body-large: 400 16px/24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --md-typescale-body-medium: 400 14px/20px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --md-typescale-label-large: 500 14px/20px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --md-typescale-label-medium: 500 12px/16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
