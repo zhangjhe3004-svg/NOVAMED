@@ -1,0 +1,219 @@
+/* ============================================================
+   全站表格 / 弹窗 / 表单控件皮肤 —— 对齐 scaffold-master-main 的表格规范
+   适用于所有 antd Table（18 个页面）与 Modal 表单，一处生效。
+
+   度量全部取自 scaffold-vue/src/styles/components.css：
+     表头   40px 高 / 12px 字号 / 620 字重 / --ink-soft / 上下 1px 分隔线
+     单元格 48px 行高 / 16px 水平内边距 / 1px 底部分隔线 / 末行无底线
+     悬停   rgba(shade,.045)；选中 rgba(35,109,233,.1)
+     操作列 吸右 + 左侧 1px 内阴影（横向滚动时行操作始终可见）
+     分页器 30px 档位 / 8px 圆角 / 左侧「共 N 条」读数
+     弹窗   24px 圆角 / 头 20-22-6 / 体 14-22-20 / 脚 14-22 带 1px 上边线
+     标签   22px 高胶囊 / 12px 600 字重
+
+   颜色沿用 MediCode 既有令牌（--blue/--ink/--line），不换主色，
+   只把 scaffold 的「度量与结构」搬过来 —— 这样和系统其余部分不脱节。
+   ============================================================ */
+
+:root {
+  --tbl-line: #e6ecf3;            /* 分隔线（MediCode --line） */
+  --tbl-line-strong: #dde5ee;     /* 面板描边 */
+  --tbl-ink-soft: #7e888c;        /* 表头字色（scaffold --ink-soft） */
+  --tbl-hover: #f4f6f8;           /* 行悬停（≈ rgba(46,58,62,.045)） */
+  --tbl-selected: #eaf2fe;        /* 行选中（≈ rgba(35,109,233,.1)） */
+  --tbl-head-bg: #fbfcfd;         /* 表头底（scaffold --surface-solid） */
+  --tbl-radius: 16px;             /* 列表面板圆角 */
+}
+
+/* ── 表格容器：一块带描边的圆角面板 ─────────────────────────── */
+.ant-table-wrapper {
+  border-radius: var(--tbl-radius);
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid var(--tbl-line-strong);
+  box-shadow: 0 1px 2px rgba(27, 43, 69, .03);
+}
+.ant-table-wrapper .ant-table {
+  font-size: 13px;
+  color: var(--ink);
+}
+
+/* ── 表头：40px、12px 灰字、上下细线 ────────────────────────── */
+.ant-table-wrapper .ant-table-thead > tr > th,
+.ant-table-wrapper .ant-table-thead > tr > td {
+  background: var(--tbl-head-bg) !important;
+  color: var(--tbl-ink-soft) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  /* 10px 上下内边距 + 20px 行高 = 40px 表头（scaffold .table th 规格） */
+  line-height: 20px;
+  padding: 10px 16px !important;
+  border-bottom: 1px solid var(--tbl-line) !important;
+  border-right: none !important;
+  white-space: nowrap;
+}
+.ant-table-wrapper .ant-table-thead > tr > th::before {
+  display: none !important;   /* 去掉 antd 表头列间的竖分隔线 */
+}
+
+/* ── 单元格：48px 行高、16px 内边距、1px 底线、末行无线 ───────── */
+.ant-table-wrapper .ant-table-tbody > tr > td {
+  padding: 14px 16px !important;
+  border-bottom: 1px solid var(--tbl-line) !important;
+  border-right: none !important;
+  color: var(--ink);
+  transition: background .15s ease;
+}
+.ant-table-wrapper .ant-table-tbody > tr:last-child > td {
+  border-bottom: none !important;
+}
+.ant-table-wrapper .ant-table-tbody > tr:hover > td {
+  background: var(--tbl-hover) !important;
+}
+.ant-table-wrapper .ant-table-tbody > tr.ant-table-row-selected > td {
+  background: var(--tbl-selected) !important;
+}
+
+/* 固定列：scaffold 用 1px 内阴影代替 antd 的投影，更轻 */
+.ant-table-wrapper .ant-table-cell-fix-left,
+.ant-table-wrapper .ant-table-cell-fix-right {
+  box-shadow: inset 1px 0 0 var(--tbl-line) !important;
+  background: #fff;
+}
+.ant-table-wrapper .ant-table-thead .ant-table-cell-fix-right {
+  background: var(--tbl-head-bg) !important;
+}
+.ant-table-wrapper .ant-table-tbody > tr:hover > td.ant-table-cell-fix-right {
+  background: var(--tbl-hover) !important;
+}
+
+/* 空表 / 加载占位不参与行高规则 */
+.ant-table-wrapper .ant-table-tbody > tr.ant-table-placeholder > td {
+  padding: 28px 16px !important;
+}
+
+/* 保留原有行为：隐藏 antd 行展开图标（此前皮肤就关掉了，别在这一步改变行为） */
+.ant-table-row-expand-icon,
+button.ant-table-row-expand-icon,
+.ant-table-cell.ant-table-row-expand-icon-cell {
+  display: none !important;
+  width: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+}
+.ant-table-tbody > tr.ant-table-measure-row > td {
+  display: none !important;
+}
+
+/* ── 分页器：30px 档位、8px 圆角 ─────────────────────────────── */
+.ant-table-wrapper .ant-pagination {
+  padding: 14px 16px;
+  margin: 0;
+}
+.ant-pagination .ant-pagination-item,
+.ant-pagination .ant-pagination-prev,
+.ant-pagination .ant-pagination-next {
+  min-width: 30px;
+  height: 30px;
+  line-height: 28px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.ant-pagination .ant-pagination-item a {
+  color: var(--muted);
+}
+.ant-pagination .ant-pagination-item-active {
+  border-color: var(--blue);
+}
+.ant-pagination .ant-pagination-item-active a {
+  color: var(--blue);
+}
+.ant-pagination .ant-pagination-total-text {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ── 弹窗：24px 圆角 + scaffold 的分区留白 ─────────────────────
+   注意：本项目 antd 版本的弹窗面板类名是 .ant-modal-container（不是 v5 文档里的
+   .ant-modal-content），两个都写上以兼容。 */
+.ant-modal .ant-modal-content,
+.ant-modal .ant-modal-container {
+  border-radius: 24px;
+  padding: 0;
+  overflow: hidden;
+}
+.ant-modal .ant-modal-header {
+  padding: 20px 22px 6px;
+  background: transparent;
+}
+.ant-modal .ant-modal-title {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -.015em;
+}
+.ant-modal .ant-modal-body {
+  padding: 14px 22px 20px;
+}
+.ant-modal .ant-modal-footer {
+  margin-top: 0;
+  padding: 14px 22px;
+  border-top: 1px solid var(--tbl-line);
+}
+.ant-modal .ant-modal-close {
+  top: 14px;
+  right: 14px;
+}
+
+/* ── 表单：12px/600 灰标签、36px 控件、10px 圆角 ─────────────── */
+.ant-form-item .ant-form-item-label > label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.ant-form-item {
+  margin-bottom: 16px;
+}
+.ant-input,
+.ant-input-affix-wrapper,
+.ant-select:not(.ant-select-customize-input) .ant-select-selector,
+.ant-picker {
+  border-radius: 10px;
+}
+
+/* ── 标签 / 状态：22px 胶囊（scaffold .tag 规格）──────────────── */
+.ant-tag {
+  height: 22px;
+  padding: 0 9px;
+  margin-inline-end: 0;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+/* ── 开关：scaffold 的开关是「青柠注满」，全站开=绿 ─────────────
+   antd Switch 默认吃主色蓝；scaffold 的开关语义是能力/状态，用绿色。
+   这里只在选中态换色，不改主色，避免影响其他蓝色语义。 */
+.ant-switch.ant-switch-checked {
+  background: #45a333;
+}
+.ant-switch.ant-switch-checked:hover:not(.ant-switch-disabled) {
+  background: #3d912c;
+}
+
+/* ── 窄屏 ────────────────────────────────────────────────────── */
+@media (max-width: 720px) {
+  .ant-modal .ant-modal-header { padding: 18px 18px 4px; }
+  .ant-modal .ant-modal-body { padding: 12px 18px 18px; }
+  .ant-modal .ant-modal-footer { padding: 12px 18px; }
+}
+
+/* reduced motion：保留语义、去掉过程 */
+@media (prefers-reduced-motion: reduce) {
+  .ant-table-wrapper .ant-table-tbody > tr > td { transition: none; }
+}

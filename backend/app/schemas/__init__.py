@@ -30,6 +30,8 @@ class UserInfo(BaseModel):
     department: Optional[str] = None
     title: Optional[str] = None
     work_status: Optional[str] = "在职"
+    auth_level: Optional[int] = 1
+    superior_id: Optional[int] = None
 
 
 class Token(BaseModel):
@@ -57,6 +59,8 @@ class UserCreate(BaseModel):
     department: Optional[str] = ""
     title: Optional[str] = ""
     work_status: Optional[str] = "在职"
+    auth_level: Optional[int] = 1
+    superior_id: Optional[int] = None
 
 
 class UserUpdate(BaseModel):
@@ -69,6 +73,8 @@ class UserUpdate(BaseModel):
     department: Optional[str] = None
     title: Optional[str] = None
     work_status: Optional[str] = None
+    auth_level: Optional[int] = None
+    superior_id: Optional[int] = None
 
 
 class PasswordChange(BaseModel):

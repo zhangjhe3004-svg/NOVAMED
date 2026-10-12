@@ -1,0 +1,21 @@
+# 依赖
+node_modules/
+.expo/
+dist/
+web-build/
+
+# 原生构建产物
+apps/*/android/
+apps/*/ios/
+
+# Expo
+.expo-shared/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# 系统
+.DS_Store
+*.log

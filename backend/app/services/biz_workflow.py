@@ -165,6 +165,7 @@ def trigger(db: Session, key: str, row_id: Optional[int], creator_id: Optional[i
     assignees = _resolve_assignees(db, first, creator_id)
     inst = WorkflowInstance(
         def_id=d.id, row_id=row_id,
+        creator_id=creator_id,
         current_index=0,
         assignees_json=json.dumps(assignees, ensure_ascii=False),
         history_json=json.dumps([], ensure_ascii=False),
@@ -173,6 +174,17 @@ def trigger(db: Session, key: str, row_id: Optional[int], creator_id: Optional[i
     db.add(inst)
     db.commit()
     return _instance_dict(db, inst)
+
+
+def _write_back(db: Session, defn: WorkflowDef, inst: WorkflowInstance) -> None:
+    """把实例终态回写到触发的动态行状态字段（已批准 / 已驳回 / 已撤回）"""
+    if defn.trigger_collection and defn.status_field and inst.row_id is not None:
+        try:
+            from . import dyn_engine
+            dyn_engine.update_row(db, defn.trigger_collection, inst.row_id,
+                                  {defn.status_field: inst.status})
+        except Exception:
+            db.rollback()
 
 
 def approve(db: Session, instance_id: int, actor_id: int, comment: str = "") -> Optional[dict]:
@@ -212,7 +224,46 @@ def _transit(db: Session, instance_id: int, actor_id: int, comment: str, approve
             assignees = _resolve_assignees(db, nodes[nxt], None)
             inst.assignees_json = json.dumps(assignees, ensure_ascii=False)
     db.commit()
+    _write_back(db, d, inst)
     return _instance_dict(db, inst)
+
+
+def cancel(db: Session, instance_id: int, actor_id: int, comment: str = "") -> Optional[dict]:
+    """撤回：发起人或管理员可撤销未结束的实例，状态置「已撤回」并回写动态行"""
+    inst = db.query(WorkflowInstance).filter(WorkflowInstance.id == instance_id).first()
+    if not inst:
+        raise WFError("实例不存在", 404)
+    d0 = db.query(WorkflowDef).filter(WorkflowDef.id == inst.def_id).first()
+    running = def_meta(d0)["running_status"] if d0 else DEFAULT_RUNNING
+    if inst.status != running:
+        raise WFError("当前状态不可撤回", 400)
+    d = db.query(WorkflowDef).filter(WorkflowDef.id == inst.def_id).first()
+    history = json.loads(inst.history_json or "[]")
+    history.append({"node": "", "actor_id": actor_id, "action": "cancel",
+                    "comment": comment, "at": _now()})
+    inst.history_json = json.dumps(history, ensure_ascii=False)
+    inst.status = "已撤回"
+    inst.assignees_json = "[]"
+    db.commit()
+    if d:
+        _write_back(db, d, inst)
+    return _instance_dict(db, inst)
+
+
+def cancel_by_row(db: Session, def_key: str, row_id: int, actor_id: int,
+                  is_admin: bool = False, comment: str = "") -> Optional[dict]:
+    """按流程 key + 动态行 id 撤回（供申请人撤回自己的申请）"""
+    d = get_def(db, def_key)
+    if not d:
+        raise WFError("流程不存在", 404)
+    inst = db.query(WorkflowInstance).filter(
+        WorkflowInstance.def_id == d.id, WorkflowInstance.row_id == row_id
+    ).order_by(WorkflowInstance.id.desc()).first()
+    if not inst:
+        return None
+    if not is_admin and (inst.creator_id or 0) != actor_id:
+        raise WFError("仅申请人本人或管理员可撤回", 403)
+    return cancel(db, inst.id, actor_id, comment)
 
 
 def list_instances(db: Session, def_key: Optional[str] = None, status: Optional[str] = None) -> List[dict]:
@@ -233,6 +284,7 @@ def _instance_dict(db: Session, i: WorkflowInstance) -> dict:
         "def_key": d.key if d else "",
         "def_title": d.title if d else "",
         "row_id": i.row_id,
+        "creator_id": i.creator_id,
         "current_index": i.current_index,
         "assignees": json.loads(i.assignees_json or "[]"),
         "history": json.loads(i.history_json or "[]"),

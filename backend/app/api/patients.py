@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from ..core.database import get_db
 from ..core.dependencies import get_current_user
-from ..models.models import Patient, MedicalRecord, Gender
+from ..models.models import Patient, MedicalRecord, Gender, Appointment, PatientAccount, RecordComment
 from ..schemas import PatientCreate
 
 router = APIRouter(prefix="/api/patients", tags=["患者管理"])
@@ -72,3 +72,21 @@ def update_patient(pid: int, payload: PatientCreate, _=Depends(get_current_user)
     p.medical_history = payload.medical_history
     db.commit()
     return _patient_dict(p)
+
+
+@router.delete("/{pid}")
+def delete_patient(pid: int, _=Depends(get_current_user), db: Session = Depends(get_db)):
+    p = db.query(Patient).filter(Patient.id == pid).first()
+    if not p:
+        return {"detail": "患者不存在"}
+    rec_ids = [r.id for r in db.query(MedicalRecord).filter(MedicalRecord.patient_id == pid).all()]
+    if rec_ids:
+        db.query(RecordComment).filter(RecordComment.record_id.in_(rec_ids)).delete(synchronize_session=False)
+    db.query(MedicalRecord).filter(MedicalRecord.patient_id == pid).delete(synchronize_session=False)
+    db.query(Appointment).filter(Appointment.patient_id == pid).delete(synchronize_session=False)
+    if p.phone:
+        db.query(Appointment).filter(Appointment.phone == p.phone).delete(synchronize_session=False)
+    db.query(PatientAccount).filter(PatientAccount.patient_id == pid).delete(synchronize_session=False)
+    db.delete(p)
+    db.commit()
+    return {"deleted": pid}

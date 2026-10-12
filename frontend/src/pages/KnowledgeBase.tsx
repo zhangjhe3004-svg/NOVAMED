@@ -41,6 +41,7 @@ import {
 import { useAuth } from "../stores/auth";
 import api from "../api/client";
 import type { KnowledgeDoc } from "../api/knowledge";
+import VoiceTextArea from "../components/VoiceTextArea";
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -281,22 +282,16 @@ export default function KnowledgeBase() {
 
   return (
     <div>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 24,
-        }}
-      >
-        <Title level={4} style={{ margin: 0 }}>
-          <BookOutlined /> 知识库
-        </Title>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "16px 24px", flexWrap: "wrap", marginBottom: 16 }}>
+        <div>
+          <div style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}><BookOutlined /> 知识库</div>
+          <div style={{ color: "var(--lv-muted)", fontSize: 13, marginTop: 5 }}>医学知识沉淀与分级审批入库。</div>
+        </div>
         {canWrite && (
           <Dropdown
             menu={{ items: [{ key: "doc", label: "新增文档", onClick: () => { setEditingDoc(null); form.resetFields(); setModalOpen(true); } }] }}
           >
-            <Button type="primary" icon={<PlusOutlined />}>新增文档 <DownOutlined /></Button>
+            <button className="lv-btn lv-btn--primary" type="button"><PlusOutlined /> 新增文档 <DownOutlined /></button>
           </Dropdown>
         )}
       </div>
@@ -422,7 +417,7 @@ export default function KnowledgeBase() {
             label="正文"
             rules={[{ required: true, message: "请输入正文" }]}
           >
-            <Input.TextArea rows={8} placeholder="文档内容..." />
+            <VoiceTextArea rows={8} placeholder="文档内容..." />
           </Form.Item>
           <Form.Item name="tags" label="标签">
             <Select

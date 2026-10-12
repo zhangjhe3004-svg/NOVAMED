@@ -65,6 +65,13 @@ def register_builtin_plugins(mgr: PluginManager) -> None:
     from ..api.acl import router as acl_router
     from ..api.biz_workflow import router as wf_router
     from ..api.schedule import router as schedule_router
+    from ..api.supervision import router as supervision_router
+    from ..api.pharmacy import router as pharmacy_router
+    from ..api.billing import router as billing_router
+    from ..api.labtest import router as labtest_router
+    from ..api.analytics import router as analytics_router
+    from ..api.tasks import router as tasks_router
+    from ..api.roles import router as roles_router
 
     definitions = [
         ("auth", "认证", "登录/注册/重置密码/JWT 令牌", auth.router),
@@ -81,6 +88,13 @@ def register_builtin_plugins(mgr: PluginManager) -> None:
         ("acl", "数据权限", "角色×集合×动作×行范围 的数据权限规则", acl_router),
         ("workflow", "业务工作流", "通用流程引擎：请假审批等（区别于 AI 诊断工作流）", wf_router),
         ("schedule", "号源排班", "医生号源排班与真实放号/扣号（对接预约挂号）", schedule_router),
+        ("supervision", "下级审阅", "上级分配下级医生 / 查看与审阅责任链内下级就诊记录", supervision_router),
+        ("pharmacy", "药房管理", "药品库存 CRUD/库存预警/入库出库调整", pharmacy_router),
+        ("billing", "财务收费", "收费记录 CRUD/收费统计/退费", billing_router),
+        ("labtest", "检查检验", "检查项目 CRUD/状态流转/结果录入/统计", labtest_router),
+        ("analytics", "运营数据", "患者/就诊/预约/收费/检查多维运营指标聚合", analytics_router),
+        ("tasks", "定时任务", "任务 CRUD/后台调度执行/站内提醒", tasks_router),
+        ("roles", "角色管理", "角色 CRUD/菜单授权/权限矩阵数据源（sys_roles + sys_role_menus）", roles_router),
     ]
 
     state = _load_state()

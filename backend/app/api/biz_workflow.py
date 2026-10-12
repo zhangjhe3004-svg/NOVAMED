@@ -53,3 +53,13 @@ def approve(iid: int, comment: str = "", user: User = Depends(get_current_user),
 def reject(iid: int, comment: str = "", user: User = Depends(get_current_user),
            db: Session = Depends(get_employee_db)):
     return wf.reject(db, iid, user.id, comment)
+
+
+@router.post("/cancel-by-row")
+def cancel_by_row(payload: dict, user: User = Depends(get_current_user),
+                  db: Session = Depends(get_employee_db)):
+    """申请人撤回自己的申请：按 def_key + row_id 定位实例（管理员可撤任意实例）"""
+    inst = wf.cancel_by_row(db, payload.get("def_key", ""), int(payload.get("row_id", 0)),
+                            user.id, is_admin=(user.role == "admin"),
+                            comment=payload.get("comment", ""))
+    return inst or {"detail": "no-instance"}

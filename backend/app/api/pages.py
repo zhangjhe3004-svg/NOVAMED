@@ -6,14 +6,14 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from ..core.database import get_employee_db
-from ..core.dependencies import require_admin
+from ..core.dependencies import require_admin, get_current_user
 from ..models.workspace import PageSchemaModel
 
 router = APIRouter(prefix="/api/pages", tags=["低代码页面"])
 
 
 @router.get("")
-def list_pages(_=Depends(require_admin), db: Session = Depends(get_employee_db)):
+def list_pages(_=Depends(get_current_user), db: Session = Depends(get_employee_db)):
     items = db.query(PageSchemaModel).order_by(PageSchemaModel.id.asc()).all()
     return {"items": [
         {"id": p.id, "name": p.name, "title": p.title, "schema": json.loads(p.schema_json or "{}"),

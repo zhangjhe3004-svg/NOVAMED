@@ -1,24 +1,14 @@
-# scripts — 脚本实现
+# 脚本目录说明
 
-Windows 双击入口在 [bat](../bat/README.md)，本目录存放底层实现，按用途分为两个子目录。
+本目录存放根级辅助脚本与历史归档工具：
 
-## dev — 开发与诊断
+- `scan_dead_buttons.py`（原 frontend/scripts）：扫描前端「无 onClick 且无代理组件」的死按钮，可重复运行
+- `.tmp_rewrite_ai.py`（归档）：历史 AI 模块改写工具，仅存档，勿在生产使用
+- `database/` `dev/`：数据库与开发辅助脚本
 
-| 文件 | 功能 |
-| --- | --- |
-| `doctor.py` | 系统诊断命令（运行时 / 依赖 / 构建 / 端口 / 数据 / 配置 / 依赖服务 / 进程探活） |
-| `select_free_port.ps1` | 自动挑选空闲端口并输出分配结果（供端口工具调用） |
+后端一次性数据脚本（用户增删/种子数据）已归档至 `backend/scripts/`：
+`_add_deputies.py`、`_del_demo.py`、`_del_patient.py`、`_delete_users.py`、`_dl_icons.py`、
+`_find_users.py`、`_inspect_dept.py`、`_list_users.py`、`seed_admin_doctors.py`、
+`seed_default_patient_records.py`、`seed_departments_schedules.py`、`seed_dept_members.py`、`seed_week_schedule.py`。
 
-## database — 数据库脚本
-
-| 文件 | 功能 |
-| --- | --- |
-| `init_databases.py` | 初始化双数据库（patient.db / employee.db） |
-
-## 使用
-
-```bash
-python scripts\dev\doctor.py                       # 运行诊断
-python scripts\database\init_databases.py          # 初始化数据库
-powershell -File scripts\dev\select_free_port.ps1  # 一键切换端口
-```
+> 注意：`backend/data/` 为遗留旧库目录，真实数据库在 `backend/db/`，请勿读写 data/。

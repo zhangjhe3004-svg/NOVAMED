@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MediCode 附近互传 · UI 预览</title>
+<style>
+  :root { --blue:#2563eb; --ink:#1f2d3d; --muted:#8996a8; --line:#e5eefb; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:"Microsoft YaHei",system-ui,-apple-system,Segoe UI,sans-serif; background:#f4f7fb; color:var(--ink); }
+  header { padding:20px 32px; background:#fff; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; }
+  header h1 { font-size:19px; margin:0; }
+  header .sub { font-size:12px; color:var(--muted); margin-top:4px; }
+  .badge-lv { display:inline-block; font-size:11px; padding:2px 8px; border-radius:10px; color:#fff; }
+  .layout { display:flex; gap:22px; padding:26px 32px; flex-wrap:wrap; align-items:flex-start; }
+  .radar { flex:1 1 620px; min-width:560px; background:#fff; border-radius:18px; border:1px solid var(--line); padding:12px; position:relative; }
+  .radar-box { position:relative; width:600px; height:600px; margin:0 auto; border-radius:50%;
+    background:radial-gradient(circle at center,#eef4ff 0%,#f7fafc 52%,#fff 100%); overflow:hidden; }
+  .radar-box::before { content:""; position:absolute; inset:60px; border-radius:50%; border:1px dashed #c8d8f0; }
+  .radar-box::after { content:""; position:absolute; inset:150px; border-radius:50%; border:1px dashed #dbe6f7; }
+  .node { position:absolute; transform:translate(-50%,-50%); text-align:center; cursor:pointer; z-index:3; }
+  .node .avatar { width:52px; height:52px; border-radius:50%; background:#fff; margin:0 auto; display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:600; color:#fff; box-shadow:0 8px 20px rgba(37,99,235,.22); }
+  .node .name { font-size:12px; font-weight:600; margin-top:5px; white-space:nowrap; max-width:100px; overflow:hidden; text-overflow:ellipsis; }
+  .node .dept { font-size:10px; color:var(--muted); white-space:nowrap; max-width:100px; overflow:hidden; text-overflow:ellipsis; }
+  .node .tag { margin-top:3px; font-size:10px; padding:1px 7px; border-radius:9px; }
+  .tag.up { background:#e6f0ff; color:#2563eb; } .tag.down { background:#e6f7f1; color:#12806b; }
+  .center-node .avatar { width:86px; height:86px; font-size:32px; background:#2563eb; box-shadow:0 12px 28px rgba(37,99,235,.38); }
+  .center-node .name { font-size:15px; }
+  .panel { flex:1 1 360px; min-width:320px; background:#fff; border-radius:18px; border:1px solid var(--line); padding:20px; }
+  .panel h3 { margin:0 0 12px; font-size:15px; }
+  .data-item { border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:10px; cursor:grab; background:#fafcff; transition:.15s; }
+  .data-item:hover { border-color:#bcd2ff; box-shadow:0 4px 12px rgba(37,99,235,.10); }
+  .data-item .t { font-size:13px; font-weight:600; }
+  .data-item .d { font-size:11px; color:var(--muted); margin-top:3px; }
+  .data-item.msg { text-align:center; padding:14px; background:#eef4ff; border-color:#d7e5ff; }
+  .modal-mask { position:fixed; inset:0; background:rgba(20,30,50,.45); display:none; align-items:center; justify-content:center; z-index:50; }
+  .modal { width:400px; background:#fff; border-radius:16px; padding:22px; box-shadow:0 20px 50px rgba(0,0,0,.25); }
+  .modal h3 { margin:0 0 6px; font-size:16px; }
+  .modal .peer-line { font-size:13px; color:var(--muted); margin-bottom:14px; }
+  .ops { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .op { border:1px solid var(--line); border-radius:10px; padding:12px; text-align:center; cursor:pointer; font-size:13px; }
+  .op:hover { background:#eef4ff; border-color:#bcd2ff; }
+  .op .ico { font-size:20px; display:block; margin-bottom:4px; }
+  .btn { background:var(--blue); color:#fff; border:none; border-radius:8px; padding:8px 14px; cursor:pointer; }
+  .btn.ghost { background:#fff; color:var(--blue); border:1px solid var(--blue); }
+  .toast { position:fixed; left:50%; bottom:30px; transform:translateX(-50%); background:#1f2d3d; color:#fff; padding:10px 18px; border-radius:20px; font-size:13px; opacity:0; transition:.3s; z-index:99; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>员工协同 · 附近互传</h1>
+    <div class="sub">仅显示责任链内同事（上级 / 下级），数字越大权限级别越高 · 类三星「附近设备」交互</div>
+  </div>
+  <button class="btn" onclick="refresh()">↻ 刷新</button>
+</header>
+
+<div class="layout">
+  <div class="radar">
+    <div class="radar-box" id="radar"></div>
+  </div>
+
+  <aside class="panel">
+    <h3>可传输数据（拖拽到同事气泡）</h3>
+    <div id="dataList"></div>
+    <div class="data-item msg" draggable="true" data-item='{"item_type":"message","item_title":"快速消息"}'>
+      ✉ 拖拽发送快速消息
+    </div>
+  </aside>
+</div>
+
+<div class="modal-mask" id="mask" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <h3 id="mTitle">传输数据</h3>
+    <div class="peer-line" id="mSub"></div>
+    <div class="ops">
+      <div class="op" onclick="doOp('message')"><span class="ico">💬</span>发送消息</div>
+      <div class="op" onclick="doOp('record')"><span class="ico">📋</span>传输就诊记录</div>
+      <div class="op" onclick="doOp('request')"><span class="ico">🔍</span>请求就诊记录</div>
+      <div class="op" onclick="doOp('profile')"><span class="ico">👤</span>查看档案</div>
+    </div>
+    <div style="margin-top:16px;display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn ghost" onclick="closeModal()">取消</button>
+      <button class="btn" onclick="sendNow()">确认发送</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const LEVEL_COLORS = {1:"#94a3b8",2:"#5eead4",3:"#60a5fa",4:"#818cf8",5:"#a78bfa",6:"#f59e0b",7:"#fb923c",8:"#ef4444",9:"#7f1d1d"};
+  const peers = [
+    {id:2,name:"张主任",dept:"心内科",level:6,rel:"上级"},
+    {id:3,name:"王医生",dept:"心内科",level:3,rel:"下级"},
+    {id:4,name:"李护士长",dept:"护理部",level:4,rel:"下级"},
+    {id:5,name:"刘医生",dept:"急诊科",level:3,rel:"下级"},
+    {id:6,name:"赵药师",dept:"药房",level:2,rel:"下级"},
+    {id:7,name:"孙院长",dept:"院办",level:8,rel:"上级"},
+    {id:8,name:"陈主管",dept:"信息科",level:5,rel:"上级"},
+    {id:9,name:"周护士",dept:"护理部",level:2,rel:"下级"},
+  ];
+  const records = [
+    {id:1201,patient:301,diag:"高血压二级，需定期复查"},
+    {id:1198,patient:278,diag:"Ⅱ型糖尿病，血糖控制中"},
+    {id:1185,patient:255,diag:"冠心病，术后随访"},
+  ];
+  let currentPeer = null;
+
+  function orbit(count){
+    const cx=300, cy=300, r=215;
+    return Array.from({length:count},(_,i)=>{const a=(i/count)*Math.PI*2-Math.PI/2; return {x:cx+r*Math.cos(a), y:cy+r*Math.sin(a)};});
+  }
+
+  function render(){
+    const box=document.getElementById("radar");
+    box.innerHTML = '';
+    const c = document.createElement("div");
+    c.className="node center-node";
+    c.style.left="300px"; c.style.top="300px";
+    c.innerHTML = '<div class="avatar">我</div><div class="name">当前员工</div><div class="tag up">L4 · 我</div>';
+    box.appendChild(c);
+
+    const pos=orbit(peers.length);
+    peers.forEach((p,i)=>{
+      const n=document.createElement("div");
+      n.className="node";
+      n.style.left=pos[i].x+"px"; n.style.top=pos[i].y+"px";
+      n.draggable=false;
+      n.innerHTML = '<div class="avatar" style="background:'+(LEVEL_COLORS[p.level]||"#94a3b8")+'">'+p.name[0]+'</div>'
+        +'<div class="name">'+p.name+'</div><div class="dept">'+p.dept+'</div>'
+        +'<div class="tag '+(p.rel==="上级"?"up":"down")+'">'+(p.rel==="上级"?"▲":"▼")+' L'+p.level+'</div>';
+      n.onclick=()=>openModal(p,null);
+      n.ondragover=(e)=>e.preventDefault();
+      n.ondrop=(e)=>{ e.preventDefault(); const raw=e.dataTransfer.getData("text/plain"); let pre=null; try{pre=raw?JSON.parse(raw):null;}catch(_){}
+        openModal(p,pre); };
+      box.appendChild(n);
+    });
+  }
+
+  function renderData(){
+    const dl=document.getElementById("dataList");
+    dl.innerHTML='';
+    records.forEach(r=>{
+      const d=document.createElement("div");
+      d.className="data-item"; d.draggable=true;
+      d.innerHTML='<div class="t">就诊记录 #'+r.id+'（患者 #'+r.patient+'）</div><div class="d">'+r.diag+'</div>';
+      d.ondragstart=(e)=>e.dataTransfer.setData("text/plain", JSON.stringify({item_type:"record",item_title:"就诊记录 #"+r.id,record_id:r.id}));
+      dl.appendChild(d);
+    });
+  }
+
+  function openModal(p, pre){
+    currentPeer=p;
+    document.getElementById("mTitle").textContent = "向 "+p.name+" 传输数据";
+    document.getElementById("mSub").textContent = p.dept+" · 权限级别 L"+p.level+" · "+p.rel;
+    document.getElementById("mask").style.display="flex";
+    if(pre) setTimeout(()=>sendNow(pre), 250);
+  }
+  function closeModal(){ document.getElementById("mask").style.display="none"; currentPeer=null; }
+  function doOp(t){ sendNow({item_type:t}); }
+  function sendNow(pre){
+    const p=currentPeer; if(!p) return;
+    const types={message:"发送消息",record:"传输就诊记录",request:"请求就诊记录",profile:"查看档案"};
+    const t=(pre&&pre.item_type)||"message";
+    toast("已向 "+p.name+" "+types[t]+"（仅限责任链内，已写入审计日志）");
+    closeModal();
+  }
+  function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.style.opacity="1"; setTimeout(()=>t.style.opacity="0",2200); }
+  function refresh(){ render(); renderData(); toast("已刷新责任链同事与可传输数据"); }
+
+  render(); renderData();
+</script>
+</body>
+</html>

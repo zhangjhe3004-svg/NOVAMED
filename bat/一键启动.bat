@@ -1,90 +1,113 @@
 @echo off
 setlocal enabledelayedexpansion
-chcp 65001 >nul
-title MediCode ä¸€é”®å¯åŠ¨
+title MediCode Ò»¼üÆô¶¯
 
-REM é¡¹ç›®æ ¹ç›®å½•ï¼ˆæœ¬è„šæœ¬ä½äºŽ bat\ ä¸‹ï¼‰
+REM ÏîÄ¿¸ùÄ¿Â¼£¨±¾½Å±¾Î»ÓÚ bat\ ÏÂ£©
 cd /d "%~dp0.."
 
 echo ============================================
-echo   MediCode ä¸€é”®å¯åŠ¨
-echo   å½“å‰ç›®å½•: %CD%
+echo   MediCode Ò»¼üÆô¶¯
+echo   µ±Ç°Ä¿Â¼: %CD%
 echo ============================================
 echo.
 
-REM ç›®å½•æ ¡éªŒ
+REM Ä¿Â¼Ð£Ñé
 if not exist "backend" (
-    echo [é”™è¯¯] æœªæ‰¾åˆ° backend ç›®å½•
+    echo [´íÎó] Î´ÕÒµ½ backend Ä¿Â¼
     pause & exit /b 1
 )
 if not exist "frontend" (
-    echo [é”™è¯¯] æœªæ‰¾åˆ° frontend ç›®å½•
+    echo [´íÎó] Î´ÕÒµ½ frontend Ä¿Â¼
     pause & exit /b 1
 )
-echo [OK] ç›®å½•æ£€æŸ¥é€šè¿‡
+echo [OK] Ä¿Â¼¼ì²éÍ¨¹ý
 echo.
 
-REM è‡ªåŠ¨æ£€æµ‹ç«¯å£å ç”¨ï¼ˆè¢«å ç”¨åˆ™ +1ï¼‰
-echo [ä¿¡æ¯] æ£€æµ‹ç«¯å£å ç”¨...
-netstat -ano | findstr :18001 >nul 2>&1
-if errorlevel 0 ( set BACKEND_PORT=18002 ) else ( set BACKEND_PORT=18001 )
-netstat -ano | findstr :3051 >nul 2>&1
-if errorlevel 0 ( set STAFF_PORT=3052 ) else ( set STAFF_PORT=3051 )
-netstat -ano | findstr :3005 >nul 2>&1
-if errorlevel 0 ( set PATIENT_PORT=3006 ) else ( set PATIENT_PORT=3005 )
+REM ÇåÀí¾ÉµÄ MediCode ·þÎñ½ø³Ì£¨±ÜÃâ¶Ë¿Ú³åÍ»/ÖØ¸´Æô¶¯£©
+echo [ÐÅÏ¢] ÕýÔÚÍ£Ö¹¾ÉµÄ MediCode ·þÎñ½ø³Ì...
+powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\dev\stop_services.ps1"
+echo.
+
+REM ×Ô¶¯¼ì²â¿ÕÏÐ¶Ë¿Ú£¬²¢¸üÐÂÇ°ºó¶ËÅäÖÃ
+echo [ÐÅÏ¢] ÕýÔÚ×Ô¶¯¼ì²â¿ÕÏÐ¶Ë¿Ú²¢¸üÐÂÅäÖÃ...
+powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\dev\select_free_port.ps1"
+if errorlevel 1 (
+    echo [´íÎó] ¶Ë¿Ú¼ì²âÊ§°Ü
+    pause & exit /b 1
+)
+
+REM ¶ÁÈ¡·ÖÅäµ½µÄ¶Ë¿Ú
+if exist "backend\.ports" (
+    for /f "usebackq tokens=1,2 delims==" %%a in ("backend\.ports") do set "%%a=%%b"
+) else (
+    set BACKEND_PORT=18001
+    set STAFF_PORT=3051
+    set PATIENT_PORT=3005
+)
 
 echo ============================================
-echo   ç«¯å£åˆ†é…
-echo   [åŽç«¯]   http://localhost:%BACKEND_PORT%/docs
-echo   [å‘˜å·¥ç«¯] http://localhost:%STAFF_PORT%
-echo   [æ‚£è€…ç«¯] http://localhost:%PATIENT_PORT%
+echo   ¶Ë¿Ú·ÖÅä
+echo   [ºó¶Ë]   http://localhost:%BACKEND_PORT%/docs
+echo   [Ô±¹¤¶Ë] http://localhost:%STAFF_PORT%
+echo   [»¼Õß¶Ë] http://localhost:%PATIENT_PORT%
 echo ============================================
 echo.
 
-REM æ¸…ç† Vite ç¼“å­˜
-echo [ä¿¡æ¯] æ¸…ç† Vite ç¼“å­˜...
+REM ÇåÀí Vite »º´æ
+echo [ÐÅÏ¢] ÇåÀí Vite »º´æ...
 if exist "frontend\node_modules\.vite" (
     rmdir /s /q "frontend\node_modules\.vite" 2>nul
-    echo [OK] Vite ç¼“å­˜å·²æ¸…ç†
+    echo [OK] Ô±¹¤¶Ë Vite »º´æÒÑÇåÀí
 ) else (
-    echo [OK] Vite ç¼“å­˜ä¸å­˜åœ¨ï¼Œè·³è¿‡
+    echo [OK] Ô±¹¤¶Ë Vite »º´æ²»´æÔÚ£¬Ìø¹ý
+)
+if exist "frontend\node_modules\.vite-patient" (
+    rmdir /s /q "frontend\node_modules\.vite-patient" 2>nul
+    echo [OK] »¼Õß¶Ë Vite »º´æÒÑÇåÀí
 )
 echo.
 
-REM æ›´æ–°åŽç«¯ç«¯å£ä¸Ž CORS é…ç½®
-echo [ä¿¡æ¯] æ›´æ–°åŽç«¯é…ç½®...
-cd backend
-powershell -NoProfile -Command "(Get-Content app\core\config.py -Encoding UTF8) -replace 'PORT: int = \d+', 'PORT: int = %BACKEND_PORT%' -replace 'CORS_ORIGINS: list\[str\] = .*', 'CORS_ORIGINS = [\"http://localhost:%STAFF_PORT%\", \"http://localhost:%PATIENT_PORT%\"]'" | Set-Content app\core\config.py -Encoding UTF8
-cd ..
-
-echo [ä¿¡æ¯] æ›´æ–°å‰ç«¯é…ç½®...
-cd frontend
-powershell -NoProfile -Command "(Get-Content vite.config.ts -Encoding UTF8) -replace 'port: \d+', 'port: %STAFF_PORT%' -replace 'target: .*', 'target: \"http://localhost:%BACKEND_PORT%\"'" | Set-Content vite.config.ts -Encoding UTF8
-powershell -NoProfile -Command "(Get-Content vite.patient.config.ts -Encoding UTF8) -replace 'port: \d+', 'port = %PATIENT_PORT%' -replace 'target: .*', 'target: \"http://localhost:%BACKEND_PORT%\"'" | Set-Content vite.patient.config.ts -Encoding UTF8
-cd ..
+REM ÈÕÖ¾Ä¿Â¼
+if not exist "bat\logs" mkdir "bat\logs"
 
 echo ============================================
-echo   æ­£åœ¨å¯åŠ¨æœåŠ¡...
+echo   ÕýÔÚÆô¶¯·þÎñ£¨ºóÌ¨×îÐ¡»¯ÔËÐÐ£©
 echo ============================================
 echo.
 
-start "MediCode-Backend"  cmd /k "cd backend && set BACKEND_PORT=%BACKEND_PORT% && python -m uvicorn app.main:app --reload --host 127.0.0.1 --port %BACKEND_PORT%"
+REM ºó¶Ë£º0.0.0.0 ¼àÌý£¬ÊÖ»ú/¾ÖÓòÍø¿É·ÃÎÊ
+start "MediCode-Backend" /min cmd /c "cd /d %CD%\backend && set BACKEND_PORT=%BACKEND_PORT%&& python -m uvicorn app.main:app --reload --host 0.0.0.0 --port %BACKEND_PORT% > %CD%\bat\logs\backend.log 2>&1"
 timeout /t 2 /nobreak >nul
-start "MediCode-Frontend" cmd /k "cd frontend && set STAFF_PORT=%STAFF_PORT% && set BACKEND_PORT=%BACKEND_PORT% && npm run dev"
+
+REM Ô±¹¤¶ËÇ°¶Ë
+start "MediCode-Frontend" /min cmd /c "cd /d %CD%\frontend && set STAFF_PORT=%STAFF_PORT%&& set BACKEND_PORT=%BACKEND_PORT%&& npm run dev > %CD%\bat\logs\frontend.log 2>&1"
 timeout /t 2 /nobreak >nul
-start "MediCode-Patient" cmd /k "cd frontend && set PATIENT_PORT=%PATIENT_PORT% && set BACKEND_PORT=%BACKEND_PORT% && npm run dev:patient"
+
+REM »¼Õß¶ËÇ°¶Ë
+start "MediCode-Patient" /min cmd /c "cd /d %CD%\frontend && set PATIENT_PORT=%PATIENT_PORT%&& set BACKEND_PORT=%BACKEND_PORT%&& npm run dev:patient > %CD%\bat\logs\patient.log 2>&1"
+
+REM µÈ´ýÔ±¹¤¶Ë£¨Í³Ò»µÇÂ¼Ò³£©¾ÍÐ÷ºó×Ô¶¯´ò¿ªä¯ÀÀÆ÷
+echo [ÐÅÏ¢] µÈ´ýÔ±¹¤¶Ë¾ÍÐ÷£¨×î¶à 40 Ãë£©£¬ÉÔºó×Ô¶¯´ò¿ªä¯ÀÀÆ÷...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=%STAFF_PORT%; for($i=0;$i -lt 40;$i++){ try { $c=New-Object Net.Sockets.TcpClient; $r=$c.BeginConnect('127.0.0.1',$p,$null,$null); if($r.AsyncWaitHandle.WaitOne(600)){ $c.EndConnect($r); $c.Close(); break } ; $c.Close() } catch {}; Start-Sleep -Milliseconds 500 }"
+start "" "http://localhost:%STAFF_PORT%/login"
+echo [OK] ÒÑ´ò¿ªÍ³Ò»µÇÂ¼Ò³£ºhttp://localhost:%STAFF_PORT%/login
 
 echo.
 echo ============================================
-echo   å¯åŠ¨å®Œæˆï¼
+echo   Æô¶¯Íê³É£¡·þÎñÒÑÔÚºóÌ¨×îÐ¡»¯ÔËÐÐ
 echo ============================================
 echo.
-echo ç™»å½•ä¿¡æ¯:
-echo   å‘˜å·¥ç«¯: http://localhost:%STAFF_PORT%   (è´¦å·: admin/admin)
-echo   æ‚£è€…ç«¯: http://localhost:%PATIENT_PORT%
-echo   APIæ–‡æ¡£: http://localhost:%BACKEND_PORT%/docs
+echo µÇÂ¼ÐÅÏ¢:
+echo   Ô±¹¤¶Ë: http://localhost:%STAFF_PORT%   (ÕËºÅ: admin/admin)
+echo   »¼Õß¶Ë: ÒÑ²¢ÈëÔ±¹¤¶ËÍ³Ò»Èë¿Ú£¨µÇÂ¼Ò³ÇÐ»»¡¸»¼ÕßµÇÂ¼¡¹Ö±Í¨»¼Õß¹¤×÷Ì¨£©
+echo   APIÎÄµµ: http://localhost:%BACKEND_PORT%/docs
 echo.
-echo æç¤º: ç«¯å£è¢«å ç”¨æ—¶ä¼šè‡ªåŠ¨åˆ‡æ¢ï¼Œè¯·ä»¥å®žé™…æ˜¾ç¤ºç«¯å£ä¸ºå‡†ã€‚
+echo ËµÃ÷:
+echo   - Á½¸ö¶ËÒÑÍ³Ò»Èë¿Ú£ºÔ±¹¤¶ËµÇÂ¼Ò³º¬¡¸Ô±¹¤µÇÂ¼ / »¼ÕßµÇÂ¼¡¹ÇÐ»»£¬µÇÂ¼ºó¸÷×Ô½øÈë¶ÔÓ¦¹¤×÷Ì¨£¨×Ô¶¯¶ÁÈ¡¶ÔÓ¦Êý¾Ý¿â£©¡£
+echo   - ·þÎñ´°¿ÚÒÑ×îÐ¡»¯µ½ÈÎÎñÀ¸£¬×ÀÃæÖ»±£Áô±¾´°¿Ú£¬²»Ó°ÏìÆäËû²Ù×÷¡£
+echo   - ÔËÐÐÈÕÖ¾: bat\logs\backend.log / frontend.log / patient.log
+echo   - Í£Ö¹·þÎñ: Ë«»÷ bat\Ò»¼üÍ£Ö¹.bat
+echo   - ÌáÊ¾: ¶Ë¿Ú±»Õ¼ÓÃÊ±»á×Ô¶¯ÇÐ»»µ½¿ÕÏÐ¶Ë¿Ú£¬ÇëÒÔÊµ¼ÊÏÔÊ¾¶Ë¿ÚÎª×¼¡£
 echo.
-echo æŒ‰ä»»æ„é”®å…³é—­æ­¤çª—å£...
+echo °´ÈÎÒâ¼ü¹Ø±Õ´Ë´°¿Ú£¨¹Ø±Õºó·þÎñ¼ÌÐøÔÚºóÌ¨ÔËÐÐ£©...
 pause >nul

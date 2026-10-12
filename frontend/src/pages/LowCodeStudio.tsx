@@ -27,6 +27,7 @@ import { listRules, createRule } from "../api/acl";
 import { listDefs, saveDef, setDefEnabled, deleteDef } from "../api/wf";
 import type { WfDef } from "../api/wf";
 import WfInbox from "../components/dyn/WfInbox";
+import VoiceTextArea from "../components/VoiceTextArea";
 
 const { Title, Text } = Typography;
 
@@ -160,7 +161,7 @@ function DataSourceTab() {
               </Form.Item>
             </Col>
           </Row>
-          <Form.Item name="description" label="说明"><Input.TextArea rows={2} /></Form.Item>
+          <Form.Item name="description" label="说明"><VoiceTextArea rows={2} /></Form.Item>
           <Title level={5} style={{ marginTop: 4 }}>字段</Title>
           {fieldRows.map((f, i) => (
             <Row gutter={8} key={i} align="middle" style={{ marginBottom: 8 }}>
@@ -434,7 +435,7 @@ function WfTab() {
       <Modal title="新建业务工作流" open={open} onCancel={() => setOpen(false)} onOk={doCreate}>
         <Form form={form} layout="vertical" initialValues={{ node_name: "审批", assign_role: "admin" }}>
           <Form.Item name="title" label="流程名称" rules={[{ required: true }]}><Input placeholder="请假审批" /></Form.Item>
-          <Form.Item name="key" label="key（唯一）" rules={[{ required: true }]}><Input placeholder="leave_approval" /></Form.Item>
+          <Form.Item name="key" label="唯一标识（key）" rules={[{ required: true }]}><Input placeholder="leave_approval" /></Form.Item>
           <Row gutter={12}>
             <Col span={12}><Form.Item name="collection" label="触发集合"><Input placeholder="如 staff_leave" /></Form.Item></Col>
             <Col span={12}><Form.Item name="status_field" label="回写状态字段"><Input placeholder="如 status" /></Form.Item></Col>

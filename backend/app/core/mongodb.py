@@ -55,8 +55,8 @@ async def init_mongodb(url: str = None, db_name: str = None):
     _db_name = db_name or MONGODB_DB_NAME
 
     try:
-        _mongo_client = AsyncIOMotorClient(_url)
-        _sync_client = MongoClient(_url)
+        _mongo_client = AsyncIOMotorClient(_url, serverSelectionTimeoutMS=2000)
+        _sync_client = MongoClient(_url, serverSelectionTimeoutMS=2000)
         _db = _mongo_client[_db_name]
 
         # 测试连接
@@ -146,3 +146,4 @@ async def close_mongodb():
 import datetime
 import json
 from typing import List, Optional
+

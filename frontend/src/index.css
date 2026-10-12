@@ -1,34 +1,25 @@
-/* =====================================================
+﻿/* =====================================================
    MediCode — NocoBase / AntD 清爽风格（保留页面工具类）
    ===================================================== */
 
 /* ----- Design Tokens (NocoBase palette) ----- */
 :root {
-  /* Primary — AntD blue */
   --md-primary: #1677ff;
   --md-on-primary: #ffffff;
   --md-primary-container: #e6f4ff;
   --md-on-primary-container: #003eb3;
-
-  /* Success — green */
   --md-secondary: #52c41a;
   --md-on-secondary: #ffffff;
   --md-secondary-container: #f6ffed;
   --md-on-secondary-container: #237804;
-
-  /* Tertiary — purple accent */
   --md-tertiary: #722ed1;
   --md-on-tertiary: #ffffff;
   --md-tertiary-container: #f9f0ff;
   --md-on-tertiary-container: #391085;
-
-  /* Error */
   --md-error: #ff4d4f;
   --md-on-error: #ffffff;
   --md-error-container: #fff1f0;
   --md-on-error-container: #a8071a;
-
-  /* Surface */
   --md-surface: #ffffff;
   --md-surface-dim: #f0f0f0;
   --md-surface-bright: #ffffff;
@@ -37,22 +28,14 @@
   --md-surface-container: #fafafa;
   --md-surface-container-high: #f0f0f0;
   --md-surface-container-highest: #e8e8e8;
-
-  /* Background */
   --md-background: #f5f5f5;
   --md-on-background: #1f1f1f;
   --md-on-surface-variant: #6b7280;
-
-  /* Outline */
   --md-outline: #bfbfbf;
   --md-outline-variant: #e8e8e8;
-
-  /* Elevation */
   --md-elevation-1: 0 1px 2px 0 rgba(0,0,0,0.03), 0 1px 6px -1px rgba(0,0,0,0.02), 0 2px 4px 0 rgba(0,0,0,0.02);
   --md-elevation-2: 0 1px 2px 0 rgba(0,0,0,0.04), 0 2px 6px 2px rgba(0,0,0,0.03);
   --md-elevation-3: 0 4px 8px 3px rgba(0,0,0,0.04), 0 1px 3px 0 rgba(0,0,0,0.03);
-
-  /* Typography */
   --md-typescale-display: 400 57px/64px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
   --md-typescale-headline: 400 28px/36px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
   --md-typescale-title-large: 500 22px/28px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -61,4 +44,319 @@
   --md-typescale-body-medium: 400 14px/20px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
   --md-typescale-label-large: 500 14px/20px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
   --md-typescale-label-medium: 500 12px/16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+/* 表格 / 弹窗 / 表单控件的全站皮肤已迁移到 styles/scaffold-tables.css
+   （对齐 scaffold-master-main 的表格规范：表头 40px、行高 48px、单元格 16px 内边距、
+   16px 圆角面板、吸右操作列、分页器 30px 档位）。
+   原先这里的「▶ 箭头卡片化」皮肤连同它的 32px 首列缩进一起移除 ——
+   那套 padding !important 会和新的 16px 单元格内边距打架，必须删干净而不是覆盖。 */
+.ant-table {
+  background: transparent !important;
+}
+
+/* Uiverse fab button */
+.fab-btn {
+  background-color: #f2f7fa;
+  width: 70px;
+  height: 30px;
+  border: none;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  overflow: hidden;
+  position: relative;
+  transition-duration: 700ms;
+  padding: 0;
+}
+.fab-btn span {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  transition-duration: 500ms;
+  font-size: 12px;
+}
+.fab-btn span:first-child {
+  color: #0e418f;
+}
+.fab-btn span:last-child {
+  color: #b5ccf3;
+  opacity: 0;
+  transform: translate(-50%, 100%);
+}
+.fab-btn:hover, .fab-btn:focus {
+  background-color: #0e418f;
+  width: 80px;
+  height: 34px;
+}
+.fab-btn:hover span:first-child, .fab-btn:focus span:first-child {
+  color: #b5ccf3;
+  transform: translate(-50%, -150%);
+  opacity: 0;
+}
+.fab-btn:hover span:last-child, .fab-btn:focus span:last-child {
+  transform: translate(-50%, -50%);
+  opacity: 1;
+}
+.fab-btn-danger:hover, .fab-btn-danger:focus {
+  background-color: #c0392b;
+}
+
+/* =====================================================
+   号源排班页面专用样式
+   ===================================================== */
+.page-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.page-heading .eyebrow {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: #8b98aa;
+  margin-bottom: 4px;
+}
+.page-heading h1 {
+  font-size: 26px;
+  font-weight: 600;
+  color: #1b2b45;
+  margin: 0;
+}
+.page-heading .sub {
+  font-size: 13px;
+  color: #78869b;
+  margin-top: 6px;
+}
+.page-heading .actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.segmented {
+  display: inline-flex;
+  background: #f0f3f8;
+  border-radius: 8px;
+  padding: 3px;
+  gap: 2px;
+}
+.segmented button {
+  border: none;
+  padding: 6px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  background: transparent;
+  color: #6b7a8f;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+.segmented button.selected {
+  background: #fff;
+  color: #1b2b45;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+/* 统计卡片 */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+@media (max-width: 900px) {
+  .stats { grid-template-columns: repeat(2, 1fr); }
+}
+.stat {
+  background: #fff;
+  border-radius: 14px;
+  padding: 20px 22px;
+  border: 1px solid #edf1f7;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+}
+.stat-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: #78869b;
+  margin-bottom: 10px;
+}
+.stat-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  background: #eaf1ff;
+  color: #2563eb;
+}
+.stat-icon.teal { background: #e6f4f1; color: #138d85; }
+.stat-icon.gold { background: #fff7e9; color: #d6a451; }
+.stat-icon.red { background: #fff1f0; color: #c4423e; }
+.stat-icon.navy { background: #eaf1ff; color: #2563eb; }
+.stat-value {
+  font-size: 32px;
+  font-weight: 700;
+  color: #1b2b45;
+  margin-bottom: 8px;
+}
+.stat-bottom {
+  font-size: 11px;
+  color: #8b98aa;
+}
+.stat-bottom em {
+  font-style: normal;
+  color: #2563eb;
+  font-weight: 500;
+}
+.stat-bottom em.warn { color: #c4423e; }
+
+/* 面板 */
+.panel {
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid #edf1f7;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+  margin-bottom: 16px;
+}
+.panel-head {
+  padding: 18px 22px;
+  border-bottom: 1px solid #f0f3f8;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.panel-head h2 {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1b2b45;
+  margin: 0;
+}
+.panel-head small {
+  display: block;
+  margin-top: 3px;
+  font-size: 12px;
+  color: #8b98aa;
+}
+.panel-body {
+  padding: 18px 22px;
+}
+
+/* 堆叠侧栏 */
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* 迷你网格 */
+.mini-grid {
+  display: grid;
+  gap: 12px;
+}
+.mini {
+  background: #f6f8fc;
+  border-radius: 10px;
+  padding: 14px;
+  text-align: center;
+}
+.mini small {
+  display: block;
+  font-size: 11px;
+  color: #8b98aa;
+  margin-bottom: 6px;
+}
+.mini b {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1b2b45;
+}
+.mini b span {
+  font-size: 12px;
+  font-weight: 400;
+  color: #8b98aa;
+  margin-left: 3px;
+}
+
+/* 列表 */
+.list {
+  padding: 0;
+}
+.list-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 22px;
+  border-bottom: 1px solid #f0f3f8;
+  transition: background 0.15s;
+}
+.list-item:hover {
+  background: #f6f8fc;
+}
+.list-item strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: #1b2b45;
+}
+.list-item p {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: #8b98aa;
+}
+
+/* 头像 */
+.avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  flex-shrink: 0;
+}
+.avatar.sq {
+  border-radius: 9px;
+}
+.avatar.teal {
+  background: linear-gradient(135deg, #138d85, #2bb5a0);
+}
+
+/* 徽标 */
+.badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.badge.green { background: #e6f4f1; color: #138d85; }
+.badge.amber { background: #fff7e9; color: #b88c38; }
+.badge.red { background: #fff1f0; color: #c4423e; }
+
+/* 提示条 */
+.note {
+  font-size: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+}
+.note.red { background: #fff1f0; color: #a92e2a; }
+
+/* 语音转文字：麦克风监听脉冲动画 */
+@keyframes wb-voice-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.25); opacity: 0.6; }
 }

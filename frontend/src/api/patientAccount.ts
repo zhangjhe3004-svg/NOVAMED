@@ -34,3 +34,11 @@ export async function getPatientAccounts(params: { page?: number; page_size?: nu
   const res = await api.get("/patient-accounts", { params });
   return res.data;
 }
+
+export async function deletePatientAccount(id: number): Promise<any> {
+  const res = await api.delete(`/patient-accounts/${id}`); return res.data;
+}
+
+export async function updatePatientAccount(id: number, payload: any): Promise<any> {
+  const res = await api.put(`/patient-accounts/${id}`, payload); return res.data;
+}

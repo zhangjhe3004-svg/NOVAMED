@@ -1,227 +1,123 @@
 /**
- * 患者自助服务端（预约挂号平台）—— 参考「XX市预约挂号统一平台」截图
- * 独立于员工系统，公开访问。功能为示例数据（医院/号源等需后端+第三方对接）。
+ * 患者自助服务端（公开门户）—— 对齐 docs/设计预览/patient.html 的青绿色「MediCode 健康」设计
+ * 独立于员工系统，公开访问，引导登录 / 注册后进入患者工作台。
  */
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Input, Tag, Button, Row, Col, Space, Typography, Card, Avatar, Drawer, Form, Select, message, Table } from "antd";
+import { Typography, Button, Row, Col, Space } from "antd";
 import {
   MedicineBoxOutlined, CommentOutlined, FileSearchOutlined, RobotOutlined,
-  CalendarOutlined, FileTextOutlined, VideoCameraOutlined, FormOutlined, TeamOutlined,
-  ExperimentOutlined, ClusterOutlined, EnvironmentOutlined,
+  CalendarOutlined, FileTextOutlined, VideoCameraOutlined, FormOutlined,
+  TeamOutlined, ExperimentOutlined, ClusterOutlined, RightOutlined,
+  LockOutlined, UserOutlined, SafetyCertificateOutlined,
 } from "@ant-design/icons";
-import { createAppointment, queryAppointments, checkinAppointment } from "../api/appointment";
 
-const { Text } = Typography;
+const { Text, Title } = Typography;
 
 const services = [
-  { icon: <FormOutlined />, name: "科室挂号", color: "#1677ff" },
-  { icon: <MedicineBoxOutlined />, name: "在线问诊", color: "#36cfc9" },
-  { icon: <FileSearchOutlined />, name: "报告查询", color: "#2f54eb" },
-  { icon: <RobotOutlined />, name: "智能导诊", color: "#722ed1", badge: "新" },
-  { icon: <CalendarOutlined />, name: "体检预约", color: "#13c2c2" },
-  { icon: <ClusterOutlined />, name: "我的订单", color: "#fa8c16" },
-  { icon: <VideoCameraOutlined />, name: "影像查询", color: "#1677ff" },
-  { icon: <CommentOutlined />, name: "报告咨询", color: "#13c2c2" },
-  { icon: <TeamOutlined />, name: "候诊排队", color: "#2f54eb" },
-  { icon: <ExperimentOutlined />, name: "疫苗接种", color: "#52c41a" },
-  { icon: <FileTextOutlined />, name: "在线开药", color: "#1677ff" },
+  { icon: <FormOutlined />, name: "科室挂号", desc: "选择科室与时段", color: "#27857d" },
+  { icon: <MedicineBoxOutlined />, name: "在线问诊", desc: "图文咨询医生", color: "#4c86c8" },
+  { icon: <FileSearchOutlined />, name: "报告查询", desc: "查看检验报告", color: "#c3a267" },
+  { icon: <RobotOutlined />, name: "智能导诊", desc: "症状智能分诊", color: "#7b7bd0" },
+  { icon: <CalendarOutlined />, name: "体检预约", desc: "套餐在线预约", color: "#4fae9c" },
+  { icon: <ClusterOutlined />, name: "我的订单", desc: "订单与缴费", color: "#d09a4d" },
+  { icon: <VideoCameraOutlined />, name: "影像查询", desc: "影像报告浏览", color: "#4c86c8" },
+  { icon: <CommentOutlined />, name: "报告咨询", desc: "专家解读报告", color: "#4fae9c" },
 ];
 
-const hospitals = [
-  { name: "北京医院", grade: "三甲", tags: ["候补挂号", "候诊排队"], dept: "重点科室：内科，外科", area: "东城区", logo: "京" },
-  { name: "北京大学人民医院", grade: "三甲", tags: ["候补挂号", "候诊排队"], dept: "重点科室：内科，外科，超声医学科门…", area: "西城区", logo: "人" },
-  { name: "北京大学第一医院", grade: "三甲", tags: ["候补挂号", "候诊排队"], dept: "重点科室：临检中心，呼吸内科，西药", area: "西城区", logo: "一" },
-  { name: "首都医科大学附属北京朝阳医院", grade: "三甲", tags: ["候补挂号"], dept: "重点科室：呼吸科，心内科", area: "朝阳区", logo: "朝" },
-  { name: "中国医学科学院阜外医院", grade: "三甲", tags: ["候补挂号"], dept: "重点科室：心血管内科", area: "西城区", logo: "阜" },
+const features = [
+  { icon: <SafetyCertificateOutlined />, title: "数据隔离", desc: "每位患者数据相互隔离，仅本人可见" },
+  { icon: <CalendarOutlined />, title: "号源实时", desc: "号源实时扣减，先到先得" },
+  { icon: <FileTextOutlined />, title: "记录归档", desc: "就诊记录自动归档，随时可查" },
 ];
 
 export default function PatientPortal() {
   const navigate = useNavigate();
-  const [kw, setKw] = useState("");
-
-  const list = hospitals.filter((h) => (h.name + h.dept).includes(kw));
-
-  const [bookingOpen, setBookingOpen] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [bookForm] = Form.useForm();
-  const bookingDoctors = [
-    { id: 2, name: "张医生（内科 · 主治医师）" },
-    { id: 3, name: "李医生（外科 · 副主任医师）" },
-  ];
-  const hospitalOptions = ["北京医院", "北京大学人民医院", "北京大学第一医院"];
-  const deptOptions = ["内科", "外科", "儿科", "呼吸科", "心血管内科"];
-  const timeOptions = ["08:00-09:00", "09:00-10:00", "10:00-11:00", "14:00-15:00", "15:00-16:00"];
-
-  const openBooking = () => setBookingOpen(true);
-  const submitBooking = async (v: any) => {
-    setSubmitting(true);
-    try {
-      await createAppointment({ ...v, doctor_id: v.doctor_id });
-      message.success("挂号成功！医生将收到您的挂号信息");
-      setBookingOpen(false);
-      bookForm.resetFields();
-    } catch (e: any) {
-      message.error(e.response?.data?.detail || "挂号失败");
-    } finally { setSubmitting(false); }
-  };
-
-  const [myOpen, setMyOpen] = useState(false);
-  const [myPhone, setMyPhone] = useState("");
-  const [myList, setMyList] = useState<any[]>([]);
-  const [myLoading, setMyLoading] = useState(false);
-  const queryMy = async () => {
-    if (!myPhone.trim()) { message.warning("请输入手机号"); return; }
-    setMyLoading(true);
-    try { const r = await queryAppointments(myPhone.trim()); setMyList(r.items || []); } catch { /* 忽略 */ } finally { setMyLoading(false); }
-  };
-  const doCheckin = async (id: number) => {
-    try { await checkinAppointment(id); message.success("已报到，请候诊"); queryMy(); } catch { /* 忽略 */ }
-  };
 
   return (
-    <div style={{ maxWidth: 720, margin: "0 auto", background: "#f5f5f5", minHeight: "100vh", paddingBottom: 24 }}>
-      {/* 顶部品牌栏 */}
-      <div style={{ background: "#000", color: "#fff", textAlign: "center", padding: "10px 16px", position: "relative" }}>
-        <Text strong style={{ color: "#fff", fontSize: 17 }}>XX市预约挂号统一平台</Text>
-        <div style={{ fontSize: 11, color: "#ccc" }}>www.114yygh.com</div>
-        <span style={{ position: "absolute", left: 12, top: 14, fontSize: 18, color: "#fff" }} onClick={() => navigate("/")}>✕</span>
-        <span style={{ position: "absolute", right: 12, top: 14, fontSize: 18, color: "#fff" }}>⋯</span>
-      </div>
-
-      {/* 关怀版 + 个人中心 */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", background: "#fff" }}>
-        <Space size={8}>
-          <Tag style={{ borderRadius: 20, padding: "2px 14px", color: "#1677ff", background: "#e6f4ff", border: "none" }}>关怀版</Tag>
-          <Button size="small" type="text" onClick={() => setMyOpen(true)}>我的挂号</Button>
-          <Button size="small" type="text" onClick={() => navigate("/register")}>欢迎注册</Button>
+    <div style={{ minHeight: "100vh", background: "#f4f8f8" }}>
+      {/* 顶部导航（对齐 patient.html 的白色 header） */}
+      <div style={{ height: 86, background: "#fff", borderBottom: "1px solid #e5eeef", display: "flex", alignItems: "center", padding: "0 max(30px, calc((100vw - 1140px)/2))", gap: 30 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+          <div style={{ width: 33, height: 35, background: "#27857d", borderRadius: 10, display: "grid", placeItems: "center", color: "#fff", fontSize: 27 }}>+</div>
+          <div style={{ fontSize: 23, fontWeight: 650, color: "#243e59", lineHeight: 1 }}>
+            MediCode 健康
+            <div style={{ fontSize: 10, color: "#8da8a7", fontWeight: 400, letterSpacing: 1, marginTop: 3 }}>患者服务平台</div>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 26, marginLeft: 34, height: "100%", alignItems: "center", flex: 1 }}>
+          {["首页", "预约挂号", "就诊记录", "个人中心"].map((n, i) => (
+            <button key={n} onClick={() => i === 0 ? navigate("/") : navigate("/login")} style={{ height: "100%", border: 0, background: "none", cursor: "pointer", fontSize: 13, color: i === 0 ? "#27857d" : "#819695", fontWeight: i === 0 ? 600 : 400, position: "relative" }}>
+              {n}
+              {i === 0 && <span style={{ position: "absolute", height: 3, background: "#27857d", left: 0, right: 0, bottom: 0, borderRadius: 4 }} />}
+            </button>
+          ))}
+        </div>
+        <Space>
+          <Button type="text" icon={<UserOutlined />} onClick={() => navigate("/login")} style={{ color: "#4f6f6d" }}>登录</Button>
+          <Button type="primary" icon={<LockOutlined />} onClick={() => navigate("/register")} style={{ background: "#27857d", borderColor: "#27857d" }}>注册</Button>
         </Space>
-        <Button type="primary" shape="round" size="small" onClick={() => navigate("/patient-console")}>个人中心：去登录</Button>
       </div>
 
-      {/* 搜索 */}
-      <div style={{ padding: "0 16px", background: "#fff" }}>
-        <Input size="large" prefix={<SearchOutlined />} placeholder="搜索医院/科室/医生" allowClear
-          value={kw} onChange={(e) => setKw(e.target.value)} style={{ borderRadius: 24 }} />
-      </div>
+      {/* 主体 */}
+      <div style={{ maxWidth: 1140, margin: "38px auto 0", padding: "0 20px" }}>
+        {/* 欢迎区 */}
+        <div style={{ display: "grid", gridTemplateColumns: "1.65fr 1fr", gap: 23, marginBottom: 25 }}>
+          <div style={{ background: "#deefeb", borderRadius: 18, padding: "30px 35px", minHeight: 210, position: "relative", overflow: "hidden" }}>
+            <Title level={2} style={{ color: "#28645c", margin: "0 0 10px", fontWeight: 550, position: "relative", zIndex: 1 }}>
+              让就医更简单，<br />让关怀触手可及。
+            </Title>
+            <Text style={{ color: "#6e9991", fontSize: 12, position: "relative", zIndex: 1 }}>
+              从预约、报到到就诊记录，重要信息一处轻松管理。
+            </Text>
+            <Space style={{ marginTop: 22, position: "relative", zIndex: 1 }}>
+              <Button type="primary" size="large" icon={<RightOutlined />} onClick={() => navigate("/login")} style={{ background: "#27857d", borderColor: "#27857d" }}>立即登录体验</Button>
+              <Button size="large" onClick={() => navigate("/register")}>免费注册</Button>
+            </Space>
+          </div>
+          <div style={{ background: "#fff", border: "1px solid #e5eeef", borderRadius: 18, padding: "27px 25px" }}>
+            <Title level={5} style={{ margin: "0 0 13px" }}>就诊前准备与提醒</Title>
+            <Text style={{ color: "#8a9fa9", fontSize: 12, lineHeight: 2, display: "block" }}>
+              01 · 携带有效证件<br />
+              02 · 带上相关检查与用药清单<br />
+              03 · 就诊前确认时间、地点与号位
+            </Text>
+          </div>
+        </div>
 
-      {/* 安全标签 */}
-      <div style={{ display: "flex", gap: 14, padding: "10px 20px", fontSize: 12, color: "#1677ff", background: "#f0f7ff", margin: "10px 0 0" }}>
-        <span>☑ 市官方指定挂号平台</span>
-        <span>☑ 挂·缴·查·认</span>
-        <span>☑ 医院号源同步</span>
-      </div>
-
-      {/* 服务宫格 */}
-      <Card style={{ margin: "10px 12px", borderRadius: 16 }} bodyStyle={{ padding: "16px 8px" }}>
-        <Row gutter={[8, 8]}>
-          {services.map((s) => (
-            <Col span={5} key={s.name}>
-              <div style={{ textAlign: "center", padding: "8px 4px", cursor: "pointer" }}
-                onClick={() => ["科室挂号", "在线问诊", "候诊排队"].includes(s.name) ? openBooking() : message.info(`${s.name}（示例）`)}>
-                <div style={{ position: "relative", display: "inline-block" }}>
-                  <div style={{ width: 56, height: 56, borderRadius: 18, background: `${s.color}1a`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, color: s.color }}>
-                    {s.icon}
-                  </div>
-                  {s.badge && <span style={{ position: "absolute", top: -6, right: -6, background: "#ff4d4f", color: "#fff", fontSize: 10, borderRadius: 8, padding: "0 5px" }}>{s.badge}</span>}
-                </div>
-                <div style={{ fontSize: 13, marginTop: 6 }}>{s.name}</div>
+        {/* 核心能力 */}
+        <Row gutter={[15, 15]} style={{ marginBottom: 28 }}>
+          {features.map((f) => (
+            <Col span={8} key={f.title}>
+              <div style={{ background: "#fff", border: "1px solid #e5eeef", borderRadius: 13, padding: "22px 20px" }}>
+                <div style={{ fontSize: 26, color: "#27857d", marginBottom: 10 }}>{f.icon}</div>
+                <Text strong style={{ fontSize: 14 }}>{f.title}</Text>
+                <Text type="secondary" style={{ display: "block", fontSize: 12, marginTop: 6 }}>{f.desc}</Text>
               </div>
             </Col>
           ))}
         </Row>
-      </Card>
 
-      {/* 医院区 */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px", marginTop: 8 }}>
-        <Space size={6}>
-          <Text strong style={{ fontSize: 17 }}>全部医院</Text>
-          <Text type="secondary" style={{ fontSize: 12 }}>共 {hospitals.length} 家医院</Text>
-        </Space>
-        <Button size="small" type="text" icon={<EnvironmentOutlined />}>附近医院</Button>
+        {/* 服务快捷入口 */}
+        <Title level={4} style={{ margin: "0 0 16px", color: "#243e59" }}>常用服务</Title>
+        <Row gutter={[15, 15]} style={{ marginBottom: 28 }}>
+          {services.map((s) => (
+            <Col span={6} key={s.name}>
+              <button onClick={() => navigate("/login")} style={{ display: "flex", alignItems: "center", gap: 14, padding: "23px 20px", background: "#fff", border: "1px solid #e5eeef", borderRadius: 13, width: "100%", textAlign: "left", cursor: "pointer" }}>
+                <span style={{ width: 42, height: 44, display: "grid", placeItems: "center", borderRadius: 12, background: "#edf7f4", color: s.color, fontSize: 20 }}>{s.icon}</span>
+                <span>
+                  <span style={{ display: "block", fontSize: 13, fontWeight: 550, color: "#243e59" }}>{s.name}</span>
+                  <span style={{ display: "block", fontSize: 10, color: "#97a7b3", marginTop: 5 }}>{s.desc}</span>
+                </span>
+              </button>
+            </Col>
+          ))}
+        </Row>
+
+        {/* 底部说明 */}
+        <div style={{ textAlign: "center", padding: "16px 0 48px", color: "#8da8a7", fontSize: 12 }}>
+          MediCode 健康 · 专注每一次诊疗 · 演示环境（预约、地点及数据均为虚构）
+        </div>
       </div>
-      <div style={{ display: "flex", gap: 20, padding: "8px 16px", fontSize: 13, color: "#666" }}>
-        <span>全部区域 ▾</span>
-        <span>综合排序 ▾</span>
-        <span style={{ marginLeft: "auto" }}>筛选 ▾</span>
-      </div>
-
-      {/* 医院列表 */}
-      <div style={{ padding: "0 12px", marginTop: 8 }}>
-        {list.length === 0 ? (
-          <Card style={{ borderRadius: 16 }}><Text type="secondary" style={{ display: "block", textAlign: "center", padding: 24 }}>未找到匹配医院</Text></Card>
-        ) : list.map((h) => (
-          <Card key={h.name} style={{ borderRadius: 16, marginBottom: 10 }} bodyStyle={{ padding: "16px", display: "flex", gap: 12 }}>
-            <Avatar shape="square" size={48} style={{ background: "#f5f5f5", color: "#d4380d", fontSize: 22, fontWeight: 700, borderRadius: 10 }}>{h.logo}</Avatar>
-            <div style={{ flex: 1 }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <Text strong style={{ fontSize: 16 }}>{h.name}</Text>
-                <span style={{ color: "#1677ff", fontSize: 12 }}>挂 查 认</span>
-              </div>
-              <Space size={6} style={{ marginTop: 4 }}>
-                <Tag color="blue" style={{ borderRadius: 6 }}>{h.grade}</Tag>
-                {h.tags.map((t) => <Tag key={t} style={{ borderRadius: 6 }}>{t}</Tag>)}
-              </Space>
-              <Text type="secondary" style={{ display: "block", fontSize: 12, marginTop: 6 }}>{h.dept}</Text>
-              <Text type="secondary" style={{ display: "block", fontSize: 12 }}>{h.area}</Text>
-            </div>
-          </Card>
-        ))}
-      </div>
-
-      <div style={{ textAlign: "center", padding: "16px 0", color: "#999", fontSize: 12 }}>
-        患者自助服务端 · 示例数据（医院/号源需接入第三方或自建）
-      </div>
-
-      {/* 我的挂号 / 报到 */}
-      <Drawer title="我的挂号" width={420} open={myOpen} onClose={() => setMyOpen(false)}>
-        <Space.Compact style={{ width: "100%" }}>
-          <Input placeholder="请输入挂号时的手机号" value={myPhone} onChange={(e) => setMyPhone(e.target.value)} onPressEnter={queryMy} />
-          <Button type="primary" onClick={queryMy}>查询</Button>
-        </Space.Compact>
-        <Table rowKey="id" size="small" style={{ marginTop: 12 }} loading={myLoading} dataSource={myList} pagination={false}
-          columns={[
-            { title: "医院", dataIndex: "hospital" },
-            { title: "科室", dataIndex: "department" },
-            { title: "日期/时段", render: (_: any, r: any) => `${r.date || ""} ${r.time_slot || ""}` },
-            { title: "状态", dataIndex: "status", width: 80 },
-            { title: "报到", width: 70, render: (_: any, r: any) => <Button size="small" onClick={() => doCheckin(r.id)}>报到</Button> },
-          ]} />
-      </Drawer>
-
-      {/* 预约挂号下单流程 */}
-      <Drawer title="预约挂号" width={420} open={bookingOpen} onClose={() => setBookingOpen(false)} destroyOnClose>
-        <Form form={bookForm} layout="vertical" onFinish={submitBooking}>
-          <Form.Item name="hospital" label="医院" rules={[{ required: true }]}>
-            <Select options={hospitalOptions.map((h) => ({ value: h, label: h }))} placeholder="选择医院" />
-          </Form.Item>
-          <Form.Item name="department" label="科室" rules={[{ required: true }]}>
-            <Select options={deptOptions.map((d) => ({ value: d, label: d }))} placeholder="选择科室" />
-          </Form.Item>
-          <Form.Item name="doctor_id" label="医生" rules={[{ required: true }]}>
-            <Select options={bookingDoctors.map((d) => ({ value: d.id, label: d.name }))} placeholder="选择医生" />
-          </Form.Item>
-          <Form.Item name="date" label="日期" rules={[{ required: true }]}>
-            <Input placeholder="如 2026-09-10" />
-          </Form.Item>
-          <Form.Item name="time_slot" label="时段" rules={[{ required: true }]}>
-            <Select options={timeOptions.map((t) => ({ value: t, label: t }))} placeholder="选择时段" />
-          </Form.Item>
-          <Form.Item name="patient_name" label="患者姓名" rules={[{ required: true }]}>
-            <Input placeholder="请输入姓名" />
-          </Form.Item>
-          <Form.Item name="phone" label="联系电话" rules={[{ required: true }]}>
-            <Input placeholder="请输入手机号" />
-          </Form.Item>
-          <Form.Item name="symptoms" label="症状描述">
-            <Input.TextArea rows={3} placeholder="简述症状…" />
-          </Form.Item>
-          <Button type="primary" htmlType="submit" loading={submitting} block>提交挂号</Button>
-          <Text type="secondary" style={{ display: "block", marginTop: 8, fontSize: 12 }}>
-            挂号成功后，对应医生的「接诊」页面会收到您的患者信息与挂号信息。
-          </Text>
-        </Form>
-      </Drawer>
     </div>
   );
 }

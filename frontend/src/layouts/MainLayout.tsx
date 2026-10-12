@@ -2,51 +2,36 @@
  * 主布局 — 基于 UI 设计稿的侧边栏设计
  * 232px 侧边栏，白色背景，简洁品牌展示
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import {
   Layout,
-  Menu,
   Button,
   Dropdown,
   Avatar,
   Typography,
   Space,
   message,
-  Input,
   Popover,
+  Select,
   Badge,
   List,
   Empty,
 } from "antd";
 import {
-  DashboardOutlined,
-  UserOutlined,
-  IdcardOutlined,
-  FileTextOutlined,
-  ExperimentOutlined,
-  SettingOutlined,
-  BookOutlined,
-  TeamOutlined,
-  SafetyCertificateOutlined,
-  MedicineBoxOutlined,
+  BellOutlined,
+  DownOutlined,
   LogoutOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
-  AppstoreOutlined,
-  ToolOutlined,
-  ApiOutlined,
-  MessageOutlined,
-  FundOutlined,
-  BellOutlined,
   QuestionCircleOutlined,
-  PlusOutlined,
-  CalendarOutlined,
-  AuditOutlined,
-  NotificationOutlined,
-  ApartmentOutlined,
+  SearchOutlined,
+  SettingOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "../stores/auth";
+import { buildNavGroups, roleMeta, visibleNavGroups } from "../config/nav";
+import CommandPalette from "../components/CommandPalette";
+import { myMenus } from "../api/roles";
 import { listNotifications, markRead } from "../api/notifications";
 import type { NotificationItem } from "../api/notifications";
 import { getPendingReviewCount } from "../api/records";
@@ -54,14 +39,7 @@ import { getPendingReviewCount } from "../api/records";
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
 
-// 侧边栏菜单按「诊断流程」顺序构建（见组件内 menuItems）
-
-const roleLabels: Record<string, { text: string; color: string }> = {
-  admin: { text: "管理员", color: "#2563eb" },
-  doctor: { text: "医生", color: "#138d85" },
-  pharmacist: { text: "药剂师", color: "#722ed1" },
-  maintainer: { text: "运维", color: "#d6a451" },
-};
+// 侧边栏菜单来自 config/nav.ts，与「岗位阶梯 / 角色溯源」共用同一份数据源
 
 export default function MainLayout() {
   const [collapsed, setCollapsed] = useState(false);
@@ -74,9 +52,51 @@ export default function MainLayout() {
   const [notifUnread, setNotifUnread] = useState(0);
   const [notifOpen, setNotifOpen] = useState(false);
   const [pendingReview, setPendingReview] = useState(0);
+  const [userHover, setUserHover] = useState(false);
+  // 命令面板（⌘K / Ctrl+K）
+  const [cmdOpen, setCmdOpen] = useState(false);
 
-  const loadNotif = async () => {
-    try {
+  // 侧边栏导航容器引用 — 用于绑定鼠标滚轮滚动
+  const navRef = useRef<HTMLElement>(null);
+
+  // 全局快捷键：⌘K / Ctrl+K 开合命令面板；Esc 关闭（面板内也处理，这里兜底）
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
+        e.preventDefault();
+        setCmdOpen((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // 鼠标滚轮下拉：当侧边栏导航内容超出可视高度时，滚轮优先滚动导航本身，
+  // 到达顶部/底部边界后再放行给页面，避免整页被滚动。
+  useEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    const onWheel = (e: WheelEvent) => {
+      const { scrollTop, scrollHeight, clientHeight } = nav;
+      const atTop = scrollTop <= 0;
+      const atBottom = scrollTop + clientHeight >= scrollHeight - 1;
+      const canScrollUp = e.deltaY < 0 && !atTop;
+      const canScrollDown = e.deltaY > 0 && !atBottom;
+      if (canScrollUp || canScrollDown) {
+        e.preventDefault();
+        nav.scrollTop += e.deltaY;
+      }
+    };
+    nav.addEventListener("wheel", onWheel, { passive: false });
+    return () => nav.removeEventListener("wheel", onWheel);
+  }, []);
+
+  // 路由切换时复位滚动位置：新页面从顶部展开，配合 .md-page-enter 转场
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [location.pathname]);
+
+  const loadNotif = async () => {    try {
       const r = await listNotifications();
       setNotifItems(r.items || []);
       setNotifUnread(r.unread || 0);
@@ -87,75 +107,53 @@ export default function MainLayout() {
   useEffect(() => { loadNotif(); }, []);
   useEffect(() => {
     if (user?.role === "admin") {
-      getPendingReviewCount().then(setPendingReview).catch(() => {});
+      getPendingReviewCount().then((res) => setPendingReview(res.count)).catch(() => {});
     }
   }, [user?.role]);
 
-  const isAdmin = user?.role === "admin";
+  // 侧边栏导航：分组结构对齐原型 pages.html（仅挂接真实系统中已存在的路由，
+  // 原型有但系统尚未实现的模块先进入「建设中」占位页，避免死链）。
+  // 配置见 config/nav.ts —— 角色溯源按同一份配置下钻「角色 → 分组 → 菜单」。
+  const navGroups = buildNavGroups({ pendingReview });
 
-  // 侧边栏（按角色精简 + 重新分组）：控制台 / 诊疗 / 员工 / 知识库 / 管理(仅管理员)
-  const menuItems: any[] = [
-    { key: "/dashboard", icon: <DashboardOutlined />, label: "总览控制台" },
-    {
-      key: "medical", icon: <MedicineBoxOutlined />, label: "诊疗",
-      children: [
-        { key: "/patients", icon: <UserOutlined />, label: "患者管理" },
-        { key: "/patient-accounts", icon: <IdcardOutlined />, label: "患者档案" },
-        { key: "/lcp/medical-records", icon: <FileTextOutlined />, label: "就诊记录" },
-        { key: "/ai-assistant", icon: <ExperimentOutlined />, label: "AI 诊断" },
-        { key: "/doctor-workbench", icon: <MedicineBoxOutlined />, label: "医生工作台" },
-        { key: "/supervise-records", icon: <AuditOutlined />, label: "下级审阅" },
-      ],
-    },
-    {
-      key: "staff", icon: <TeamOutlined />, label: "员工",
-      children: [
-        { key: "/staff", icon: <TeamOutlined />, label: "员工办公" },
-        { key: "/messages", icon: <MessageOutlined />, label: "消息" },
-        { key: "staff-divider", type: "divider" },
-        { key: "/lcp/staff-announcement", icon: <NotificationOutlined />, label: "院内公告（独立页）" },
-        { key: "/lcp/staff-schedule", icon: <CalendarOutlined />, label: "排班表（独立页）" },
-        { key: "/lcp/staff-leave", icon: <AuditOutlined />, label: "请假审批（独立页）" },
-        { key: "/lcp/staff-departments", icon: <ApartmentOutlined />, label: "科室组织（独立页）" },
-      ],
-    },
-    { key: "/knowledge", icon: <BookOutlined />, label: "医学知识库" },
-    ...(isAdmin
-      ? [
-          {
-            key: "mgmt", icon: <SettingOutlined />, label: "管理",
-            children: [
-              { key: "/users", icon: <TeamOutlined />, label: "用户管理" },
-              {
-                key: "/admin-review", icon: <SafetyCertificateOutlined />,
-                label: (
-                  <Space>
-                    <span>审核中心</span>
-                    {pendingReview > 0 && <Badge count={pendingReview} size="small" />}
-                  </Space>
-                ),
-              },
-              { key: "/schedule-source", icon: <CalendarOutlined />, label: "号源排班" },
-              { key: "/lowcode", icon: <AppstoreOutlined />, label: "低代码工作台" },
-              { key: "/ai-mgmt/skills", icon: <ToolOutlined />, label: "技能管理" },
-              { key: "/ai-mgmt/mcp", icon: <ApiOutlined />, label: "MCP 管理" },
-              { key: "/ai-mgmt/conversations", icon: <MessageOutlined />, label: "会话管理" },
-              { key: "/ai-mgmt/tokens", icon: <FundOutlined />, label: "Token 用量" },
-            ],
-          },
-        ]
-      : []),
-  ];
+  const visibleGroups = visibleNavGroups(navGroups, user?.role);
+
+  // DB 菜单授权联动（角色管理·分配权限的真实效果）：
+  // /roles/my-menus 返回 null（角色未配置授权）时回退静态分组；管理员始终全量。
+  const [grantedKeys, setGrantedKeys] = useState<string[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    if (user?.role === "admin") {
+      setGrantedKeys(null);
+      return;
+    }
+    myMenus()
+      .then((r) => {
+        if (alive) setGrantedKeys(r.menus ?? null);
+      })
+      .catch(() => {
+        if (alive) setGrantedKeys(null);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [user?.role]);
+
+  const effectiveGroups = useMemo(() => {
+    if (grantedKeys == null) return visibleGroups;
+    const allowed = new Set(grantedKeys);
+    return visibleGroups
+      .map((g) => ({ ...g, items: g.items.filter((it) => allowed.has(it.key)) }))
+      .filter((g) => g.items.length > 0);
+  }, [visibleGroups, grantedKeys]);
+  const allNavItems = effectiveGroups.flatMap((g) => g.items);
 
   const handleLogout = () => {
     logout();
     navigate("/login");
   };
 
-  const roleInfo = roleLabels[user?.role || ""] || {
-    text: user?.role,
-    color: "#999",
-  };
+  const roleInfo = roleMeta(user?.role);
 
   const userMenuItems = [
     { key: "profile", label: `${user?.real_name} · ${roleInfo.text}`, disabled: true },
@@ -166,10 +164,12 @@ export default function MainLayout() {
   ];
 
   const selectedKey =
-    menuItems
-      .flatMap((item: any) => [item, ...(item.children || [])])
-      .filter((item) => location.pathname.startsWith(item.key))
-      .sort((a, b) => b.key.length - a.key.length)[0]?.key || "/dashboard";
+    allNavItems
+      .filter((it: any) => location.pathname.startsWith(it.to))
+      .sort((a: any, b: any) => b.to.length - a.to.length)[0]?.key || "dashboard";
+
+  const currentNav = allNavItems.find((it: any) => it.key === selectedKey);
+  const currentGroup = effectiveGroups.find((g: any) => g.items.some((it: any) => it.key === selectedKey));
 
   return (
     <Layout style={{ minHeight: "100vh", background: "#f4f7fb" }}>
@@ -189,6 +189,15 @@ export default function MainLayout() {
           zIndex: 30,
         }}
       >
+        {/* 内部 flex 列容器：让 nav 获得受约束高度从而可滚轮滚动 */}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            height: "100%",
+            overflow: "hidden",
+          }}
+        >
         {/* Logo — UI 设计稿风格 */}
         <div
           style={{
@@ -196,6 +205,7 @@ export default function MainLayout() {
           }}
         >
           <div
+            className="md-brand"
             style={{
               display: "flex",
               gap: 11,
@@ -206,145 +216,168 @@ export default function MainLayout() {
               style={{
                 width: 35,
                 height: 37,
-                background: "#2563eb",
                 borderRadius: 11,
-                display: "grid",
-                placeItems: "center",
-                color: "white",
-                fontWeight: 600,
-                fontSize: 29,
+                flexShrink: 0,
+                filter: "drop-shadow(0 3px 6px rgba(37,99,235,0.35))",
               }}
             >
-              +
+              <svg width="35" height="37" viewBox="0 0 35 37" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id="logo-bg" x1="4" y1="2" x2="31" y2="35" gradientUnits="userSpaceOnUse">
+                    <stop stopColor="#4f8bff" />
+                    <stop offset="0.55" stopColor="#2563eb" />
+                    <stop offset="1" stopColor="#1d4ed8" />
+                  </linearGradient>
+                  <linearGradient id="logo-shine" x1="8" y1="2" x2="18" y2="16" gradientUnits="userSpaceOnUse">
+                    <stop stopColor="#ffffff" stopOpacity="0.35" />
+                    <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
+                  </linearGradient>
+                </defs>
+                {/* 渐变圆角底座 */}
+                <rect x="0.5" y="0.5" width="34" height="36" rx="10.5" fill="url(#logo-bg)" />
+                <rect x="0.5" y="0.5" width="34" height="36" rx="10.5" fill="url(#logo-shine)" />
+                <rect x="0.75" y="0.75" width="33.5" height="35.5" rx="10.25" stroke="#ffffff" strokeOpacity="0.18" strokeWidth="0.5" />
+                {/* 医疗十字（圆角端点） */}
+                <path
+                  d="M17.5 9.5V27.5M8.5 18.5H26.5"
+                  stroke="#ffffff"
+                  strokeWidth="5.2"
+                  strokeLinecap="round"
+                />
+                {/* 十字中心微光点 */}
+                <circle cx="17.5" cy="18.5" r="1.6" fill="#bfdbfe" />
+              </svg>
             </div>
-            <div>
-              <div
-                style={{
-                  fontSize: 23,
-                  letterSpacing: -0.8,
-                  fontWeight: 600,
-                  color: "#1b2b45",
-                }}
-              >
-                MediCode
+            {!collapsed && (
+              <div>
+                <div
+                  style={{
+                    fontSize: 23,
+                    letterSpacing: -0.8,
+                    fontWeight: 600,
+                    color: "#1b2b45",
+                  }}
+                >
+                  MediCode
+                </div>
+                <small
+                  style={{
+                    display: "block",
+                    fontSize: 10,
+                    letterSpacing: 2,
+                    color: "#78869b",
+                    marginTop: 3,
+                  }}
+                >
+                  SMART MEDICAL
+                </small>
               </div>
-              <small
-                style={{
-                  display: "block",
-                  fontSize: 10,
-                  letterSpacing: 2,
-                  color: "#78869b",
-                  marginTop: 3,
-                }}
-              >
-                SMART MEDICAL
-              </small>
-            </div>
+            )}
           </div>
         </div>
 
-        {/* 导航标签 */}
-        <div
-          style={{
-            fontSize: 10,
-            letterSpacing: 1.6,
-            color: "#9aa6b5",
-            margin: "19px 14px 11px",
-          }}
-        >
-          WORKSPACE / 工作空间
-        </div>
-
-        {/* Navigation Menu */}
-        <Menu
-          mode="inline"
-          selectedKeys={[selectedKey]}
-          items={menuItems.map((item: any) => ({
-            key: item.key,
-            icon: item.icon,
-            label: item.label,
-            style: item.children ? undefined : {
-              margin: "4px 0",
-              borderRadius: 9,
-              padding: "13px 15px",
-              color: "#63718a",
-              fontSize: 13,
-            },
-            children: item.children
-              ? item.children.map((c: any) => ({
-                  key: c.key,
-                  icon: c.icon,
-                  label: c.label,
-                  style: {
-                    margin: "4px 0",
-                    borderRadius: 9,
-                    padding: "13px 15px",
-                    color: "#63718a",
-                    fontSize: 13,
-                  },
-                }))
-              : undefined,
-          }))}
-          onClick={({ key }) => navigate(key)}
-          style={{
-            background: "transparent",
-            border: "none",
-          }}
-        />
-
-        {/* 底部帮助卡片 */}
-        <div
-          style={{
-            margin: "auto",
-            padding: "18px 10px 0",
-          }}
-        >
-          <div
-            style={{
-              background: "#f6f9fd",
-              padding: 16,
-              borderRadius: 10,
-              fontSize: 12,
-              lineHeight: 1.8,
-            }}
-          >
-            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
-              让诊疗更专注
-            </div>
-            <div style={{ color: "#78869b" }}>
-              统一的信息，连贯的工作流程。
-            </div>
-          </div>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              marginTop: 23,
-              color: "#8996a8",
-              fontSize: 11,
-            }}
-          >
-            <span
-              style={{
-                width: 6,
-                height: 6,
-                background: "#138d85",
-                display: "inline-block",
-                borderRadius: "50%",
+        {/* 顶部快速跳转下拉导航条 */}
+        {!collapsed && (
+          <div style={{ padding: "0 14px 10px" }}>
+            <Select
+              showSearch
+              allowClear
+              value={selectedKey}
+              placeholder="快速跳转到…"
+              style={{ width: "100%" }}
+              optionFilterProp="label"
+              popupMatchSelectWidth={false}
+              onChange={(val: string) => {
+                const it: any = allNavItems.find((x: any) => x.key === val);
+                if (it) { if (it.external) { window.open(it.external, "_blank"); } else { navigate(it.to); } }
               }}
-            ></span>
-            设计概念 v1.0 · 本地演示
+              options={effectiveGroups.map((g: any) => ({
+                label: g.label,
+                options: g.items.map((it: any) => ({
+                  value: it.key,
+                  label: it.name,
+                })),
+              }))}
+            />
           </div>
+        )}
+
+        {/* 导航：分组样式对齐原型 pages.html */}
+        <nav
+          ref={navRef}
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflowY: "auto",
+            padding: "4px 14px 16px",
+            marginTop: 4,
+          }}
+        >
+          {effectiveGroups.map((g: any) => (
+            <div key={g.label}>
+              {!collapsed && (
+                <div
+                  style={{
+                    fontSize: 10,
+                    letterSpacing: 1.6,
+                    color: "#9aa6b5",
+                    margin: "16px 14px 8px",
+                  }}
+                >
+                  {g.label}
+                </div>
+              )}
+              {g.items.map((it: any) => {
+                const active = selectedKey === it.key;
+                return (
+                  <button
+                    key={it.key}
+                    type="button"
+                    className="md-nav-item"
+                    data-active={active ? "true" : "false"}
+                    onClick={() => {
+                      if (it.external) { window.open(it.external, "_blank"); return; }
+                      navigate(it.to);
+                    }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      width: "100%",
+                      textAlign: "left",
+                      padding: collapsed ? "11px 0" : "10px 15px",
+                      justifyContent: collapsed ? "center" : "flex-start",
+                      borderRadius: 9,
+                      margin: "2px 0",
+                      color: active ? "#2563eb" : "#63718a",
+                      background: active ? "#eaf1ff" : "transparent",
+                      fontWeight: active ? 600 : 400,
+                      fontSize: 13,
+                      border: 0,
+                      cursor: "pointer",
+                    }}
+                    onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = "#f5f8fd"; }}
+                    onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = "transparent"; }}
+                    title={collapsed ? it.name : undefined}
+                  >
+                    <span className="md-nav-icon" style={{ display: "inline-flex", fontSize: 17 }}>{it.icon}</span>
+                    {!collapsed && <span style={{ flex: 1 }}>{it.name}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </nav>
         </div>
+
       </Sider>
 
       <Layout>
         {/* 主内容区域 */}
         <Content
           style={{
-            marginLeft: 232,
-            width: "calc(100% - 232px)",
+            marginLeft: collapsed ? 80 : 232,
+            width: `calc(100% - ${collapsed ? 80 : 232}px)`,
             minWidth: 0,
           }}
         >
@@ -383,7 +416,7 @@ export default function MainLayout() {
                   color: "#8b96a7",
                 }}
               >
-                工作空间
+                {currentGroup ? currentGroup.short : "工作空间"}
               </Text>
               <Text
                 style={{
@@ -392,43 +425,23 @@ export default function MainLayout() {
                   marginLeft: 10,
                 }}
               >
-                {menuItems
-                  .flatMap((item: any) => [item, ...(item.children || [])])
-                  .find((i) => i.key === selectedKey)?.label || "总览控制台"}
+                {currentNav?.name || "总览控制台"}
               </Text>
             </Space>
 
-            <Input.Search
-              placeholder="搜索患者或功能…"
-              allowClear
-              style={{
-                marginLeft: "auto",
-                display: "flex",
-                alignItems: "center",
-                gap: 9,
-                background: "#f6f8fc",
-                border: "1px solid #edf1f7",
-                borderRadius: 8,
-                padding: "8px 12px",
-                color: "#9aa6b6",
-                width: 225,
-              }}
-              onSearch={(v) => { if (v.trim()) { navigate("/patients"); message.info("已搜索：" + v.trim()); } }}
-            />
+            {/* 命令面板触发器：⌘K 打开，支持页面 / 用户 / 动作 / 问系统 */}
+            <button
+              type="button"
+              className="cmd-trigger"
+              onClick={() => setCmdOpen(true)}
+              title="搜索页面、用户或动作（⌘K）"
+            >
+              <SearchOutlined />
+              <span className="cmd-trigger-label">搜索页面、用户或动作</span>
+              <span className="kbd">⌘K</span>
+            </button>
 
             <Space size="small">
-              <span
-                style={{
-                  padding: "5px 9px",
-                  background: "#fff7e7",
-                  color: "#947034",
-                  borderRadius: 5,
-                  fontSize: 10,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                UI 原型 · 演示数据
-              </span>
               <Popover
                 placement="bottomRight"
                 trigger="click"
@@ -478,47 +491,78 @@ export default function MainLayout() {
               trigger={["click"]}
             >
               <div
+                onMouseEnter={() => setUserHover(true)}
+                onMouseLeave={() => setUserHover(false)}
                 style={{
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
-                  gap: 9,
-                  borderLeft: "1px solid #e6ecf3",
-                  paddingLeft: 19,
+                  gap: 10,
+                  marginLeft: 19,
+                  padding: "5px 14px 5px 6px",
+                  borderRadius: 999,
+                  border: `1px solid ${userHover ? "#dbe4f0" : "#edf1f7"}`,
+                  background: userHover ? "#eef3fa" : "#f6f8fc",
+                  boxShadow: userHover ? "0 3px 10px rgba(27,43,69,0.08)" : "none",
+                  transition: "all 0.2s ease",
                 }}
               >
                 <Avatar
-                  size={34}
+                  size={32}
                   style={{
-                    background: "#eaf1ff",
-                    color: "#4774b9",
+                    background: `linear-gradient(135deg, ${roleInfo.color}, ${roleInfo.color}bb)`,
+                    color: "#fff",
                     fontWeight: 600,
+                    fontSize: 14,
+                    flexShrink: 0,
                   }}
                 >
                   {user?.real_name?.[0]}
                 </Avatar>
-                <div>
-                  <div style={{ fontSize: 12 }}>{user?.real_name}</div>
-                  <small style={{ display: "block", color: "#8996a8", fontSize: 10, marginTop: 3 }}>
+                <div style={{ lineHeight: 1.3 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#1b2b45" }}>
+                    {user?.real_name}
+                  </div>
+                  <span
+                    style={{
+                      display: "inline-block",
+                      marginTop: 3,
+                      padding: "0 6px",
+                      height: 16,
+                      lineHeight: "16px",
+                      borderRadius: 4,
+                      fontSize: 10,
+                      color: roleInfo.color,
+                      background: `${roleInfo.color}14`,
+                    }}
+                  >
                     {roleInfo.text}
-                  </small>
+                  </span>
                 </div>
+                <DownOutlined style={{ fontSize: 9, color: "#9aa6b5", marginLeft: 2 }} />
               </div>
             </Dropdown>
           </Header>
 
           {/* 页面内容 */}
           <main
+            className="md-route-host"
             style={{
               maxWidth: 1570,
               padding: "31px 34px 26px",
               margin: "auto",
             }}
           >
-            <Outlet />
+            {/* 路由转场：key 绑定 pathname，切换页面时重放苹果式淡入上浮动画 */}
+            <div key={location.pathname} className="md-page-enter">
+              <Outlet />
+            </div>
           </main>
         </Content>
       </Layout>
+
+      {/* 命令面板：⌘K 打开，挂在布局最外层以覆盖整个视口 */}
+      <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} />
     </Layout>
   );
 }

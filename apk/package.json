@@ -1,0 +1,15 @@
+{
+  "name": "medicode-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "staff": "npm run start --workspace staff",
+    "patient": "npm run start --workspace patient",
+    "staff:android": "npm run android --workspace staff",
+    "patient:android": "npm run android --workspace patient"
+  }
+}

@@ -69,6 +69,7 @@ class User(Base, TimestampMixin):
     department = Column(String(100), default="")
     title = Column(String(50), default="")
     work_status = Column(String(20), default="在职")
+    auth_level = Column(Integer, default=1, nullable=False)  # 数字身份权限级别（1-9）
 
 
 class Message(Base, TimestampMixin):
@@ -82,6 +83,11 @@ class Message(Base, TimestampMixin):
     content = Column(Text, default="")
     is_read = Column(Boolean, default=False)
     message_type = Column(String(50), default="system")
+    # 扩展：删除/撤回/引用（微信式交互）
+    deleted_by = Column(String(200), default="")     # 逗号分隔的 user_id，仅对该用户隐藏
+    recalled = Column(Boolean, default=False)        # 撤回（双方均显示「已撤回」）
+    quote_id = Column(Integer, nullable=True)        # 引用的消息 id
+    quote_preview = Column(String(200), default="")  # 引用消息预览文本
 
 
 class Notification(Base, TimestampMixin):
@@ -107,6 +113,17 @@ class AuditLog(Base, TimestampMixin):
     resource = Column(String(200), default="")
     detail = Column(Text, default="")
     ip = Column(String(50), default="")
+
+
+class LoginLog(Base, TimestampMixin):
+    """登录日志（employee.db）"""
+    __tablename__ = "login_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, nullable=True)
+    username = Column(String(100), default="")
+    ip = Column(String(50), default="")
+    status = Column(String(20), default="成功")
 
 
 class TokenUsage(Base, TimestampMixin):
@@ -218,6 +235,12 @@ class MedicalRecord(Base, TimestampMixin):
     prescription = Column(Text, default="")
     notes = Column(Text, default="")
     review_status = Column(String(30), default="待审核")
+    ai_suggestion = Column(Text, default="")
+    ai_confidence = Column(String(20), default="")
+    ai_reviewed = Column(Integer, default=0)
+    admin_reviewed = Column(Integer, default=0)
+    admin_name = Column(String(100), default="")
+    room = Column(String(50), default="")
 
 
 class RecordComment(Base, TimestampMixin):
@@ -253,3 +276,100 @@ class KnowledgeDoc(Base, TimestampMixin):
     category = Column(String(100), index=True, default="")
     tags = Column(String(500), default="")
     content = Column(Text, default="")
+
+
+class Medicine(Base, TimestampMixin):
+    """药品（药房管理，patient.db）"""
+    __tablename__ = "medicines"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(200), nullable=False, index=True)
+    spec = Column(String(100), default="")           # 规格（如 0.3g×24片）
+    category = Column(String(100), default="")        # 分类（处方药/OTC/中成药等）
+    manufacturer = Column(String(200), default="")    # 生产厂家
+    unit = Column(String(30), default="盒")           # 单位
+    price = Column(Integer, default=0)                # 单价（分，避免浮点误差）
+    stock = Column(Integer, default=0)                # 库存
+    stock_warning = Column(Integer, default=10)       # 库存预警阈值
+    approval_no = Column(String(100), default="")     # 批准文号
+
+
+class BillingRecord(Base, TimestampMixin):
+    """收费记录（财务收费，patient.db）"""
+    __tablename__ = "billing_records"
+
+    id = Column(Integer, primary_key=True, index=True)
+    bill_no = Column(String(50), index=True, default="")        # 收费单号
+    patient_id = Column(Integer, index=True, nullable=True)     # 患者
+    patient_name = Column(String(100), default="")
+    department = Column(String(100), default="")                # 科室
+    items = Column(Text, default="")                             # 收费项目（JSON 数组）
+    total_amount = Column(Integer, default=0)                    # 总金额（分）
+    payment_method = Column(String(30), default="现金")          # 支付方式
+    status = Column(String(30), index=True, default="已收费")    # 已收费/已退费/待收费
+    operator = Column(String(100), default="")                   # 收费员
+    remark = Column(Text, default="")
+
+
+class LabTest(Base, TimestampMixin):
+    """检查检验项目（检查检验，patient.db）"""
+    __tablename__ = "lab_tests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    test_no = Column(String(50), index=True, default="")        # 检查单号
+    patient_id = Column(Integer, index=True, nullable=True)     # 患者
+    patient_name = Column(String(100), default="")
+    department = Column(String(100), default="")                # 开单科室
+    item_name = Column(String(200), default="")                 # 检查项目名
+    category = Column(String(50), default="")                   # 分类（检验/影像/超声/内镜/病理）
+    status = Column(String(30), index=True, default="待检查")   # 待检查/已采样/检查中/已出报告/已取消
+    result = Column(Text, default="")                           # 检查结果/结论
+    reference = Column(Text, default="")                        # 参考值/正常范围
+    doctor_id = Column(Integer, nullable=True)                  # 开单医生
+    doctor_name = Column(String(100), default="")
+    operator = Column(String(100), default="")                  # 检查技师/录入人
+    remark = Column(Text, default="")
+
+
+class ScheduledTask(Base, TimestampMixin):
+    """定时任务（员工域 employee.db）"""
+    __tablename__ = "scheduled_tasks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, index=True, nullable=False)       # 所属用户
+    name = Column(String(200), nullable=False)                  # 任务名称
+    # once=指定时间一次 / daily=每天 / weekly=每周几 / interval=固定间隔分钟
+    schedule_type = Column(String(20), default="daily")
+    schedule_time = Column(String(10), default="09:00")          # HH:MM（once/daily/weekly 用）
+    interval_minutes = Column(Integer, default=60)               # interval 用
+    weekdays = Column(String(20), default="1,2,3,4,5")           # weekly 用（1=周一）
+    run_at = Column(String(30), default="")                      # once 用（YYYY-MM-DD HH:MM）
+    action = Column(String(30), default="notify")                # 动作：notify=站内通知提醒
+    payload = Column(Text, default="")                           # 动作内容（通知正文）
+    enabled = Column(Boolean, default=True)
+    last_run = Column(DateTime, nullable=True)
+    next_run = Column(DateTime, nullable=True, index=True)
+    run_count = Column(Integer, default=0)
+
+
+class SysRole(Base, TimestampMixin):
+    """角色（employee.db）—— 角色管理页 CRUD 实体（对齐 scaffold sys_role）"""
+    __tablename__ = "sys_roles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(50), nullable=False)
+    code = Column(String(50), index=True, nullable=False)
+    data_scope = Column(String(20), default="SELF")   # ALL/DEPT_AND_CHILD/DEPT/SELF/CUSTOM
+    sort = Column(Integer, default=0)
+    status = Column(Integer, default=1)               # 1 正常 / 0 停用
+    builtin = Column(Boolean, default=False)
+    remark = Column(String(200), default="")
+
+
+class SysRoleMenu(Base, TimestampMixin):
+    """角色-菜单授权（employee.db）—— menu_key 对应前端导航项 key；无行=未配置（走前端静态回退）"""
+    __tablename__ = "sys_role_menus"
+
+    id = Column(Integer, primary_key=True, index=True)
+    role_id = Column(Integer, index=True, nullable=False)
+    menu_key = Column(String(80), nullable=False)

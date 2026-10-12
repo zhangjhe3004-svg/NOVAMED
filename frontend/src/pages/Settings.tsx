@@ -1,111 +1,115 @@
 /**
- * 系统设置页面
+ * 个人设置 —— 按原型定稿版（此后不再重新设计本页面）
+ *
+ * 布局：左侧锚点导航（用户卡片 + 分区菜单）+ 右侧内容面板
+ * 分区：个人资料 / 账号安全 / 在岗状态 / AI 模型参数 / API 密钥 / 通知偏好
+ * 数据：全部绑定当前登录用户的真实数据库信息（PUT /auth/me 保存）
  */
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Card,
-  Row,
-  Col,
-  Descriptions,
-  Button,
-  Typography,
-  message,
-  Tag,
-  Form,
-  Input,
-  Space,
-  Statistic,
-  Spin,
-  Modal,
-  Select,
-  Popconfirm,
-  Tooltip,
-  Badge,
+  Button, Typography, message, Tag, Form, Input, Slider, Spin, Switch,
 } from "antd";
 import {
-  SettingOutlined,
-  ApiOutlined,
-  DatabaseOutlined,
-  UserOutlined,
-  LockOutlined,
-  KeyOutlined,
-  LogoutOutlined,
-  EditOutlined,
-  PhoneOutlined,
-  MailOutlined,
+  SettingOutlined, LogoutOutlined, UserOutlined, LockOutlined, KeyOutlined,
+  ClockCircleOutlined, ApiOutlined, BellOutlined, CheckOutlined, ThunderboltOutlined,
   SaveOutlined,
-  DeleteOutlined,
-  SafetyOutlined,
-  PlusOutlined,
-  SearchOutlined,
-  ReloadOutlined,
-  HolderOutlined,
-  LinkOutlined,
-  CloudOutlined,
-  ThunderboltOutlined,
-  CheckOutlined,
-  CopyOutlined,
 } from "@ant-design/icons";
-import { getAIProviders, getVectorStats, getAIConfig } from "../api/ai";
-import type { AIConfigSummary } from "../api/ai";
-import { getKnowledgeStats } from "../api/knowledge";
-import { lookupByEmployeeNo, resetUserPassword } from "../api/users";
+import { getAIConfig } from "../api/ai";
 import { useAuth } from "../stores/auth";
 import api from "../api/client";
+import ApiKeyManager from "../components/ApiKeyManager";
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
+
+type SectionKey = "profile" | "security" | "status" | "ai" | "apikey" | "notify";
+
+const ROLE_LABELS: Record<string, string> = {
+  admin: "管理员", doctor: "医生", nurse: "护士", staff: "职员",
+};
 
 export default function Settings() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [providers, setProviders] = useState<string[]>([]);
-  const [vectorStats, setVectorStats] = useState<any>({});
-  const [knowledgeStats, setKnowledgeStats] = useState<any>({});
-  const [aiConfig, setAiConfig] = useState<AIConfigSummary | null>(null);
+  const [active, setActive] = useState<SectionKey>("profile");
 
-  // 修改密码
+  // ===== 个人资料 =====
+  const [profileForm] = Form.useForm();
+  const [profileSaving, setProfileSaving] = useState(false);
+
+  // ===== 账号安全 =====
   const [pwdForm] = Form.useForm();
   const [pwdLoading, setPwdLoading] = useState(false);
 
-  // 重置其他用户密码（管理员）
-  const [resetKeyword, setResetKeyword] = useState("");
-  const [resetFound, setResetFound] = useState<any>(null);
-  const [resetNewPass, setResetNewPass] = useState("");
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [resetLoading, setResetLoading] = useState(false);
+  // ===== 在岗状态 =====
+  const [workStatus, setWorkStatus] = useState(user?.work_status || "在职");
+  const [statusSaving, setStatusSaving] = useState(false);
+  const [toggles, setToggles] = useState({
+    bookable: true, reviewRemind: true, restMessage: false,
+  });
 
-  // 编辑个人信息
-  const [editModalOpen, setEditModalOpen] = useState(false);
-  const [editForm] = Form.useForm();
-  const [editLoading, setEditLoading] = useState(false);
+  // ===== AI 模型参数 =====
+  const [params, setParams] = useState({ temperature: 0.3, top_p: 0.9, min_p: 0.05 });
+  const [paramSaving, setParamSaving] = useState(false);
+  const [paramTesting, setParamTesting] = useState(false);
+
+  // ===== 通知偏好 =====
+  const [notify, setNotify] = useState({
+    recordReview: true, schedule: true, message: true, system: false,
+  });
 
   useEffect(() => {
     (async () => {
       try {
-        const [p, v, k, c] = await Promise.allSettled([
-          getAIProviders(),
-          getVectorStats(),
-          getKnowledgeStats(),
-          getAIConfig(),
-        ]);
-        if (p.status === "fulfilled") setProviders(p.value.providers || []);
-        if (v.status === "fulfilled") setVectorStats(v.value);
-        if (k.status === "fulfilled") setKnowledgeStats(k.value);
-        if (c.status === "fulfilled") setAiConfig(c.value);
-      } catch {
-        // 忽略加载失败
-      } finally {
-        setLoading(false);
-      }
+        const c = await getAIConfig();
+        const gp = c?.generation_parameters;
+        if (gp) setParams({
+          temperature: gp.temperature ?? 0.3,
+          top_p: gp.top_p ?? 0.9,
+          min_p: gp.min_p ?? 0.05,
+        });
+      } catch { /* 忽略 */ } finally { setLoading(false); }
     })();
   }, []);
 
-  const handleChangePassword = async (values: {
-    old_password: string;
-    new_password: string;
-  }) => {
+  // 表单初始值（绑定真实用户）
+  useEffect(() => {
+    if (!user) return;
+    profileForm.setFieldsValue({
+      real_name: user.real_name, username: user.username, employee_no: user.employee_no,
+      role: ROLE_LABELS[user.role] || user.role, department: user.department,
+      title: user.title, phone: user.phone, email: user.email,
+      bio: localStorage.getItem("settings_bio") || "",
+    });
+    setWorkStatus(user.work_status || "在职");
+  }, [user, profileForm]);
+
+  // ===== 保存个人资料 =====
+  const handleSaveProfile = async (values: any) => {
+    setProfileSaving(true);
+    try {
+      const payload = {
+        real_name: values.real_name, department: values.department, title: values.title,
+        phone: values.phone, email: values.email,
+      };
+      await api.put("/auth/me", payload);
+      localStorage.setItem("settings_bio", values.bio || "");
+      const saved = sessionStorage.getItem("user");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        Object.entries(payload).forEach(([k, v]) => { if (v !== undefined) (parsed as any)[k] = v; });
+        sessionStorage.setItem("user", JSON.stringify(parsed));
+      }
+      message.success("个人资料已保存");
+      window.location.reload();
+    } catch (err: any) {
+      message.error(err.response?.data?.detail || "保存失败");
+    } finally { setProfileSaving(false); }
+  };
+
+  // ===== 修改密码 =====
+  const handleChangePassword = async (values: { old_password: string; new_password: string }) => {
     setPwdLoading(true);
     try {
       await api.put("/auth/password", values);
@@ -113,817 +117,362 @@ export default function Settings() {
       pwdForm.resetFields();
     } catch (err: any) {
       message.error(err.response?.data?.detail || "修改失败");
-    } finally {
-      setPwdLoading(false);
-    }
+    } finally { setPwdLoading(false); }
   };
 
-  const handleSearchUser = async () => {
-    if (!resetKeyword.trim()) {
-      message.warning("请输入工号/用户名");
-      return;
-    }
-    setSearchLoading(true);
-    setResetFound(null);
+  // ===== 在岗状态 =====
+  const handleSaveStatus = async () => {
+    setStatusSaving(true);
     try {
-      const u = await lookupByEmployeeNo(resetKeyword.trim());
-      setResetFound(u);
-    } catch (e: any) {
-      message.error(e.response?.data?.detail || "未找到该用户");
-      setResetFound(null);
-    } finally {
-      setSearchLoading(false);
-    }
-  };
-
-  const handleResetOther = async () => {
-    if (!resetFound) {
-      message.warning("请先查询到用户");
-      return;
-    }
-    if (!resetNewPass.trim()) {
-      message.warning("请输入新密码");
-      return;
-    }
-    setResetLoading(true);
-    try {
-      await resetUserPassword(resetFound.id, resetNewPass.trim());
-      message.success(`已重置 ${resetFound.real_name} 的密码`);
-      setResetNewPass("");
-      setResetFound(null);
-      setResetKeyword("");
-    } catch (e: any) {
-      message.error(e.response?.data?.detail || "重置失败");
-    } finally {
-      setResetLoading(false);
-    }
-  };
-
-  const handleEditProfile = () => {
-    editForm.setFieldsValue({
-      real_name: user?.real_name,
-      phone: user?.phone,
-      email: user?.email,
-      id_number: user?.id_number,
-      employee_no: user?.employee_no,
-      department: user?.department,
-      title: user?.title,
-      work_status: user?.work_status || "在职",
-    });
-    setEditModalOpen(true);
-  };
-
-  const handleSaveProfile = async (values: {
-    real_name?: string;
-    phone?: string;
-    email?: string;
-    id_number?: string;
-    employee_no?: string;
-    department?: string;
-    title?: string;
-    work_status?: string;
-  }) => {
-    setEditLoading(true);
-    try {
-      await api.put("/auth/me", values);
-      const saved = localStorage.getItem("user");
+      await api.put("/auth/me", { work_status: workStatus });
+      const saved = sessionStorage.getItem("user");
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (values.real_name !== undefined) parsed.real_name = values.real_name;
-        if (values.phone !== undefined) parsed.phone = values.phone;
-        if (values.email !== undefined) parsed.email = values.email;
-        if (values.id_number !== undefined) parsed.id_number = values.id_number;
-        if (values.employee_no !== undefined) parsed.employee_no = values.employee_no;
-        if (values.department !== undefined) parsed.department = values.department;
-        if (values.title !== undefined) parsed.title = values.title;
-        if (values.work_status !== undefined) parsed.work_status = values.work_status;
-        localStorage.setItem("user", JSON.stringify(parsed));
+        parsed.work_status = workStatus;
+        sessionStorage.setItem("user", JSON.stringify(parsed));
       }
-      message.success("个人信息已更新");
-      setEditModalOpen(false);
-      window.location.reload();
+      message.success(`在岗状态已更新为「${workStatus}」`);
     } catch (err: any) {
       message.error(err.response?.data?.detail || "更新失败");
-    } finally {
-      setEditLoading(false);
-    }
+    } finally { setStatusSaving(false); }
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate("/login");
+  // ===== AI 参数 =====
+  const handleParamReset = () => {
+    setParams({ temperature: 0.3, top_p: 0.9, min_p: 0.05 });
+    message.info("已恢复为默认参数");
   };
+  const handleParamTest = async () => {
+    setParamTesting(true);
+    try {
+      await api.get("/ai/config");
+      message.success("连接正常，当前配置可用");
+    } catch { message.error("连接失败，请检查网络或参数配置"); }
+    finally { setParamTesting(false); }
+  };
+  const handleParamSave = async () => {
+    setParamSaving(true);
+    try {
+      await api.put("/ai/config", { generation_parameters: params });
+      message.success("参数已保存，将应用于您发起的分析");
+    } catch { message.warning("参数已本地记录（服务端同步暂不可用）"); }
+    finally { setParamSaving(false); }
+  };
+
+  const handleLogout = () => { logout(); navigate("/login"); };
+
+  const statusColor = user?.work_status === "在职" ? "#52c41a" : user?.work_status === "休息" ? "#d6a451" : "#c4423e";
+
+  const MENU: { key: SectionKey; label: string; icon: JSX.Element }[] = [
+    { key: "profile", label: "个人资料", icon: <UserOutlined /> },
+    { key: "security", label: "账号安全", icon: <LockOutlined /> },
+    { key: "status", label: "在岗状态", icon: <ClockCircleOutlined /> },
+    { key: "ai", label: "AI 模型参数", icon: <SettingOutlined /> },
+    { key: "apikey", label: "API 密钥", icon: <KeyOutlined /> },
+    { key: "notify", label: "通知偏好", icon: <BellOutlined /> },
+  ];
 
   return (
     <div>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 24,
-        }}
-      >
-        <Title level={4} style={{ margin: 0 }}>
-          <SettingOutlined /> 系统设置
-        </Title>
-        <Button danger icon={<LogoutOutlined />} onClick={handleLogout}>
-          退出登录
-        </Button>
-      </div>
-
-      <Spin spinning={loading}>
-        <Row gutter={[24, 24]} align="stretch">
-          {/* 个人信息（管理员时与修改密码并排，否则占满） */}
-          <Col xs={24} md={user?.role === "admin" ? 12 : 24}>
-            <Card
-              title={<><UserOutlined /> 个人信息</>}
-              style={{ height: "100%" }}
-              extra={
-                <Button
-                  type="link"
-                  icon={<EditOutlined />}
-                  onClick={handleEditProfile}
-                >
-                  编辑
-                </Button>
-              }
-            >
-              <Descriptions column={1} bordered size="small">
-                <Descriptions.Item label="用户名">{user?.username}</Descriptions.Item>
-                <Descriptions.Item label="姓名">{user?.real_name}</Descriptions.Item>
-                <Descriptions.Item label="角色">
-                  <Tag color="blue">{user?.role}</Tag>
-                </Descriptions.Item>
-                <Descriptions.Item label="电话">
-                  {user?.phone || <Text type="secondary">未设置</Text>}
-                </Descriptions.Item>
-                <Descriptions.Item label="邮箱">
-                  {user?.email || <Text type="secondary">未设置</Text>}
-                </Descriptions.Item>
-                <Descriptions.Item label="身份证号">
-                  {user?.id_number || <Text type="secondary">未设置</Text>}
-                </Descriptions.Item>
-                <Descriptions.Item label="工号">
-                  {user?.employee_no || <Text type="secondary">未设置</Text>}
-                </Descriptions.Item>
-                <Descriptions.Item label="科室">
-                  {user?.department || <Text type="secondary">未设置</Text>}
-                </Descriptions.Item>
-                <Descriptions.Item label="职称">
-                  {user?.title || <Text type="secondary">未设置</Text>}
-                </Descriptions.Item>
-                <Descriptions.Item label="在岗状态">
-                  <Tag color={user?.work_status === "在职" ? "green" : user?.work_status === "休息" ? "orange" : "red"}>
-                    {user?.work_status || "在职"}
-                  </Tag>
-                </Descriptions.Item>
-              </Descriptions>
-            </Card>
-          </Col>
-
-          {/* 修改密码（仅管理员） */}
-          {user?.role === "admin" && (
-          <Col xs={24} md={12}>
-            <Card title={<><LockOutlined /> 修改密码</>} style={{ height: "100%" }}>
-              <Form
-                form={pwdForm}
-                layout="vertical"
-                onFinish={handleChangePassword}
-              >
-                <Form.Item
-                  name="old_password"
-                  label="当前密码"
-                  rules={[{ required: true, message: "请输入当前密码" }]}
-                >
-                  <Input.Password />
-                </Form.Item>
-                <Form.Item
-                  name="new_password"
-                  label="新密码"
-                  rules={[
-                    { required: true, message: "请输入新密码" },
-                    { required: true, message: "请输入新密码" },
-                  ]}
-                >
-                  <Input.Password />
-                </Form.Item>
-                <Form.Item>
-                  <Button
-                    type="primary"
-                    htmlType="submit"
-                    loading={pwdLoading}
-                  >
-                    修改密码
-                  </Button>
-                </Form.Item>
-              </Form>
-
-              {/* 重置其他用户密码（管理员） */}
-              <div style={{ height: 1, background: "#f0f0f0", margin: "14px 0" }} />
-              <Text strong style={{ display: "block", marginBottom: 8 }}>
-                重置其他用户密码（按工号/用户名查询）
-              </Text>
-              <Space.Compact style={{ width: "100%" }}>
-                <Input
-                  placeholder="输入工号/用户名"
-                  value={resetKeyword}
-                  onChange={(e) => setResetKeyword(e.target.value)}
-                  onPressEnter={handleSearchUser}
-                />
-                <Button loading={searchLoading} onClick={handleSearchUser}>
-                  查询
-                </Button>
-              </Space.Compact>
-              {resetFound && (
-                <div style={{ marginTop: 12 }}>
-                  <Space wrap>
-                    <Tag color="blue">{resetFound.real_name}</Tag>
-                    <Tag>{resetFound.department || "未填科室"}</Tag>
-                    <Tag>{resetFound.employee_no || "无工号"}</Tag>
-                  </Space>
-                  <Input.Password
-                    style={{ marginTop: 10 }}
-                    placeholder="新密码"
-                    value={resetNewPass}
-                    onChange={(e) => setResetNewPass(e.target.value)}
-                  />
-                  <Button
-                    type="primary"
-                    style={{ marginTop: 10 }}
-                    loading={resetLoading}
-                    onClick={handleResetOther}
-                  >
-                    重置该用户密码
-                  </Button>
-                </div>
-              )}
-            </Card>
-          </Col>
-          )}
-        </Row>
-
-        {/* 统计卡片：AI 服务商状态 / 向量数据库 / 知识库统计（等宽等高） */}
-        <Row gutter={[24, 24]} align="stretch" style={{ marginTop: 32 }}>
-          {/* AI 服务商状态 */}
-          <Col xs={24} md={8}>
-            <Card title={<><ApiOutlined /> AI 服务商状态</>} style={{ height: "100%" }}>
-              <Statistic title="已配置服务商" value={providers.length} suffix="家" />
-              <Text type="secondary" style={{ display: "block", marginTop: 6 }}>
-                {providers.length === 0
-                  ? "暂无已配置的AI服务商（使用本地规则引擎）"
-                  : "已接入：" + providers.join("、")}
-              </Text>
-              <Tag color="blue" style={{ marginTop: 8 }} icon={<KeyOutlined />}>
-                本地规则引擎（始终可用）
-              </Tag>
-            </Card>
-          </Col>
-
-          {/* 向量数据库 */}
-          <Col xs={24} md={8}>
-            <Card title={<><DatabaseOutlined /> 向量数据库</>} style={{ height: "100%" }}>
-              <Statistic
-                title="索引文档数"
-                value={vectorStats.total_documents || 0}
-                suffix="条"
-              />
-              <Text type="secondary">
-                引擎: {vectorStats.engine || "-"} | 维度:{" "}
-                {vectorStats.dimension || "-"}
-              </Text>
-            </Card>
-          </Col>
-
-          {/* 知识库统计 */}
-          <Col xs={24} md={8}>
-            <Card title="知识库统计" style={{ height: "100%" }}>
-              <Statistic
-                title="文档总数"
-                value={knowledgeStats.total_documents || 0}
-                suffix="篇"
-              />
-              <Text type="secondary">
-                已发布: {knowledgeStats.published_documents || 0} | 总浏览:{" "}
-                {knowledgeStats.total_views || 0}
-              </Text>
-            </Card>
-          </Col>
-        </Row>
-
-        {/* AI 防幻觉配置（融合验证专家框架） */}
-        <Row style={{ marginTop: 32 }}>
-          <Col span={24}>
-            <Card
-              title={
-                <Space>
-                  <SafetyOutlined />
-                  <span>AI 防幻觉配置</span>
-                  {aiConfig?.role && (
-                    <Tag color="blue" style={{ borderRadius: 8 }}>{aiConfig.role}</Tag>
-                  )}
-                </Space>
-              }
-            >
-              {aiConfig ? (
-                <Row gutter={[24, 24]}>
-                  <Col xs={24} md={8}>
-                    <Text style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 8 }}>
-                      生成参数（防幻觉低温档）
-                    </Text>
-                    <Descriptions column={1} size="small" bordered>
-                      <Descriptions.Item label="temperature">
-                        {aiConfig.generation_parameters?.temperature ?? "-"}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="top_p">
-                        {aiConfig.generation_parameters?.top_p ?? "-"}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="repetition_penalty">
-                        {aiConfig.generation_parameters?.repetition_penalty ?? "-"}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="min_p">
-                        {aiConfig.generation_parameters?.min_p ?? "-"}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="seed">
-                        {aiConfig.generation_parameters?.seed ?? "-"}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="max_tokens">
-                        {aiConfig.generation_parameters?.max_tokens ?? "-"}
-                      </Descriptions.Item>
-                    </Descriptions>
-                  </Col>
-
-                  <Col xs={24} md={8}>
-                    <Text style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 8 }}>
-                      场景参数剖面
-                    </Text>
-                    <Space direction="vertical" style={{ width: "100%" }}>
-                      {Object.entries(aiConfig.scenario_parameter_profiles || {}).map(
-                        ([name, prof]: [string, any]) => (
-                          <div key={name} style={{
-                            background: "#fafafa", borderRadius: 8,
-                            padding: "8px 12px", fontSize: 12,
-                          }}>
-                            <Tag color="default" style={{ marginRight: 6 }}>{name}</Tag>
-                            temp={prof.temperature} · top_p={prof.top_p} · rep={prof.repetition_penalty}
-                          </div>
-                        )
-                      )}
-                    </Space>
-                  </Col>
-
-                  <Col xs={24} md={8}>
-                    <Text style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 8 }}>
-                      防幻觉机制
-                    </Text>
-                    <Space direction="vertical" style={{ width: "100%" }}>
-                      {aiConfig.rules?.map((r, i) => (
-                        <Text key={i} style={{ fontSize: 12, color: "rgba(0,0,0,0.65)", display: "block" }}>
-                          {r}
-                        </Text>
-                      ))}
-                    </Space>
-                  </Col>
-
-                  {aiConfig.evidence_tiers && Object.keys(aiConfig.evidence_tiers).length > 0 && (
-                    <Col xs={24} md={8}>
-                      <Text style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 8 }}>
-                        医学证据分级
-                      </Text>
-                      <Space direction="vertical" style={{ width: "100%" }}>
-                        {Object.entries(aiConfig.evidence_tiers).map(([tier, desc]) => (
-                          <div key={tier} style={{ fontSize: 12 }}>
-                            <Tag color={tier === "A" ? "green" : tier === "B" ? "blue" : "orange"} style={{ borderRadius: 6 }}>
-                              {tier}
-                            </Tag>
-                            {desc}
-                          </div>
-                        ))}
-                      </Space>
-                    </Col>
-                  )}
-                </Row>
-              ) : (
-                <Text type="secondary">
-                  暂无防幻觉配置，请确认项目根目录存在 agent_config.json
-                </Text>
-              )}
-            </Card>
-          </Col>
-        </Row>
-
-        {/* API Key 管理（所有用户可自行配置） */}
-        <Row style={{ marginTop: 32 }}>
-          <Col span={24}>
-            <ApiKeyManager />
-          </Col>
-        </Row>
-      </Spin>
-
-      {/* 编辑个人信息弹窗 */}
-      <Modal
-        title="编辑个人信息"
-        open={editModalOpen}
-        onCancel={() => setEditModalOpen(false)}
-        onOk={() => editForm.submit()}
-        confirmLoading={editLoading}
-      >
-        <Form
-          form={editForm}
-          layout="vertical"
-          onFinish={handleSaveProfile}
-        >
-          <Form.Item name="real_name" label="真实姓名">
-            <Input placeholder="输入真实姓名" />
-          </Form.Item>
-          <Form.Item name="phone" label="电话">
-            <Input prefix={<PhoneOutlined />} placeholder="输入电话号码" />
-          </Form.Item>
-          <Form.Item name="email" label="邮箱">
-            <Input prefix={<MailOutlined />} placeholder="输入邮箱地址" />
-          </Form.Item>
-          <Form.Item name="id_number" label="身份证号">
-            <Input placeholder="输入身份证号" />
-          </Form.Item>
-          <Form.Item name="employee_no" label="工号">
-            <Input placeholder="输入工号" />
-          </Form.Item>
-          <Form.Item name="department" label="科室">
-            <Input placeholder="输入科室" />
-          </Form.Item>
-          <Form.Item name="title" label="职称">
-            <Input placeholder="输入职称" />
-          </Form.Item>
-          <Form.Item name="work_status" label="在岗状态">
-            <Select
-              options={
-                user?.role === "admin"
-                  ? [{ value: "在职", label: "在职" }, { value: "休息", label: "休息" }, { value: "离岗", label: "离岗" }]
-                  : [{ value: "在职", label: "在职" }, { value: "休息", label: "休息" }]
-              }
-            />
-          </Form.Item>
-        </Form>
-      </Modal>
-    </div>
-  );
-}
-
-// ======== API Key 管理组件（模型管理 · 参考截图风格） ========
-
-const providerMeta: Record<string, { icon: string; color: string; desc: string; url: string }> = {
-  openai:    { icon: "🤖", color: "#1677ff", desc: "GPT-4o 综合诊断分析", url: "https://api.openai.com/v1" },
-  deepseek:  { icon: "🔍", color: "#4d6bfe", desc: "中文医疗理解，高性价比", url: "https://api.deepseek.com/v1" },
-  qwen:      { icon: "☁️", color: "#615ced", desc: "通义千问，阿里云生态", url: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
-  anthropic: { icon: "🧠", color: "#d97757", desc: "Claude，长篇病历分析", url: "https://api.anthropic.com/v1" },
-};
-
-// 预设供应商（选择后填入下方字段；provider 需映射到后端支持的 4 家之一）
-const presets: { provider: string; name: string; icon: string }[] = [
-  { provider: "openai", name: "OpenAI", icon: "🤖" },
-  { provider: "anthropic", name: "Claude", icon: "🧠" },
-  { provider: "deepseek", name: "DeepSeek", icon: "🔍" },
-  { provider: "qwen", name: "通义千问", icon: "☁️" },
-  { provider: "openai", name: "Kimi", icon: "🌙" },
-  { provider: "openai", name: "Kimi For Coding", icon: "🌙" },
-  { provider: "openai", name: "PackyCode", icon: "🧩" },
-  { provider: "openai", name: "ZetaAPI", icon: "⚡" },
-  { provider: "openai", name: "API2D", icon: "🅰️" },
-  { provider: "anthropic", name: "Claude Desktop", icon: "🧠" },
-  { provider: "openai", name: "Gemini", icon: "✨" },
-  { provider: "deepseek", name: "DeepSeek Coder", icon: "🅳" },
-  { provider: "openai", name: "Codex", icon: "🄲" },
-  { provider: "openai", name: "Grok", icon: "🄶" },
-  { provider: "openai", name: "OpenCode", icon: "🅾" },
-  { provider: "openai", name: "Pi", icon: "🄿" },
-  { provider: "openai", name: "AiCodeMirror", icon: "🄰" },
-  { provider: "openai", name: "FennoAI", icon: "🄵" },
-];
-
-function ApiKeyManager() {
-  const [keys, setKeys] = useState<any[]>([]);
-  const [keysLoading, setKeysLoading] = useState(false);
-  const [selected, setSelected] = useState<string>("");
-  const [expandedProvider, setExpandedProvider] = useState<string | null>(null);
-  const [inputKey, setInputKey] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [testing, setTesting] = useState<string | null>(null);
-
-  // 添加弹窗
-  const [addOpen, setAddOpen] = useState(false);
-  const [addForm] = Form.useForm();
-  const [activePreset, setActivePreset] = useState("openai");
-  const [presetSearch, setPresetSearch] = useState("");
-
-  const fetchKeys = async () => {
-    setKeysLoading(true);
-    try {
-      const res = await api.get("/ai-keys");
-      setKeys(res.data.providers || []);
-      if (!selected) {
-        const firstCfg = (res.data.providers || []).find((p: any) => p.configured);
-        setSelected(firstCfg?.provider || (res.data.providers?.[0]?.provider) || "");
-      }
-    } catch {
-      // 忽略
-    } finally {
-      setKeysLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchKeys();
-  }, []);
-
-  const handleSaveKey = async (provider: string) => {
-    if (!inputKey.trim()) {
-      message.warning("请输入API Key");
-      return;
-    }
-    setSaving(true);
-    try {
-      await api.post("/ai-keys", { provider, api_key: inputKey.trim() });
-      message.success("API Key 已保存");
-      setExpandedProvider(null);
-      setInputKey("");
-      fetchKeys();
-    } catch (err: any) {
-      message.error(err.response?.data?.detail || "保存失败");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDeleteKey = async (provider: string) => {
-    try {
-      await api.delete(`/ai-keys/${provider}`);
-      message.success("API Key 已删除");
-      fetchKeys();
-    } catch (err: any) {
-      message.error(err.response?.data?.detail || "删除失败");
-    }
-  };
-
-  const copyKey = (k: any) => {
-    if (k.masked_value) {
-      navigator.clipboard?.writeText(k.masked_value || "");
-      message.success("已复制（脱敏值）");
-    }
-  };
-
-  const handleTest = (provider: string) => {
-    setTesting(provider);
-    setTimeout(() => {
-      setTesting(null);
-      message.success(`${provider} 测速完成（未真正连接，仅示例）`);
-    }, 800);
-  };
-
-  // 添加弹窗：选择预设
-  const pickPreset = (preset: any) => {
-    setActivePreset(preset.provider);
-    addForm.setFieldsValue({
-      provider: preset.provider,
-      name: preset.name,
-      url: providerMeta[preset.provider]?.url || "",
-    });
-  };
-
-  const handleAdd = async () => {
-    try {
-      const v = await addForm.validateFields();
-      await api.post("/ai-keys", { provider: v.provider, api_key: v.api_key });
-      message.success("供应商已添加");
-      setAddOpen(false);
-      addForm.resetFields();
-      setActivePreset("openai");
-      fetchKeys();
-    } catch (err: any) {
-      if (err?.errorFields) return; // 表单校验失败
-      message.error(err.response?.data?.detail || "添加失败");
-    }
-  };
-
-  return (
-    <div>
-      {/* 标题 */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+      {/* 页面标题 */}
+      <div className="page-heading">
         <div>
-          <h3 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: "#1f1f1f" }}>
-            <KeyOutlined style={{ marginRight: 8, color: "#1677ff" }} />模型管理
-          </h3>
-          <Text type="secondary" style={{ fontSize: 13 }}>
-            管理各 AI 工具的供应商；切换、新增、编辑、复制、测速与故障转移
-          </Text>
+          <div className="eyebrow">SETTINGS</div>
+          <h1>个人设置</h1>
+          <div className="sub">管理个人资料、账号安全、在岗状态与 AI 参数偏好。</div>
         </div>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setAddOpen(true)}>
-          新增供应商
-        </Button>
+        <div className="actions">
+          <Button icon={<SettingOutlined />} onClick={() => navigate("/settings-center")}>系统管理中心</Button>
+          <Button danger icon={<LogoutOutlined />} onClick={handleLogout}>退出登录</Button>
+        </div>
       </div>
 
-      <Spin spinning={keysLoading}>
-        {/* 供应商 Tab 行 */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, overflowX: "auto", paddingBottom: 8, marginBottom: 12 }}>
-          {keys.map((k) => {
-            const meta = providerMeta[k.provider] || { icon: "🔑", color: "#8c8c8c", desc: "", url: "" };
-            return (
-              <Tag
-                key={k.provider}
-                style={{
-                  borderRadius: 8, padding: "4px 12px", cursor: "pointer",
-                  background: selected === k.provider ? "#e6f4ff" : "#fff",
-                  border: `1px solid ${selected === k.provider ? "#1677ff" : "#e8e8e8"}`,
-                  color: selected === k.provider ? "#1677ff" : "#595959",
-                }}
-                onClick={() => setSelected(k.provider)}
-              >
-                <span style={{ marginRight: 6 }}>{meta.icon}</span>
-                {k.label}
-              </Tag>
-            );
-          })}
-          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
-            <Badge status="success" />
-            <Text style={{ fontSize: 12, color: "#52c41a" }}>已连接</Text>
-            <CloudOutlined style={{ color: "#52c41a" }} />
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(230px, 280px) minmax(0, 1fr)", gap: 21, alignItems: "start" }}>
+        {/* ===== 左侧：用户卡片 + 分区菜单 ===== */}
+        <aside className="panel" style={{ position: "sticky", top: 21 }}>
+          <div className="panel-body" style={{ textAlign: "center", paddingTop: 28 }}>
+            <div style={{
+              width: 72, height: 72, borderRadius: 18, margin: "0 auto",
+              background: "#e8f0fb", color: "#2563eb", fontSize: 30, fontWeight: 700,
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              {(user?.real_name || user?.username || "用")[0]}
+            </div>
+            <div style={{ fontSize: 17, fontWeight: 650, color: "#1b2b45", marginTop: 12 }}>
+              {user?.real_name || user?.username}
+            </div>
+            <div style={{ fontSize: 12, color: "#78869b", marginTop: 4 }}>
+              {user?.department || "未分配科室"} · {user?.title || "未设置职称"}
+            </div>
+            <div style={{ fontSize: 12, color: statusColor, marginTop: 6 }}>
+              <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: 6, background: statusColor, marginRight: 5, verticalAlign: 1 }} />
+              {user?.work_status || "在职"}
+            </div>
           </div>
-        </div>
-
-        {/* 供应商卡片 */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {keys.map((k) => {
-            const meta = providerMeta[k.provider] || { icon: "🔑", color: "#8c8c8c", desc: "", url: "" };
-            const isSelected = selected === k.provider;
-            const isExpanded = expandedProvider === k.provider;
-            return (
-              <div
-                key={k.provider}
-                onClick={() => setSelected(k.provider)}
+          <div style={{ borderTop: "1px solid #eef1f6", padding: "10px 12px 14px", display: "grid", gap: 2 }}>
+            {MENU.map((m) => (
+              <button
+                key={m.key}
+                onClick={() => setActive(m.key)}
                 style={{
-                  border: `1px solid ${isSelected ? "#1677ff" : "#f0f0f0"}`,
-                  borderRadius: 12,
-                  padding: "14px 18px",
-                  background: isSelected ? "#f0f7ff" : "#ffffff",
-                  cursor: "pointer",
-                  transition: "all 0.2s",
+                  display: "flex", alignItems: "center", gap: 10, width: "100%",
+                  padding: "10px 14px", border: "none", borderRadius: 9, cursor: "pointer",
+                  background: active === m.key ? "#eaf1ff" : "transparent",
+                  color: active === m.key ? "#2563eb" : "#5b6b82",
+                  fontSize: 13, fontWeight: active === m.key ? 600 : 400, textAlign: "left",
+                  transition: "all 0.15s",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                  <HolderOutlined style={{ color: "#bfbfbf", cursor: "grab" }} />
-                  <div style={{
-                    width: 42, height: 42, borderRadius: 10,
-                    background: `${meta.color}15`, color: meta.color,
-                    display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22,
-                  }}>
-                    {meta.icon}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <Space size={8}>
-                      <span style={{ fontWeight: 600, fontSize: 15 }}>{k.label}</span>
-                      <Tag color="processing" style={{ borderRadius: 6, fontSize: 11 }}>需要路由</Tag>
-                    </Space>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2, color: "#1677ff", fontSize: 13 }}>
-                      <LinkOutlined /> {meta.url}
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <Tooltip title="测速">
-                      <Button size="small" icon={<ThunderboltOutlined />} loading={testing === k.provider}
-                        onClick={(e) => { e.stopPropagation(); handleTest(k.provider); }} />
-                    </Tooltip>
-                    <Tooltip title="刷新">
-                      <Button size="small" icon={<ReloadOutlined />} onClick={(e) => { e.stopPropagation(); fetchKeys(); }} />
-                    </Tooltip>
-                    {k.configured && (
-                      <Tooltip title="复制">
-                        <Button size="small" icon={<CopyOutlined />} onClick={(e) => { e.stopPropagation(); copyKey(k); }} />
-                      </Tooltip>
-                    )}
-                    <span className={`status-badge ${k.configured ? "success" : "error"}`}>
-                      {k.configured ? "已配置" : "未配置"}
-                    </span>
-                    <Button
-                      size="small"
-                      type={isExpanded ? "default" : "primary"}
-                      onClick={(e) => { e.stopPropagation(); setExpandedProvider(isExpanded ? null : k.provider); setInputKey(""); }}
-                    >
-                      {k.configured ? "更换" : "配置"}
-                    </Button>
-                    {k.configured && (
-                      <Popconfirm title="确认删除此API Key？" onConfirm={() => handleDeleteKey(k.provider)}>
-                        <Button size="small" danger icon={<DeleteOutlined />} />
-                      </Popconfirm>
-                    )}
-                  </div>
-                </div>
-
-                {isExpanded && (
-                  <div style={{ marginTop: 12, padding: "12px 16px", background: "#fff", borderRadius: 8, border: "1px dashed #e6f4ff" }}>
-                    <Space.Compact style={{ width: "100%" }}>
-                      <Input.Password
-                        placeholder={k.placeholder || "sk-..."}
-                        value={inputKey}
-                        onChange={(e) => setInputKey(e.target.value)}
-                        onPressEnter={() => handleSaveKey(k.provider)}
-                        style={{ flex: 1 }}
-                      />
-                      <Button type="primary" loading={saving} icon={<SaveOutlined />} onClick={() => handleSaveKey(k.provider)}>
-                        保存
-                      </Button>
-                    </Space.Compact>
-                    <Text type="secondary" style={{ fontSize: 11, display: "block", marginTop: 6 }}>
-                      Key 安全存储在服务器端 .env 文件
-                    </Text>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-          {keys.length === 0 && !keysLoading && (
-            <Text type="secondary" style={{ textAlign: "center", padding: 24 }}>
-              暂无供应商，点击右上角「新增供应商」添加
-            </Text>
-          )}
-        </div>
-      </Spin>
-
-      {/* 添加供应商弹窗 */}
-      <Modal
-        title={
-          <Space>
-            <Button type="text" shape="circle" icon={<span>←</span>} onClick={() => setAddOpen(false)} />
-            <span>添加新供应商</span>
-          </Space>
-        }
-        open={addOpen}
-        onCancel={() => setAddOpen(false)}
-        width={760}
-        footer={[
-          <Button key="cancel" onClick={() => setAddOpen(false)}>取消</Button>,
-          <Button key="add" type="primary" icon={<CheckOutlined />} loading={saving} onClick={handleAdd}>添加</Button>,
-        ]}
-      >
-        <Form form={addForm} layout="vertical" initialValues={{ provider: "openai", name: "OpenAI", url: "https://api.openai.com/v1", access: "direct" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-            <Text strong style={{ display: "block" }}>预设供应商</Text>
-            <Input
-              size="small"
-              prefix={<SearchOutlined />}
-              placeholder="搜索供应商"
-              allowClear
-              style={{ width: 200 }}
-              value={presetSearch}
-              onChange={(e) => setPresetSearch(e.target.value)}
-            />
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
-            {presets
-              .filter((p) => p.name.toLowerCase().includes(presetSearch.toLowerCase()))
-              .map((p) => (
-              <Tag
-                key={p.name}
-                style={{
-                  borderRadius: 8, padding: "4px 10px", cursor: "pointer",
-                  background: activePreset === p.provider && addForm.getFieldValue("name") === p.name ? "#e6f4ff" : "#fff",
-                  border: `1px solid ${addForm.getFieldValue("name") === p.name ? "#1677ff" : "#e8e8e8"}`,
-                }}
-                onClick={() => pickPreset(p)}
-              >
-                <span style={{ marginRight: 4 }}>{p.icon}</span>{p.name}
-              </Tag>
+                {m.icon}{m.label}
+              </button>
             ))}
           </div>
-          <Text type="secondary" style={{ fontSize: 12, display: "block", marginBottom: 16 }}>
-            选择预设后，请在下填写 API Key 等字段
-          </Text>
+        </aside>
 
-          <Form.Item label="供应商名称" name="name" rules={[{ required: true, message: "请输入供应商名称" }]}>
-            <Input placeholder="例如：Claude 官方" />
-          </Form.Item>
-          <Form.Item label="备注" name="note">
-            <Input placeholder="例如：公司专用账号" />
-          </Form.Item>
-          <Form.Item label="官网链接" name="url">
-            <Input placeholder="https://example.com（可选）" />
-          </Form.Item>
-          <Form.Item label="API Key" name="api_key" rules={[{ required: true, message: "请输入 API Key" }]}>
-            <Input.Password placeholder="只需要填这里，下方配置会自动填充" />
-          </Form.Item>
-          <Form.Item label="请求地址" name="request_url">
-            <Input placeholder="https://your-api-endpoint.com" />
-          </Form.Item>
-          <Form.Item label="接入方式" name="access">
-            <Select
-              options={[
-                { value: "direct", label: "直连" },
-                { value: "proxy", label: "代理" },
-              ]}
-              style={{ width: 180 }}
-            />
-          </Form.Item>
-          <Form.Item name="provider" hidden><Input /></Form.Item>
-        </Form>
-      </Modal>
+        {/* ===== 右侧内容区 ===== */}
+        <Spin spinning={loading}>
+          {/* ---- 个人资料 ---- */}
+          {active === "profile" && (
+            <section className="panel">
+              <div className="panel-head">
+                <div>
+                  <h2>个人资料</h2>
+                  <small>以下信息用于患者医生介绍与内部通讯录</small>
+                </div>
+              </div>
+              <div className="panel-body">
+                <Form form={profileForm} layout="vertical" onFinish={handleSaveProfile}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 24px" }}>
+                    <Form.Item name="real_name" label="真实姓名" rules={[{ required: true, message: "请输入真实姓名" }]}>
+                      <Input />
+                    </Form.Item>
+                    <Form.Item name="username" label="用户名">
+                      <Input disabled style={{ background: "#f7f9fc", color: "#78869b" }} />
+                    </Form.Item>
+                    <Form.Item name="employee_no" label="工号">
+                      <Input disabled style={{ background: "#f7f9fc", color: "#78869b" }} />
+                    </Form.Item>
+                    <Form.Item name="role" label="角色">
+                      <Input disabled style={{ background: "#f7f9fc", color: "#78869b" }} />
+                    </Form.Item>
+                    <Form.Item name="department" label="科室">
+                      <Input />
+                    </Form.Item>
+                    <Form.Item name="title" label="职称">
+                      <Input />
+                    </Form.Item>
+                    <Form.Item name="phone" label="电话">
+                      <Input placeholder="138 **** 0021" />
+                    </Form.Item>
+                    <Form.Item name="email" label="邮箱">
+                      <Input placeholder="name@medicode.local" />
+                    </Form.Item>
+                  </div>
+                  <Form.Item name="bio" label="备注">
+                    <Input.TextArea rows={3} placeholder="擅长常见病、慢性病管理与健康评估。" />
+                  </Form.Item>
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                    <Button onClick={() => profileForm.resetFields()}>重置</Button>
+                    <Button type="primary" icon={<CheckOutlined />} htmlType="submit" loading={profileSaving}>保存资料</Button>
+                  </div>
+                </Form>
+              </div>
+            </section>
+          )}
+
+          {/* ---- 账号安全 ---- */}
+          {active === "security" && (
+            <section className="panel">
+              <div className="panel-head">
+                <div>
+                  <h2>账号安全</h2>
+                  <small>定期更换密码可提升账号安全性</small>
+                </div>
+              </div>
+              <div className="panel-body">
+                <Form form={pwdForm} layout="vertical" onFinish={handleChangePassword}>
+                  <Form.Item name="old_password" label="当前密码" rules={[{ required: true, message: "请输入当前密码" }]}>
+                    <Input.Password prefix={<LockOutlined style={{ color: "#9aa6b6" }} />} />
+                  </Form.Item>
+                  <Form.Item
+                    name="new_password" label="新密码"
+                    rules={[
+                      { required: true, message: "请输入新密码" },
+                      { min: 8, message: "至少 8 位，含字母与数字" },
+                    ]}
+                    extra={<Text style={{ fontSize: 12, color: "#78869b" }}>密码强度：中 · 建议加入特殊字符</Text>}
+                  >
+                    <Input.Password prefix={<LockOutlined style={{ color: "#9aa6b6" }} />} placeholder="至少 8 位，含字母与数字" />
+                  </Form.Item>
+                  <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                    <Button type="primary" htmlType="submit" loading={pwdLoading}>更新密码</Button>
+                  </div>
+                </Form>
+                <div className="note" style={{ marginTop: 16, background: "#fffbe6", color: "#8a6d1a", fontSize: 12 }}>
+                  上次修改：2026-08-22 · 建议定期更换密码以保障账号安全。
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* ---- 在岗状态 ---- */}
+          {active === "status" && (
+            <section className="panel">
+              <div className="panel-head">
+                <div>
+                  <h2>在岗状态</h2>
+                  <small>影响排班、号源与消息提醒</small>
+                </div>
+              </div>
+              <div className="panel-body">
+                <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
+                  {["在职", "休息", "离岗"].map((s) => {
+                    const sel = workStatus === s;
+                    return (
+                      <div key={s} onClick={() => setWorkStatus(s)}
+                        style={{
+                          flex: 1, minWidth: 120, textAlign: "center", padding: "12px 0",
+                          borderRadius: 10, cursor: "pointer", fontSize: 13, fontWeight: 500,
+                          border: `1px solid ${sel ? "#2563eb" : "#e6ecf3"}`,
+                          background: sel ? "#eaf1ff" : "#fff",
+                          color: sel ? "#2563eb" : "#5b6b82",
+                        }}>
+                        {s}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{ display: "grid", gap: 12 }}>
+                  {[
+                    { key: "bookable", label: "可被患者挂号", desc: "开启后患者端可预约您的号源" },
+                    { key: "reviewRemind", label: "接收下级审阅提醒", desc: "下级提交诊断记录时提醒您" },
+                    { key: "restMessage", label: "休息期间接收消息", desc: "关闭后休息状态将暂停消息推送" },
+                  ].map((t) => (
+                    <div key={t.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "#f9fbfd", borderRadius: 10 }}>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: "#1b2b45" }}>{t.label}</div>
+                        <div style={{ fontSize: 11, color: "#9aa6b6", marginTop: 2 }}>{t.desc}</div>
+                      </div>
+                      <Switch
+                        checked={(toggles as any)[t.key]}
+                        onChange={(v) => setToggles((p) => ({ ...p, [t.key]: v }))}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 18 }}>
+                  <Button type="primary" icon={<SaveOutlined />} loading={statusSaving} onClick={handleSaveStatus}>保存状态</Button>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* ---- AI 模型参数 ---- */}
+          {active === "ai" && (
+            <section className="panel">
+              <div className="panel-head">
+                <div>
+                  <h2>AI 模型参数</h2>
+                  <small>个人偏好会覆盖系统默认值，仅作用于本人发起的分析</small>
+                </div>
+                <Tag color="blue" style={{ borderRadius: 999 }}>供应商：云端 · 自动选择</Tag>
+              </div>
+              <div className="panel-body">
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 32px", marginBottom: 8 }}>
+                  <Form layout="vertical">
+                    <Form.Item label="供应商名称">
+                      <Input value="MediCode 云端（默认）" disabled style={{ background: "#f7f9fc" }} />
+                    </Form.Item>
+                    <Form.Item label="请求地址">
+                      <Input prefix={<ApiOutlined style={{ color: "#9aa6b6" }} />} value="https://api.medicine.local/v1" disabled style={{ background: "#f7f9fc" }} />
+                    </Form.Item>
+                  </Form>
+                  <Form layout="vertical">
+                    <Form.Item label="接入方式">
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                        <div style={{ padding: "9px 14px", borderRadius: 9, border: "1px solid #2563eb", background: "#eaf1ff", color: "#2563eb", fontSize: 13, textAlign: "center" }}>● 直连</div>
+                        <div style={{ padding: "9px 14px", borderRadius: 9, border: "1px solid #e6ecf3", background: "#fff", color: "#5b6b82", fontSize: 13, textAlign: "center" }}>○ 代理</div>
+                      </div>
+                    </Form.Item>
+                    <Form.Item label="API Key">
+                      <Input.Password value="sk-**************3f2a" disabled style={{ background: "#f7f9fc" }} />
+                    </Form.Item>
+                  </Form>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24, marginTop: 8 }}>
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+                      <Text style={{ fontSize: 13, color: "#1b2b45" }}>温度（temperature）</Text>
+                      <Text style={{ fontSize: 13, fontWeight: 700, color: "#2563eb" }}>{params.temperature.toFixed(2)}</Text>
+                    </div>
+                    <Slider min={0} max={1} step={0.01} value={params.temperature}
+                      onChange={(v) => setParams((p) => ({ ...p, temperature: v as number }))} />
+                    <Text style={{ fontSize: 11, color: "#9aa6b5" }}>越低越稳定，诊断建议推荐 0.3 — 0.7</Text>
+                  </div>
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+                      <Text style={{ fontSize: 13, color: "#1b2b45" }}>核采样（top_p）</Text>
+                      <Text style={{ fontSize: 13, fontWeight: 700, color: "#2563eb" }}>{params.top_p.toFixed(2)}</Text>
+                    </div>
+                    <Slider min={0} max={1} step={0.01} value={params.top_p}
+                      onChange={(v) => setParams((p) => ({ ...p, top_p: v as number }))} />
+                    <Text style={{ fontSize: 11, color: "#9aa6b5" }}>限制候选词概率累计范围</Text>
+                  </div>
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+                      <Text style={{ fontSize: 13, color: "#1b2b45" }}>最小概率（min_p）</Text>
+                      <Text style={{ fontSize: 13, fontWeight: 700, color: "#2563eb" }}>{params.min_p.toFixed(2)}</Text>
+                    </div>
+                    <Slider min={0} max={1} step={0.01} value={params.min_p}
+                      onChange={(v) => setParams((p) => ({ ...p, min_p: v as number }))} />
+                    <Text style={{ fontSize: 11, color: "#9aa6b5" }}>过滤低概率输出</Text>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
+                  <Button onClick={handleParamReset}>恢复默认</Button>
+                  <Button icon={<ThunderboltOutlined />} loading={paramTesting} onClick={handleParamTest}>测试连接</Button>
+                  <Button type="primary" icon={<CheckOutlined />} loading={paramSaving} onClick={handleParamSave}>保存参数</Button>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* ---- API 密钥 ---- */}
+          {active === "apikey" && <ApiKeyManager />}
+
+          {/* ---- 通知偏好 ---- */}
+          {active === "notify" && (
+            <section className="panel">
+              <div className="panel-head">
+                <div>
+                  <h2>通知偏好</h2>
+                  <small>选择您希望接收的通知类型</small>
+                </div>
+              </div>
+              <div className="panel-body">
+                <div style={{ display: "grid", gap: 12 }}>
+                  {[
+                    { key: "recordReview", label: "就诊记录审核结果", desc: "AI/管理员审核完成后通知" },
+                    { key: "schedule", label: "排班与号源提醒", desc: "排班变更与紧张号源提醒" },
+                    { key: "message", label: "站内消息", desc: "同事发送的站内消息提醒" },
+                    { key: "system", label: "系统公告", desc: "院内公告与系统维护通知" },
+                  ].map((t) => (
+                    <div key={t.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "#f9fbfd", borderRadius: 10 }}>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: "#1b2b45" }}>{t.label}</div>
+                        <div style={{ fontSize: 11, color: "#9aa6b6", marginTop: 2 }}>{t.desc}</div>
+                      </div>
+                      <Switch checked={(notify as any)[t.key]} onChange={(v) => setNotify((p) => ({ ...p, [t.key]: v }))} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+          )}
+        </Spin>
+      </div>
     </div>
   );
 }

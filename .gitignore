@@ -43,3 +43,22 @@ logs/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# --- 端口分配临时文件 ---
+backend/.ports
+
+# --- 项目数据目录（memory 等，不入库）---
+.workbuddy/
+
+# --- 数据库备份 ---
+*.db.bak-*
+
+# --- 外部参考项目（scaffold 对照源码）---
+/scaffold-master-main/
+
+# --- 验证产物与截图 ---
+frontend/verify-shots/
+frontend/.verify-patient/
+
+# --- 错误日志 ---
+*.err

@@ -27,22 +27,40 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return bcrypt.checkpw(plain_bytes, hashed_bytes)
 
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    """生成JWT访问令牌"""
+def create_access_token(
+    data: dict,
+    expires_delta: Optional[timedelta] = None,
+    token_type: str = "staff",
+) -> str:
+    """生成JWT访问令牌，写入类型/受众/签发者声明，隔离员工与患者身份域。"""
     to_encode = data.copy()
     expire = datetime.utcnow() + (
         expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
-    to_encode.update({"exp": expire})
+    to_encode.update(
+        {
+            "exp": expire,
+            "type": token_type,
+            "aud": settings.TOKEN_AUDIENCE,
+            "iss": settings.TOKEN_ISSUER,
+        }
+    )
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
-def decode_access_token(token: str) -> Optional[dict]:
-    """解码JWT令牌，返回payload或None"""
+def decode_access_token(token: str, expected_type: Optional[str] = None) -> Optional[dict]:
+    """解码JWT令牌，返回payload或None；可选校验令牌类型。"""
     try:
         payload = jwt.decode(
-            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM],
+            audience=settings.TOKEN_AUDIENCE,
+            issuer=settings.TOKEN_ISSUER,
         )
-        return payload
     except JWTError:
         return None
+    if expected_type and payload.get("type") != expected_type:
+        return None
+    return payload
+

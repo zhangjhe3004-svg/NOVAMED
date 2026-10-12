@@ -1,0 +1,310 @@
+/* ============================================================
+   AI 辅助诊断页专属版式（ai- 前缀）
+   通用面板/按钮/标签复用 leave.css 的 lv-* 类，这里只放页面骨架：
+   左输入轨道 + 右结果区 / 空态 Hero / 加载步骤 / 候选诊断卡。
+   ============================================================ */
+
+/* ── 双栏骨架：左 400px 输入轨道，右结果区 ── */
+.ai-grid {
+  display: grid;
+  grid-template-columns: 400px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+.ai-rail {
+  position: sticky;
+  top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+@media (max-width: 1100px) {
+  .ai-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ai-rail {
+    position: static;
+  }
+}
+
+/* ── 输入轨道内的字段组 ── */
+.ai-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px 20px 20px;
+}
+.ai-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+.ai-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--lv-ink);
+}
+.ai-hint {
+  font-size: 11.5px;
+  color: var(--lv-faint);
+  line-height: 1.6;
+}
+.ai-hint.is-error {
+  color: var(--lv-red-text);
+}
+
+/* 检索来源行 */
+.ai-source {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--lv-muted);
+  padding: 8px 12px;
+  border: 1px solid var(--lv-line);
+  border-radius: var(--lv-r-xs);
+  background: var(--lv-surface-solid);
+}
+.ai-source .lv-tag {
+  margin-left: auto;
+}
+
+/* 症状关键词 chips */
+.ai-kw {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* ── 空态 Hero：珍珠玻璃渐变舞台 ── */
+.ai-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--lv-r-lg);
+  border: 1px solid var(--lv-line);
+  background:
+    radial-gradient(560px 300px at 85% -10%, rgba(35, 109, 233, 0.1), transparent 62%),
+    radial-gradient(420px 260px at 8% 108%, rgba(130, 221, 45, 0.1), transparent 60%),
+    #fff;
+  box-shadow: var(--lv-e1);
+  padding: 56px 32px 48px;
+  text-align: center;
+}
+.ai-orb {
+  position: relative;
+  width: 88px;
+  height: 88px;
+  margin: 0 auto 22px;
+  border-radius: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: linear-gradient(140deg, #4f8bff, #236de9 58%, #1d4ed8);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -8px 18px rgba(9, 38, 92, 0.28),
+    0 14px 30px rgba(35, 109, 233, 0.32);
+}
+.ai-orb::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(26px 14px at 30% 18%, rgba(255, 255, 255, 0.5), transparent 70%);
+}
+.ai-hero h2 {
+  margin: 0 0 10px;
+  font-size: 21px;
+  font-weight: 740;
+  letter-spacing: -0.02em;
+  color: var(--lv-ink);
+}
+.ai-hero p {
+  max-width: 430px;
+  margin: 0 auto 24px;
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--lv-muted);
+}
+.ai-hero-chips {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* ── 加载步骤：三个阶段逐个点亮 ── */
+.ai-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 340px;
+  margin: 26px auto 0;
+  text-align: left;
+}
+.ai-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--lv-faint);
+  opacity: 0.45;
+  animation: ai-step-on 1.6s ease-in-out infinite;
+}
+.ai-step i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--lv-faint);
+  flex-shrink: 0;
+}
+.ai-step:nth-child(2) { animation-delay: 0.35s; }
+.ai-step:nth-child(3) { animation-delay: 0.7s; }
+@keyframes ai-step-on {
+  0%, 100% { opacity: 0.45; }
+  18% { opacity: 1; color: var(--lv-ink); }
+  40% { opacity: 1; color: var(--lv-ink); }
+}
+.ai-step i {
+  animation: ai-step-dot 1.6s ease-in-out infinite;
+}
+@keyframes ai-step-dot {
+  0%, 100% { background: var(--lv-faint); box-shadow: none; }
+  18% { background: var(--lv-blue); box-shadow: 0 0 0 4px var(--lv-blue-soft); }
+  40% { background: var(--lv-blue); box-shadow: 0 0 0 4px var(--lv-blue-soft); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ai-step,
+  .ai-step i {
+    animation: none !important;
+    opacity: 1 !important;
+    color: var(--lv-ink);
+  }
+}
+
+/* ── 候选诊断卡 ── */
+.ai-dx-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 20px 20px;
+}
+.ai-dx {
+  border: 1px solid var(--lv-line);
+  border-radius: var(--lv-r-md);
+  padding: 14px 16px;
+  background: #fff;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.ai-dx:hover {
+  border-color: rgba(35, 109, 233, 0.35);
+  box-shadow: var(--lv-e1);
+}
+.ai-dx-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.ai-rank {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--lv-blue);
+  background: var(--lv-blue-soft);
+  flex-shrink: 0;
+}
+.ai-dx.is-top .ai-rank {
+  color: #fff;
+  background: linear-gradient(140deg, #4f8bff, #236de9);
+  box-shadow: 0 4px 10px rgba(35, 109, 233, 0.3);
+}
+.ai-dx-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--lv-ink);
+}
+.ai-pct {
+  margin-left: auto;
+  font-size: 20px;
+  font-weight: 740;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--lv-blue);
+}
+.ai-confbar {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(46, 58, 62, 0.07);
+  overflow: hidden;
+  margin-top: 10px;
+}
+.ai-confbar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #4f8bff, var(--lv-blue));
+  transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.ai-dx-rationale {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--lv-muted);
+  display: flex;
+  gap: 6px;
+}
+.ai-dx-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+/* ── 底部操作条 ── */
+.ai-actionbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 16px 20px;
+}
+.ai-actionbar-text {
+  flex: 1;
+  min-width: 200px;
+  font-size: 12.5px;
+  color: var(--lv-muted);
+  line-height: 1.7;
+}
+
+/* 深度分析 / 验证面板正文 */
+.ai-prose {
+  padding: 4px 20px 20px;
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--lv-ink);
+  white-space: pre-wrap;
+}
+.ai-verify {
+  padding: 16px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ai-verify-row {
+  font-size: 12.5px;
+  color: var(--lv-muted);
+  line-height: 1.7;
+}

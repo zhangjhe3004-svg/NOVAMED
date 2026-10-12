@@ -1,89 +1,123 @@
 /**
- * 控制台 — NocoBase / MediCode 清爽仪表盘
+ * 控制台 —— 全站第一屏。
+ *
+ * 这一版把原来各写一遍的内联统计卡 / 手搓 polyline 全部换成仪表组件库
+ * （KpiTile / TickRing / TrendChart / BarChart），收益是三件事：
+ *  1. 数字统一走 Odometer，刷新时只有变化的位在滚，横向扫视不会左右抖；
+ *  2. 趋势图有网格、坐标轴与悬停准星，能读数而不只是「看个形状」；
+ *  3. 环比是真实算出来的（近 7 日 vs 前 7 日），不再写死「较上月增长」。
  */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Row, Col, Card, Typography, List, Tag, Skeleton, Space, Button } from "antd";
+import { Tag } from "antd";
 import {
   UserOutlined,
   FileTextOutlined,
   ExperimentOutlined,
   CheckCircleOutlined,
-  ArrowRightOutlined,
-  PlusOutlined,
 } from "@ant-design/icons";
 import { listPatients } from "../api/patients";
 import { listRecords } from "../api/records";
 import type { PatientInfo } from "../api/patients";
 import type { MedicalRecordInfo } from "../api/records";
+import {
+  BarChart,
+  KpiTile,
+  Metric,
+  Odometer,
+  SpecPlate,
+  TickRing,
+  TrendChart,
+} from "../components/instruments";
 
-const { Text } = Typography;
+interface DayBucket {
+  /** 排序键 YYYY-MM-DD（原来的 M/D 字符串排序跨月会错序） */
+  key: string;
+  label: string;
+  count: number;
+  ai: number;
+  reviewed: number;
+}
 
-// ---- 简单 SVG 图表（饼图/折线/横向条形）----
-function StatusPie({ data }: { data: { label: string; value: number; color: string }[] }) {
-  const total = data.reduce((a, b) => a + b.value, 0);
-  if (total === 0) return <Text type="secondary">暂无数据</Text>;
-  let acc = 0;
-  const cx = 90, cy = 90, r = 70;
-  const pts = data.map((d) => {
-    const angle = (d.value / total) * 2 * Math.PI;
-    const a0 = acc; acc += angle; const a1 = acc;
-    const x0 = cx + r * Math.cos(a0 - Math.PI / 2), y0 = cy + r * Math.sin(a0 - Math.PI / 2);
-    const x1 = cx + r * Math.cos(a1 - Math.PI / 2), y1 = cy + r * Math.sin(a1 - Math.PI / 2);
-    const large = a1 - a0 > Math.PI ? 1 : 0;
-    return { path: `M ${cx} ${cy} L ${x0} ${y0} A ${r} ${r} 0 ${large} 1 ${x1} ${y1} Z`, color: d.color, d };
+const STATUS_META = [
+  { label: "待审", color: "#d6a451", tone: "orange" as const, code: 0 },
+  { label: "已确认", color: "#1d7a63", tone: "green" as const, code: 1 },
+  { label: "已驳回", color: "#c4423e", tone: "red" as const, code: 2 },
+];
+
+/** 患者列表接口并不返回 record_count / blood_type（原页面读的是 undefined），
+    这里改用真实字段：建档日期、年龄。 */
+function ageOf(birth?: string) {
+  if (!birth) return null;
+  const d = new Date(birth);
+  if (Number.isNaN(d.getTime())) return null;
+  const years = Math.floor((Date.now() - d.getTime()) / 31557600000);
+  return years >= 0 && years < 150 ? years : null;
+}
+
+function fmtDay(value?: string) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+/** 把记录按自然日装桶（只用于取每天的量，不负责补齐空日） */
+function bucketByDay(records: MedicalRecordInfo[]): Map<string, DayBucket> {
+  const map = new Map<string, DayBucket>();
+  records.forEach((r) => {
+    if (!r.visit_date) return;
+    const d = new Date(r.visit_date);
+    if (Number.isNaN(d.getTime())) return;
+    const key = dayKey(d);
+    let b = map.get(key);
+    if (!b) {
+      b = { key, label: `${d.getMonth() + 1}/${d.getDate()}`, count: 0, ai: 0, reviewed: 0 };
+      map.set(key, b);
+    }
+    b.count += 1;
+    if (r.ai_suggestion) b.ai += 1;
+    if (r.ai_reviewed === 1) b.reviewed += 1;
   });
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-      <svg viewBox="0 0 180 180" style={{ width: 150, height: 150, flexShrink: 0 }}>
-        {pts.map((p, i) => (p.d.value > 0 ? <path key={i} d={p.path} fill={p.color} /> : null))}
-        <text x={cx} y={cy + 5} textAnchor="middle" fontSize="18" fontWeight="700" fill="#333">{total}</text>
-      </svg>
-      <div>
-        {data.map((d) => (
-          <div key={d.label} style={{ fontSize: 12, marginBottom: 5 }}>
-            <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 10, background: d.color, marginRight: 6 }} />
-            {d.label}：{d.value}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  return map;
 }
 
-function TrendLine({ data }: { data: { label: string; value: number }[] }) {
-  if (!data.length) return <Text type="secondary">暂无数据</Text>;
-  const w = 380, h = 150, pad = 12;
-  const max = Math.max(...data.map((d) => d.value), 1);
-  const step = (w - pad * 2) / Math.max(data.length - 1, 1);
-  const pts = data.map((d, i) => `${(pad + i * step).toFixed(1)},${(h - pad - (d.value / max) * (h - pad * 2)).toFixed(1)}`);
-  const every = Math.max(1, Math.floor(data.length / 6));
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} style={{ width: "100%", height: 150 }}>
-      <polyline points={pts.join(" ")} fill="none" stroke="#1677ff" strokeWidth="2" />
-      {data.map((d, i) => (i % every === 0 ? (
-        <text key={i} x={pad + i * step} y={h - 2} fontSize="9" fill="#999" textAnchor="middle">{d.label}</text>
-      ) : null))}
-    </svg>
-  );
+function dayKey(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate()
+  ).padStart(2, "0")}`;
 }
 
-function BarList({ data }: { data: { label: string; value: number }[] }) {
-  const max = Math.max(...data.map((d) => d.value), 1);
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-      {data.map((d) => (
-        <div key={d.label} style={{ fontSize: 12 }}>
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span>{d.label}</span><Text strong>{d.value}</Text>
-          </div>
-          <div style={{ height: 8, background: "#f0f0f0", borderRadius: 4, marginTop: 2 }}>
-            <div style={{ width: `${(d.value / max) * 100}%`, height: 8, background: "#52c41a", borderRadius: 4 }} />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
+/** 连续 N 天窗口（含今天），没有数据的日子补 0 —— 不然坐标轴只画有数据的那几天，
+    和面板上写的「近 14 日」对不上，也看不出空档。 */
+function windowOfDays(map: Map<string, DayBucket>, span: number): DayBucket[] {
+  const out: DayBucket[] = [];
+  const today = new Date();
+  for (let i = span - 1; i >= 0; i -= 1) {
+    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i);
+    const key = dayKey(d);
+    out.push(
+      map.get(key) ?? {
+        key,
+        label: `${d.getMonth() + 1}/${d.getDate()}`,
+        count: 0,
+        ai: 0,
+        reviewed: 0,
+      }
+    );
+  }
+  return out;
+}
+
+/** 近 7 日 vs 前 7 日的环比（%）；上周为 0 则返回 null，由 fresh 表达 */
+function weekDelta(days: DayBucket[], pick: (d: DayBucket) => number) {
+  const last = days.slice(-7).reduce((a, b) => a + pick(b), 0);
+  const prev = days.slice(-14, -7).reduce((a, b) => a + pick(b), 0);
+  return {
+    delta: prev > 0 ? Math.round(((last - prev) / prev) * 1000) / 10 : null,
+    fresh: prev === 0 && last > 0,
+    last,
+  };
 }
 
 export default function Dashboard() {
@@ -117,213 +151,358 @@ export default function Dashboard() {
     load();
   }, []);
 
-  const statCards = [
-    {
-      title: "患者总数",
-      value: patientTotal,
-      icon: <UserOutlined />,
-      color: "#1677ff",
-      bg: "#e6f4ff",
-      path: "/patients",
-    },
-    {
-      title: "就诊记录",
-      value: recordTotal,
-      icon: <FileTextOutlined />,
-      color: "#52c41a",
-      bg: "#f6ffed",
-      path: "/records",
-    },
-    {
-      title: "AI 辅助诊断",
-      value: recentRecords.filter((r) => r.ai_suggestion).length,
-      icon: <ExperimentOutlined />,
-      color: "#722ed1",
-      bg: "#f9f0ff",
-      suffix: " 近期",
-      path: "/ai-assistant",
-    },
-    {
-      title: "已审核建议",
-      value: recentRecords.filter((r) => r.ai_reviewed === 1).length,
-      icon: <CheckCircleOutlined />,
-      color: "#faad14",
-      bg: "#fffbe6",
-      suffix: " 近期",
-      path: "/records",
-    },
-  ];
+  // ---- 派生数据：一律在 return 之前声明完（避免 TDZ）----
+  const days = useMemo(() => windowOfDays(bucketByDay(recordsAll), 14), [recordsAll]);
+  const trend = days;
+  const hasTrend = useMemo(() => trend.some((d) => d.count > 0), [trend]);
 
-  // 图表数据（NocoBase 仪表盘风格）
-  const statusData = [
-    { label: "待审", value: recordsAll.filter((r) => r.ai_reviewed === 0).length, color: "#faad14" },
-    { label: "已确认", value: recordsAll.filter((r) => r.ai_reviewed === 1).length, color: "#52c41a" },
-    { label: "已驳回", value: recordsAll.filter((r) => r.ai_reviewed === 2).length, color: "#ff4d4f" },
+  const labels = useMemo(() => trend.map((d) => d.label), [trend]);
+  const countSeries = useMemo(() => trend.map((d) => d.count), [trend]);
+  const aiSeries = useMemo(() => trend.map((d) => d.ai), [trend]);
+  const reviewedSeries = useMemo(() => trend.map((d) => d.reviewed), [trend]);
+
+  const statusCount = useMemo(() => {
+    const by = (code: number) => recordsAll.filter((r) => r.ai_reviewed === code).length;
+    const pending = by(0);
+    const confirmed = by(1);
+    const rejected = by(2);
+    const total = pending + confirmed + rejected;
+    return {
+      pending,
+      confirmed,
+      rejected,
+      total,
+      completion: total > 0 ? Math.round((confirmed / total) * 1000) / 10 : 0,
+    };
+  }, [recordsAll]);
+
+  const aiTotal = useMemo(() => recordsAll.filter((r) => r.ai_suggestion).length, [recordsAll]);
+
+  const docData = useMemo(() => {
+    const docMap: Record<string, number> = {};
+    recordsAll.forEach((r) => {
+      const name = r.doctor_name || "未分配";
+      docMap[name] = (docMap[name] || 0) + 1;
+    });
+    return Object.entries(docMap)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(([name, value]) => ({ name, value }));
+  }, [recordsAll]);
+
+  const deltaRecords = useMemo(() => weekDelta(days, (d) => d.count), [days]);
+  const deltaAi = useMemo(() => weekDelta(days, (d) => d.ai), [days]);
+  const deltaReviewed = useMemo(() => weekDelta(days, (d) => d.reviewed), [days]);
+
+  const loadedAt = useMemo(
+    () =>
+      new Date().toLocaleTimeString("zh-CN", {
+        hour12: false,
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    []
+  );
+
+  const todo = [
+    {
+      key: "pending",
+      icon: <FileTextOutlined />,
+      bg: "#f2f6ff",
+      color: "#5784d2",
+      title: "待审核就诊记录",
+      desc: "AI 已生成建议，等待确认",
+      num: statusCount.pending,
+      go: "/records",
+    },
+    {
+      key: "patients",
+      icon: <UserOutlined />,
+      bg: "#fff8eb",
+      color: "#c49338",
+      title: "新注册患者",
+      desc: "需要完善档案信息",
+      num: recentPatients.length,
+      go: "/patients",
+    },
+    {
+      key: "ai",
+      icon: <ExperimentOutlined />,
+      bg: "#eef8f5",
+      color: "#138d85",
+      title: "AI 辅助诊断",
+      desc: "待查看分析结果",
+      num: aiTotal,
+      go: "/ai-assistant",
+    },
   ];
-  const dayMap: Record<string, number> = {};
-  recordsAll.forEach((r) => { const d = new Date(r.visit_date); const k = `${d.getMonth() + 1}/${d.getDate()}`; dayMap[k] = (dayMap[k] || 0) + 1; });
-  const trendData = Object.entries(dayMap).sort((a, b) => (a[0] < b[0] ? -1 : 1)).slice(-14).map(([label, value]) => ({ label, value }));
-  const docMap: Record<string, number> = {};
-  recordsAll.forEach((r) => { const n = r.doctor_name || "未分配"; docMap[n] = (docMap[n] || 0) + 1; });
-  const docData = Object.entries(docMap).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([label, value]) => ({ label, value }));
 
   return (
-    <div>
-      {/* Headline */}
-      <div style={{ marginBottom: 24 }}>
-        <h2 style={{ margin: 0, fontSize: 22, fontWeight: 600, color: "#1f1f1f" }}>控制台</h2>
-        <Text style={{ color: "#6b7280", fontSize: 14 }}>
-          系统运行正常 · 以下是您的数据摘要
-        </Text>
+    <div className="dash">
+      {/* Hero */}
+      <section className="dash-hero md-rise">
+        <div className="dash-hero-main">
+          <h2>欢迎回到工作空间</h2>
+          <p>连接患者、诊疗与医学知识。以清晰的工作空间，陪伴每一次专业判断。</p>
+          <button className="dash-hero-cta" onClick={() => navigate("/records")}>
+            查看今日任务 →
+          </button>
+        </div>
+        <div className="dash-hero-stat">
+          <Metric value={patientTotal} size="xl" label="累计患者" />
+        </div>
+      </section>
+
+      {/* 指标瓦片 */}
+      <div className="kpi-grid md-stagger">
+        <KpiTile
+          title="患者总数"
+          value={patientTotal}
+          cat={1}
+          icon={<UserOutlined />}
+          foot="已建档患者"
+          onPick={() => navigate("/patients")}
+        />
+        <KpiTile
+          title="就诊记录"
+          value={recordTotal}
+          cat={2}
+          icon={<FileTextOutlined />}
+          delta={deltaRecords.delta}
+          fresh={deltaRecords.fresh && deltaRecords.delta === null}
+          foot="近 7 日 vs 前 7 日"
+          spark={countSeries}
+          onPick={() => navigate("/records")}
+        />
+        <KpiTile
+          title="AI 辅助诊断"
+          value={aiTotal}
+          cat={3}
+          icon={<ExperimentOutlined />}
+          delta={deltaAi.delta}
+          fresh={deltaAi.fresh && deltaAi.delta === null}
+          foot="样本内已生成建议"
+          spark={aiSeries}
+          onPick={() => navigate("/ai-assistant")}
+        />
+        <KpiTile
+          title="已审核建议"
+          value={statusCount.confirmed}
+          cat={5}
+          icon={<CheckCircleOutlined />}
+          delta={deltaReviewed.delta}
+          fresh={deltaReviewed.fresh && deltaReviewed.delta === null}
+          foot="样本内已确认"
+          spark={reviewedSeries}
+          onPick={() => navigate("/records")}
+        />
       </div>
 
-      {/* Stat Cards */}
-      <Row gutter={[16, 16]}>
-        {statCards.map((s) => (
-          <Col xs={24} sm={12} lg={6} key={s.title}>
-            {loading ? (
-              <div style={{ padding: 20, background: "#f5f5f5", borderRadius: 8 }}>
-                <Skeleton active paragraph={{ rows: 1 }} />
+      {/* 图表 + 待办 */}
+      <div className="dash-split">
+        <div className="dash-col">
+          <div className="grid-2">
+            <div className="panel">
+              <div className="panel-head">
+                <div>
+                  <h2>记录状态分布</h2>
+                  <small>按审核状态统计</small>
+                </div>
               </div>
-            ) : (
-              <div
-                onClick={() => navigate(s.path)}
-                style={{
-                  background: "#ffffff",
-                  border: "1px solid #f0f0f0",
-                  borderRadius: 8,
-                  padding: "18px 20px",
-                  cursor: "pointer",
-                  transition: "box-shadow .2s",
-                }}
-                onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.boxShadow = "0 2px 8px rgba(0,0,0,0.06)")}
-                onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.boxShadow = "none")}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                  <div>
-                    <Text style={{
-                      fontSize: 12,
-                      color: "#6b7280",
-                      textTransform: "uppercase",
-                      letterSpacing: 0.5,
-                      fontWeight: 600,
-                    }}>
-                      {s.title}
-                    </Text>
-                    <div style={{ fontSize: 32, fontWeight: 700, color: s.color, lineHeight: 1.2, marginTop: 6 }}>
-                      {s.value}
-                      {s.suffix && <span style={{ fontSize: 13, fontWeight: 400, color: "#6b7280", marginLeft: 6 }}>{s.suffix}</span>}
-                    </div>
-                  </div>
-                  <div style={{
-                    width: 44, height: 44, borderRadius: 10,
-                    background: s.bg, color: s.color,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 22,
-                  }}>
-                    {s.icon}
+              <div className="panel-body">
+                <div className="ring-block">
+                  <TickRing
+                    value={statusCount.completion}
+                    display={statusCount.confirmed}
+                    unit="条"
+                    caption="已确认"
+                    cat={3}
+                    size={158}
+                    decimals={0}
+                  />
+                  <div className="trend-legend">
+                    <span className="trend-legend-item">
+                      <i style={{ background: STATUS_META[0].color }} />
+                      待审
+                      <b>{statusCount.pending}</b>
+                    </span>
+                    <span className="trend-legend-item">
+                      <i style={{ background: STATUS_META[1].color }} />
+                      已确认
+                      <b>{statusCount.confirmed}</b>
+                    </span>
+                    <span className="trend-legend-item">
+                      <i style={{ background: STATUS_META[2].color }} />
+                      已驳回
+                      <b>{statusCount.rejected}</b>
+                    </span>
                   </div>
                 </div>
               </div>
+            </div>
+
+            <div className="panel">
+              <div className="panel-head">
+                <div>
+                  <h2>每日就诊趋势</h2>
+                  <small>近 {labels.length || 14} 日</small>
+                </div>
+              </div>
+              <div className="panel-body pad">
+                {hasTrend ? (
+                  <TrendChart
+                    labels={labels}
+                    series={[{ name: "就诊记录", values: countSeries, area: true }]}
+                    height={196}
+                    unit=" 例"
+                    cat={1}
+                  />
+                ) : (
+                  <div className="dash-empty">近 14 日暂无就诊记录</div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="panel">
+            <div className="panel-head">
+              <div>
+                <h2>按接诊医生</h2>
+                <small>样本内就诊记录归属</small>
+              </div>
+            </div>
+            <div className="panel-body">
+              <BarChart data={docData} cat={2} />
+            </div>
+          </div>
+        </div>
+
+        <div className="dash-col">
+          <div className="panel">
+            <div className="panel-head">
+              <div>
+                <h2>待办任务</h2>
+                <small>需要您处理的事项</small>
+              </div>
+            </div>
+            <div className="dash-todo">
+              {todo.map((t) => (
+                <button key={t.key} className="dash-todo-row" onClick={() => navigate(t.go)}>
+                  <span className="dash-todo-ico" style={{ background: t.bg, color: t.color }}>
+                    {t.icon}
+                  </span>
+                  <span className="dash-todo-txt">
+                    <strong>{t.title}</strong>
+                    <p>{t.desc}</p>
+                  </span>
+                  <span className="dash-num">
+                    <Odometer value={t.num} />
+                  </span>
+                  <span className="dash-arrow">→</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <SpecPlate
+            title="数据口径"
+            rows={[
+              { label: "数据源", value: "患者库 · 就诊库" },
+              { label: "统计窗口", value: `近 ${labels.length || 14} 日` },
+              { label: "纳入样本", value: `${recordsAll.length} 条就诊` },
+              { label: "载入时间", value: loadedAt },
+            ]}
+          />
+        </div>
+      </div>
+
+      {/* 最近患者 + 最近就诊 */}
+      <div className="grid-2">
+        <div className="panel">
+          <div className="panel-head">
+            <div>
+              <h2>最近患者</h2>
+            </div>
+            <button className="dash-link" onClick={() => navigate("/patients")}>
+              全部 →
+            </button>
+          </div>
+          <div className="dash-list">
+            {loading ? (
+              <div className="dash-empty">加载中…</div>
+            ) : recentPatients.length === 0 ? (
+              <div className="dash-empty">暂无患者</div>
+            ) : (
+              recentPatients.slice(0, 5).map((p) => {
+                const age = ageOf(p.birth_date);
+                return (
+                  <div
+                    key={p.id}
+                    className="dash-row is-clickable"
+                    onClick={() => navigate(`/patients/${p.id}`)}
+                  >
+                    <span className="dash-avatar">{p.name?.[0] ?? "?"}</span>
+                    <span className="dash-row-main">
+                      <span className="dash-row-title">{p.name}</span>
+                      <small className="dash-row-sub">
+                        {p.gender === "male" ? "男" : p.gender === "female" ? "女" : "-"} · 建档{" "}
+                        {fmtDay(p.created_at)}
+                      </small>
+                    </span>
+                    {age !== null && (
+                      <Tag color="blue" style={{ fontSize: 10, marginInlineEnd: 0 }}>
+                        {age} 岁
+                      </Tag>
+                    )}
+                  </div>
+                );
+              })
             )}
-          </Col>
-        ))}
-      </Row>
+          </div>
+        </div>
 
-      {/* 仪表盘图表（NocoBase 风格：饼图/趋势/条形） */}
-      <Row gutter={[24, 24]} style={{ marginTop: 24 }}>
-        <Col xs={24} lg={8}>
-          <Card title="记录状态分布" size="small">
-            <StatusPie data={statusData} />
-          </Card>
-        </Col>
-        <Col xs={24} lg={8}>
-          <Card title="每日就诊趋势" size="small">
-            <TrendLine data={trendData} />
-          </Card>
-        </Col>
-        <Col xs={24} lg={8}>
-          <Card title="按接诊医生" size="small">
-            <BarList data={docData} />
-          </Card>
-        </Col>
-      </Row>
-
-      {/* Recent */}
-      <Row gutter={[16, 16]} style={{ marginTop: 24 }}>
-        <Col xs={24} lg={12}>
-          <Card
-            title={<Space><UserOutlined style={{ color: "#1677ff" }} /> 最近患者</Space>}
-            extra={<Button type="link" onClick={() => navigate("/patients")}>全部 <ArrowRightOutlined /></Button>}
-          >
-            <List
-              loading={loading}
-              dataSource={recentPatients}
-              locale={{ emptyText: "暂无患者" }}
-              renderItem={(p) => (
-                <List.Item
-                  style={{ cursor: "pointer", padding: "10px 12px", borderRadius: 8 }}
-                  onClick={() => navigate(`/patients/${p.id}`)}
-                >
-                  <List.Item.Meta
-                    avatar={
-                      <div style={{
-                        width: 40, height: 40, borderRadius: 20,
-                        background: "#e6f4ff", color: "#1677ff",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        fontWeight: 700, fontSize: 16,
-                      }}>
-                        {p.name[0]}
-                      </div>
-                    }
-                    title={p.name}
-                    description={`就诊 ${p.record_count} 次`}
-                  />
-                  {p.blood_type && <Tag color="blue">{p.blood_type}</Tag>}
-                  <Text style={{ color: p.gender === "female" ? "#eb2f96" : "#1677ff", marginLeft: 8 }}>
-                    {p.gender === "male" ? "男" : p.gender === "female" ? "女" : ""}
-                  </Text>
-                </List.Item>
-              )}
-            />
-          </Card>
-        </Col>
-
-        <Col xs={24} lg={12}>
-          <Card
-            title={<Space><FileTextOutlined style={{ color: "#52c41a" }} /> 最近就诊</Space>}
-            extra={
-              <Space>
-                <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => navigate("/patients")}>
-                  新建
-                </Button>
-                <Button type="link" size="small" onClick={() => navigate("/records")}>
-                  全部 <ArrowRightOutlined />
-                </Button>
-              </Space>
-            }
-          >
-            <List
-              loading={loading}
-              dataSource={recentRecords}
-              locale={{ emptyText: "暂无记录" }}
-              renderItem={(r) => (
-                <List.Item style={{ padding: "10px 12px", borderRadius: 8 }}>
-                  <List.Item.Meta
-                    title={<Text ellipsis style={{ maxWidth: 280 }}>{r.symptoms.slice(0, 40)}</Text>}
-                    description={`${new Date(r.visit_date).toLocaleDateString("zh-CN")} · ${r.doctor_name || ""}`}
-                  />
-                  {r.ai_suggestion ? (
-                    <Tag color={r.ai_reviewed === 1 ? "success" : r.ai_reviewed === 2 ? "error" : "processing"}>
-                      {r.ai_reviewed === 1 ? "已确认" : r.ai_reviewed === 2 ? "已驳回" : "待审核"}
+        <div className="panel">
+          <div className="panel-head">
+            <div>
+              <h2>最近就诊</h2>
+            </div>
+            <button className="dash-link" onClick={() => navigate("/records")}>
+              全部 →
+            </button>
+          </div>
+          <div className="dash-list">
+            {loading ? (
+              <div className="dash-empty">加载中…</div>
+            ) : recentRecords.length === 0 ? (
+              <div className="dash-empty">暂无记录</div>
+            ) : (
+              recentRecords.slice(0, 5).map((r) => {
+                const meta =
+                  STATUS_META.find((s) => s.code === r.ai_reviewed) ?? STATUS_META[0];
+                return (
+                  <div key={r.id} className="dash-row">
+                    <span className="dash-avatar teal">
+                      <FileTextOutlined />
+                    </span>
+                    <span className="dash-row-main">
+                      <span className="dash-row-title">
+                        {r.symptoms?.slice(0, 40) || "无主诉"}
+                      </span>
+                      <small className="dash-row-sub">
+                        {r.visit_date ? new Date(r.visit_date).toLocaleDateString("zh-CN") : "-"}
+                        {r.doctor_name ? ` · ${r.doctor_name}` : ""}
+                      </small>
+                    </span>
+                    <Tag color={meta.tone} style={{ fontSize: 10, marginInlineEnd: 0 }}>
+                      {meta.label}
                     </Tag>
-                  ) : <Tag>无AI</Tag>}
-                </List.Item>
-              )}
-            />
-          </Card>
-        </Col>
-      </Row>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

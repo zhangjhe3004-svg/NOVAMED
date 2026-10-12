@@ -24,6 +24,9 @@ def get_current_user(
     payload = decode_access_token(credentials.credentials)
     if not payload:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="令牌无效或已过期")
+    # 修复身份域隔离：明确拒绝患者令牌访问员工端
+    if payload.get("type") == "patient" or payload.get("patient") is True:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="令牌类型错误")
     user_id = int(payload.get("sub", 0))
     user = db.query(User).filter(User.id == user_id).first()
     if not user or not user.is_active:
@@ -53,7 +56,11 @@ def get_current_patient(
     if credentials is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="未提供认证令牌")
     payload = decode_access_token(credentials.credentials)
-    if not payload or not payload.get("patient"):
+    if not payload:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="令牌无效或已过期")
+    if payload.get("type") == "staff":
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="令牌类型错误")
+    if not (payload.get("patient") is True or payload.get("type") == "patient"):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="患者认证失败")
     acct_id = int(payload.get("sub", 0))
     acct = db.query(PatientAccount).filter(PatientAccount.id == acct_id).first()

@@ -1,0 +1,413 @@
+/* ============================================================================
+   MediCode · 组织画布 (org.css)
+   ----------------------------------------------------------------------------
+   与 stage.css 同源：分类色槽 --cat-bg/--cat-ink/--cat-line 由 .cat-1..5 提供。
+   关键约束：.org-layer 的 transform 专供平移缩放，节点的入场动画也用 transform，
+   所以悬停抬升必须走 CSS 的 translate 属性（而非 transform），两者互不覆盖。
+   ============================================================================ */
+
+.org-canvas-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+}
+
+.org-canvas {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: max(560px, calc(100vh - 264px));
+  overflow: hidden;
+  border-radius: var(--md-r-xl, 20px);
+  border: 1px solid #e2e9f2;
+  background:
+    radial-gradient(58% 48% at 16% 10%, rgba(37, 99, 235, 0.05), transparent 70%),
+    radial-gradient(52% 44% at 86% 92%, rgba(19, 141, 133, 0.05), transparent 70%),
+    #fff;
+  box-shadow: var(--md-shadow-rest, 0 1px 2px rgba(27, 43, 69, 0.04)), 0 1px 3px rgba(27, 43, 69, 0.03);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.org-canvas.is-panning {
+  cursor: grabbing;
+}
+
+/* 点阵背景：中心清晰、边缘淡出，暗示可以拖出去 */
+.org-dots {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(rgba(27, 43, 69, 0.13) 1px, transparent 1.2px);
+  background-size: 22px 22px;
+  mask-image: radial-gradient(80% 80% at 50% 50%, #000 40%, transparent 100%);
+  -webkit-mask-image: radial-gradient(80% 80% at 50% 50%, #000 40%, transparent 100%);
+}
+
+/* ---------- 变换层 ---------- */
+.org-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+/* 只有程序化移动（适应画布 / 居中聚焦 / 缩放）才走补间，拖拽直写 */
+.org-layer.is-animating {
+  transition: transform var(--md-dur-page, 520ms) var(--md-ease-smooth, cubic-bezier(0.32, 0.72, 0, 1));
+}
+
+.org-links {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.org-link {
+  fill: none;
+  stroke: color-mix(in srgb, var(--cat-ink, #7d8ba0) 42%, transparent);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  transition: stroke 260ms linear, stroke-width 260ms linear;
+}
+
+.org-link.is-active {
+  stroke: color-mix(in srgb, var(--cat-ink, #2563eb) 88%, transparent);
+  stroke-width: 2;
+}
+
+.org-pulse {
+  fill: var(--cat-ink, #2563eb);
+  opacity: 0;
+  stroke: rgba(255, 255, 255, 0.85);
+  stroke-width: 6;
+  paint-order: stroke;
+  pointer-events: none;
+}
+
+/* ---------- 节点 ---------- */
+.org-node {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 16px 0 20px;
+  border-radius: var(--md-r-md, 12px);
+  border: 1px solid #e4ebf4;
+  background: #fff;
+  box-shadow: var(--md-shadow-rest, 0 1px 2px rgba(27, 43, 69, 0.04));
+  cursor: pointer;
+  outline: none;
+  transition: box-shadow 300ms linear, border-color 300ms linear,
+    translate 340ms var(--md-ease-smooth, cubic-bezier(0.32, 0.72, 0, 1));
+}
+
+.org-node:hover {
+  box-shadow: var(--md-shadow-hover, 0 4px 10px rgba(27, 43, 69, 0.06));
+  translate: 0 -2px;
+}
+
+.org-node:focus-visible {
+  outline: 2px solid var(--blue, #2563eb);
+  outline-offset: 3px;
+}
+
+.org-node.is-selected {
+  border-color: color-mix(in srgb, var(--blue, #2563eb) 55%, transparent);
+  box-shadow: var(--md-shadow-pop, 0 8px 20px rgba(27, 43, 69, 0.08)), 0 0 0 4px rgba(37, 99, 235, 0.1);
+  translate: 0 -3px;
+}
+
+/* 根节点：深色台面（板 Plate），与阶梯的台面同语汇 */
+.org-node.is-root {
+  background: linear-gradient(150deg, #1b2b45 0%, #25405f 100%);
+  border-color: #2f4b6d;
+  color: #f2f6fc;
+}
+
+.org-node.is-root .org-meta {
+  color: #9fb2ca;
+}
+
+.org-node.is-root .org-strip {
+  background: #7fd0c4;
+  box-shadow: 0 0 10px rgba(127, 208, 196, 0.55);
+}
+
+.org-node.is-root .org-count {
+  color: #d7e6f7;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.org-node.is-off {
+  opacity: 0.55;
+}
+
+.org-node.is-person {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--cat-line, #e4ebf4) 90%, transparent);
+}
+
+.org-strip {
+  position: absolute;
+  left: 8px;
+  top: 14px;
+  bottom: 14px;
+  width: 4px;
+  border-radius: 4px;
+  background: var(--cat-bg, #eef2f7);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cat-ink, #7d8ba0) 30%, transparent);
+}
+
+.org-name {
+  font-size: 14px;
+  font-weight: 680;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.org-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11.5px;
+  color: #7d8ba0;
+}
+
+.org-leader {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.org-count {
+  flex: none;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+  font-size: 10.5px;
+  color: var(--cat-ink, #7d8ba0);
+  background: var(--cat-bg, #f2f6fb);
+}
+
+/* 收起 / 展开：挂在节点下缘中央 */
+.org-toggle {
+  position: absolute;
+  left: 50%;
+  bottom: -11px;
+  translate: -50% 0;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: #7d8ba0;
+  border: 1px solid #e4ebf4;
+  background: #fff;
+  box-shadow: var(--md-shadow-rest, 0 1px 2px rgba(27, 43, 69, 0.04));
+  cursor: pointer;
+  z-index: 2;
+}
+
+.org-toggle:hover {
+  color: var(--blue, #2563eb);
+  border-color: #bcd3f8;
+}
+
+/* ---------- 四角浮动面板 ---------- */
+.org-panel {
+  position: absolute;
+  z-index: 4;
+  max-width: min(320px, calc(50% - 32px));
+  cursor: default;
+}
+
+.org-panel.is-tl {
+  left: 16px;
+  top: 16px;
+}
+
+.org-panel.is-tr {
+  right: 16px;
+  top: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.org-panel.is-bl {
+  left: 16px;
+  bottom: 16px;
+}
+
+.org-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 7px 9px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid #e6ecf3;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.org-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px 2px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  color: #63718a;
+  background: var(--cat-bg, #f2f6fb);
+  border: 1px solid var(--cat-line, #e4ebf4);
+}
+
+.org-legend i {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  background: var(--cat-ink, #7d8ba0);
+}
+
+.org-scope {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid #e6ecf3;
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--md-shadow-rest, 0 1px 2px rgba(27, 43, 69, 0.04));
+  color: #4d5f7a;
+  font-family: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: border-color var(--md-dur-fast, 180ms) linear, color var(--md-dur-fast, 180ms) linear;
+}
+
+.org-scope:hover {
+  color: var(--blue, #2563eb);
+  border-color: #cddcf2;
+}
+
+.org-scope-note {
+  width: 280px;
+  max-width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid #e6ecf3;
+  box-shadow: var(--md-shadow-hover, 0 4px 10px rgba(27, 43, 69, 0.06));
+  font-size: 11.5px;
+  line-height: 1.8;
+  color: #6b7a90;
+}
+
+.org-hint {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  padding: 7px 11px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid #e6ecf3;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  font-size: 11px;
+  color: #8593a6;
+}
+
+.org-hint b {
+  color: #4d5f7a;
+  font-weight: 600;
+}
+
+/* ---------- 缩放控件 ---------- */
+.org-controls {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  z-index: 4;
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 999px;
+  translate: -50% 0;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #e6ecf3;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: var(--md-shadow-hover, 0 4px 10px rgba(27, 43, 69, 0.06));
+  cursor: default;
+}
+
+.org-controls button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #6b7a90;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background var(--md-dur-fast, 180ms) linear, color var(--md-dur-fast, 180ms) linear;
+}
+
+.org-controls button:hover {
+  background: #eef5ff;
+  color: var(--blue, #2563eb);
+}
+
+/* ---------- 自适应 ---------- */
+@media (max-width: 1180px) {
+  .org-panel.is-bl {
+    display: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .org-canvas {
+    height: 520px;
+  }
+
+  .org-panel.is-tr,
+  .org-panel.is-tl {
+    display: none;
+  }
+
+  .org-controls {
+    left: auto;
+    right: 16px;
+    bottom: auto;
+    top: 16px;
+    translate: 0 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .org-layer.is-animating {
+    transition: none;
+  }
+
+  .org-node {
+    transition: none;
+  }
+}

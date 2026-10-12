@@ -1,24 +1,36 @@
-from pathlib import Path
+﻿from pathlib import Path
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from .config import settings
 
-DATA_DIR = Path(__file__).resolve().parents[2] / "data"  # backend/data
+DATA_DIR = Path(__file__).resolve().parents[2] / "db"  # backend/data
 
 
 def _make_engine(url: str, fk: bool = True):
     if "sqlite" in url:
-        e = create_engine(url, connect_args={"check_same_thread": False}, echo=settings.DEBUG)
+        # 并发友好：check_same_thread=False 允许多线程；busy_timeout 缓解写锁竞争
+        e = create_engine(
+            url,
+            connect_args={"check_same_thread": False, "timeout": 30},
+            pool_size=10,
+            max_overflow=20,
+            pool_timeout=30,
+            echo=settings.DEBUG,
+        )
 
         @event.listens_for(e, "connect")
         def _set_sqlite_pragma(dbapi_connection, connection_record):
             cursor = dbapi_connection.cursor()
+            # WAL 模式：读写不互斥，支持多机/多线程并发读写
+            cursor.execute("PRAGMA journal_mode = WAL")
+            cursor.execute("PRAGMA busy_timeout = 30000")
+            cursor.execute("PRAGMA synchronous = NORMAL")
             cursor.execute("PRAGMA foreign_keys = ON" if fk else "PRAGMA foreign_keys = OFF")
             cursor.close()
 
         return e
-    return create_engine(url, echo=settings.DEBUG)
+    return create_engine(url, echo=settings.DEBUG, pool_size=10, max_overflow=20)
 
 
 # 患者域 / 员工域 独立库（backend/data/ 下一个文件夹，两个库文件并存）
@@ -61,11 +73,13 @@ def get_employee_db():
 
 # 表 -> 所属域
 _PATIENT_TABLES = {"patients", "patient_accounts", "appointments", "medical_records", "knowledge_docs",
-                   "record_comments", "doctor_schedules"}
-_EMPLOYEE_TABLES = {"users", "messages", "notifications", "audit_logs", "token_usage", "conversations",
-                    "user_preferences", "session_records",
+                   "record_comments", "doctor_schedules", "medicines", "billing_records", "lab_tests"}
+_EMPLOYEE_TABLES = {"users", "messages", "notifications", "audit_logs", "login_logs", "token_usage", "conversations",
+                    "user_preferences", "session_records", "scheduled_tasks", "nearby_files",
                     # 员工域低代码引擎元数据表（动态集合/页面/ACL/业务工作流）
-                    "dyn_collections", "page_schemas", "acl_rules", "wf_defs", "wf_instances"}
+                    "dyn_collections", "page_schemas", "acl_rules", "wf_defs", "wf_instances", "permission_levels", "nearby_transfers", "nearby_connections",
+                    # 角色管理（sys_roles + 角色菜单授权）
+                    "sys_roles", "sys_role_menus"}
 
 
 def init_db():
@@ -73,6 +87,7 @@ def init_db():
     import app.models.models  # noqa: F401 - 注册核心模型
     import app.services.user_memory  # noqa: F401 - 注册用户记忆模型
     import app.models.workspace  # noqa: F401 - 注册员工域低代码元数据表
+    import app.models.nearby  # noqa: F401 - 注册附近协作与数字权限模型
 
     def create_subset(engine, names):
         tables = [Base.metadata.tables[n] for n in names if n in Base.metadata.tables]
@@ -95,13 +110,21 @@ def _ensure_columns():
                 "department": "VARCHAR(100)", "title": "VARCHAR(50)",
                 "work_status": "VARCHAR(20) DEFAULT '在职'", "room": "VARCHAR(50)",
                 "superior_id": "INTEGER",
+                "auth_level": "INTEGER DEFAULT 1",
                 "id_type": "VARCHAR(50)", "surname": "VARCHAR(50)", "given_name": "VARCHAR(50)",
                 "valid_until": "VARCHAR(30)", "issue_date": "VARCHAR(30)", "registered_place": "VARCHAR(100)",
+            },
+            "wf_instances": {"creator_id": "INTEGER"},
+            "messages": {
+                "deleted_by": "VARCHAR(200) DEFAULT ''",
+                "recalled": "BOOLEAN DEFAULT 0",
+                "quote_id": "INTEGER",
+                "quote_preview": "VARCHAR(200) DEFAULT ''",
             },
         },
         patient_engine: {
             "knowledge_docs": {"status": "VARCHAR(20) DEFAULT '草稿'", "approval_level": "INTEGER DEFAULT 1", "approvals": "TEXT"},
-            "medical_records": {"room": "VARCHAR(50)"},
+            "medical_records": {"room": "VARCHAR(50)", "ai_suggestion": "TEXT", "ai_confidence": "VARCHAR(20)", "ai_reviewed": "INTEGER DEFAULT 0", "admin_reviewed": "INTEGER DEFAULT 0", "admin_name": "VARCHAR(100)"},
             "patient_accounts": {"patient_id": "INTEGER"},
         },
     }

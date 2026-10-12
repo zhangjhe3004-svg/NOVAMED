@@ -17,3 +17,7 @@ export async function createPatient(payload: any): Promise<PatientInfo> {
 export async function updatePatient(id: number, payload: any): Promise<PatientInfo> {
   const res = await api.put(`/patients/${id}`, payload); return res.data;
 }
+
+export async function deletePatient(id: number): Promise<any> {
+  const res = await api.delete(`/patients/${id}`); return res.data;
+}

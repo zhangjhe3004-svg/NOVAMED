@@ -1,0 +1,310 @@
+/* ============================================================================
+   MediCode · 总览控制台 (dashboard.css)
+   ----------------------------------------------------------------------------
+   只放本页自己的版式（Hero、两栏骨架、待办列表、最近列表）。
+   读数元件（KpiTile / TickRing / TrendChart / BarChart …）的样式在
+   instruments.css；卡片外壳沿用 pages-theme.css 的 .panel / .panel-head / .panel-body。
+   ============================================================================ */
+
+.dash {
+  display: flex;
+  flex-direction: column;
+  gap: 21px;
+}
+
+/* ---------------------------------------------------------------------------
+   Hero
+   --------------------------------------------------------------------------- */
+.dash-hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 25px 29px;
+  border-radius: 14px;
+  background: #142d53;
+  color: #fff;
+  overflow: hidden;
+}
+
+/* 右上角一团极淡的冷光，避免整块纯色显得发闷 */
+.dash-hero::after {
+  content: "";
+  position: absolute;
+  top: -110px;
+  right: -70px;
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(120, 168, 235, 0.28) 0%, transparent 68%);
+  pointer-events: none;
+}
+
+.dash-hero-main {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-width: 0;
+}
+
+.dash-hero-main h2 {
+  margin: 0 0 10px;
+  font-size: 21px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+}
+
+.dash-hero-main p {
+  margin: 0;
+  max-width: 46em;
+  color: #b3c7e1;
+  font-size: 12px;
+  line-height: 1.9;
+}
+
+.dash-hero-cta {
+  margin-top: 18px;
+  padding: 8px 13px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.09);
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background var(--md-dur-fast, 180ms) linear,
+    border-color var(--md-dur-fast, 180ms) linear;
+}
+
+.dash-hero-cta:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.dash-hero-stat {
+  position: relative;
+  z-index: 1;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 132px;
+  padding: 6px 0 6px 24px;
+  border-left: 1px solid rgba(255, 255, 255, 0.13);
+}
+
+/* 深色底上的读数：单位与标签都要调亮，否则看不见 */
+.dash-hero-stat .metric-figure {
+  color: #fff;
+}
+
+.dash-hero-stat .metric-label {
+  color: #b3c7e1;
+}
+
+/* ---------------------------------------------------------------------------
+   骨架：左（图表）× 右（待办），以及左栏内部的两列
+   --------------------------------------------------------------------------- */
+.dash-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1.9fr) minmax(290px, 1fr);
+  gap: 21px;
+}
+
+.dash-col {
+  display: flex;
+  flex-direction: column;
+  gap: 21px;
+  min-width: 0;
+}
+
+/* ---------------------------------------------------------------------------
+   待办任务
+   --------------------------------------------------------------------------- */
+.dash-todo {
+  display: flex;
+  flex-direction: column;
+  padding: 0 21px 10px;
+}
+
+.dash-todo-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 15px 0;
+  text-align: left;
+  background: none;
+  border: none;
+  border-bottom: 1px solid #f0f3f8;
+  cursor: pointer;
+  transition: background var(--md-dur-fast, 180ms) linear;
+}
+
+.dash-todo-row:last-child {
+  border-bottom: none;
+}
+
+.dash-todo-row:hover {
+  background: #f8fafd;
+}
+
+.dash-todo-ico {
+  width: 34px;
+  height: 36px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  font-size: 16px;
+}
+
+.dash-todo-txt {
+  flex: 1;
+  min-width: 0;
+}
+
+.dash-todo-txt strong {
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--ink, #1b2b45);
+}
+
+.dash-todo-txt p {
+  margin: 6px 0 0;
+  font-size: 10px;
+  color: #8d9aae;
+}
+
+.dash-num {
+  margin-left: auto;
+  font-size: 18px;
+  font-weight: 650;
+  color: var(--ink, #1b2b45);
+  font-variant-numeric: tabular-nums;
+}
+
+.dash-arrow {
+  margin-left: 4px;
+  font-size: 16px;
+  color: #a1adbf;
+}
+
+/* ---------------------------------------------------------------------------
+   最近患者 / 最近就诊
+   --------------------------------------------------------------------------- */
+.dash-list {
+  padding: 0 21px 12px;
+}
+
+.dash-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid #f1f4f8;
+}
+
+.dash-row:last-child {
+  border-bottom: none;
+}
+
+.dash-row.is-clickable {
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background var(--md-dur-fast, 180ms) linear;
+}
+
+.dash-row.is-clickable:hover {
+  background: #f8fafd;
+}
+
+.dash-avatar {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: #edf3fb;
+  color: #7891b4;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dash-avatar.teal {
+  background: #eef8f5;
+  color: #138d85;
+  font-size: 16px;
+}
+
+.dash-row-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.dash-row-title {
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--ink, #1b2b45);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dash-row-sub {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  color: #9aa6b7;
+}
+
+.dash-empty {
+  padding: 22px 0;
+  text-align: center;
+  font-size: 12px;
+  color: #9aa6b7;
+}
+
+.dash-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--blue, #2563eb);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.dash-link:hover {
+  text-decoration: underline;
+}
+
+/* ---------------------------------------------------------------------------
+   自适应
+   --------------------------------------------------------------------------- */
+@media (max-width: 1180px) {
+  .dash-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .dash-hero {
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .dash-hero-stat {
+    min-width: 100%;
+    padding: 16px 0 0;
+    border-left: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.13);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dash-hero-cta,
+  .dash-todo-row,
+  .dash-row.is-clickable {
+    transition: none !important;
+  }
+}

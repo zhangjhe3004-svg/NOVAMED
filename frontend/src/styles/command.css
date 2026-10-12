@@ -1,0 +1,598 @@
+/* ============================================================================
+   MediCode · 命令面板 (command.css)
+   ----------------------------------------------------------------------------
+   与 apple-motion.css / stage.css 共享同一套设计令牌：
+   结果列表里那块「玻璃滑块」是唯一的动效主体 —— 它只做垂直位移与高度变化，
+   位移交给 CSS transition，React 只负责写目标值（见 CommandPalette.tsx）。
+   ============================================================================ */
+
+/* ---------------------------------------------------------------------------
+   1. 遮罩与面板
+   --------------------------------------------------------------------------- */
+.cmd-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: clamp(48px, 12vh, 140px) 20px 40px;
+  background: rgba(27, 43, 69, 0.26);
+  backdrop-filter: blur(6px) saturate(1.1);
+  -webkit-backdrop-filter: blur(6px) saturate(1.1);
+  animation: cmd-overlay-in 200ms linear both;
+}
+
+.cmd-overlay.is-closing {
+  animation: cmd-overlay-out 160ms ease-in both;
+}
+
+.cmd-overlay.is-closing .cmd-panel {
+  animation: cmd-panel-out 160ms cubic-bezier(0.55, 0, 1, 0.45) both;
+}
+
+@keyframes cmd-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes cmd-overlay-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.cmd-panel {
+  width: 100%;
+  max-width: 580px;
+  background: #fff;
+  border: 1px solid rgba(230, 236, 243, 0.9);
+  border-radius: var(--md-r-xl, 20px);
+  box-shadow: var(--md-shadow-pop, 0 8px 20px rgba(27, 43, 69, 0.08), 0 24px 48px -12px rgba(27, 43, 69, 0.16));
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: cmd-panel-in 320ms var(--md-ease-smooth, cubic-bezier(0.32, 0.72, 0, 1)) both;
+}
+
+@keyframes cmd-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.975);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes cmd-panel-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   2. 输入行
+   --------------------------------------------------------------------------- */
+.cmd-input {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line, #e6ecf3);
+}
+
+.cmd-input-ico {
+  font-size: 17px;
+  color: #9aa6b6;
+  flex: none;
+}
+
+.cmd-input input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 15px;
+  font-family: inherit;
+  color: var(--ink, #1b2b45);
+  padding: 0;
+}
+
+.cmd-input input::placeholder {
+  color: #a9b4c3;
+}
+
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f1;
+  border-bottom-width: 2px;
+  background: #f7f9fc;
+  color: #8593a6;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 10.5px;
+  line-height: 1;
+}
+
+/* ---------------------------------------------------------------------------
+   3. 结果列表 + 玻璃滑块
+   --------------------------------------------------------------------------- */
+.cmd-results {
+  position: relative;
+  max-height: min(430px, 58vh);
+  overflow-y: auto;
+  padding: 6px 8px 10px;
+  overscroll-behavior: contain;
+}
+
+.cmd-thumb {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 0;
+  height: 44px;
+  border-radius: 10px;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0;
+  background: linear-gradient(180deg, #eef4ff 0%, #e7effd 100%);
+  border: 1px solid rgba(37, 99, 235, 0.14);
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.06) inset;
+  transition: transform var(--md-dur-page, 520ms) var(--md-ease-smooth, cubic-bezier(0.32, 0.72, 0, 1)),
+    height var(--md-dur-page, 520ms) var(--md-ease-smooth, cubic-bezier(0.32, 0.72, 0, 1)),
+    opacity 140ms linear;
+}
+
+/* 打开的第一帧不允许过渡：否则滑块会从列表左上角滑到当前项 */
+.cmd-thumb.is-instant {
+  transition: none;
+}
+
+.cmd-group {
+  padding: 10px 10px 4px;
+  font-size: 10px;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: #9aa6b5;
+}
+
+.cmd-item {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: var(--ink, #1b2b45);
+  transition: color 140ms linear;
+}
+
+.cmd-item.is-active {
+  color: var(--blue, #2563eb);
+}
+
+.cmd-item.is-active .cmd-label {
+  font-weight: 650;
+}
+
+.cmd-item.is-danger.is-active {
+  color: var(--red, #d9534f);
+}
+
+.cmd-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 9px;
+  font-size: 15px;
+  color: var(--cat-ink, #7d8ba0);
+  background: var(--cat-bg, #f2f6fb);
+  border: 1px solid var(--cat-line, #e7eef7);
+}
+
+.cmd-item.is-active .cmd-ico {
+  color: var(--blue, #2563eb);
+  border-color: rgba(37, 99, 235, 0.2);
+}
+
+.cmd-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 50%;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--cat-ink, #4774b9);
+  background: var(--cat-bg, #eef5ff);
+  border: 1px solid var(--cat-line, #d3e2f7);
+}
+
+.cmd-label {
+  font-size: 13.5px;
+  font-weight: 550;
+  white-space: nowrap;
+  flex: none;
+  max-width: 46%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cmd-sub {
+  flex: 1;
+  min-width: 0;
+  font-size: 11.5px;
+  color: #93a0b2;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.cmd-go {
+  margin-left: auto;
+  flex: none;
+  font-size: 13px;
+  color: #b9c4d3;
+  opacity: 0;
+  transition: opacity 150ms linear;
+}
+
+.cmd-item.is-active .cmd-go {
+  opacity: 1;
+  color: var(--blue, #2563eb);
+}
+
+.cmd-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 34px 20px 38px;
+  color: #a9b4c3;
+  text-align: center;
+}
+
+.cmd-empty .anticon {
+  font-size: 22px;
+}
+
+.cmd-empty p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #8593a6;
+}
+
+.cmd-empty small {
+  font-size: 11.5px;
+}
+
+.cmd-empty b {
+  color: var(--blue, #2563eb);
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+
+/* ---------------------------------------------------------------------------
+   4. 底栏
+   --------------------------------------------------------------------------- */
+.cmd-foot {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--line, #e6ecf3);
+  background: #fafcfe;
+  font-size: 11.5px;
+  color: #7d8ba0;
+}
+
+.cmd-foot > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cmd-foot-faint {
+  color: #a9b4c3;
+}
+
+.cmd-foot-spacer {
+  flex: 1;
+}
+
+.cmd-foot-tag {
+  font-size: 10px;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: #9aa6b5;
+}
+
+/* ---------------------------------------------------------------------------
+   5. 问系统（? 前缀）
+   --------------------------------------------------------------------------- */
+.cmd-ask {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px 4px 6px;
+}
+
+.ask-presets {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+  mask-image: linear-gradient(90deg, #000 86%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, #000 86%, transparent);
+}
+
+.ask-presets::-webkit-scrollbar {
+  display: none;
+}
+
+.ask-presets button {
+  flex: none;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid #e4ebf4;
+  background: #f6f9fd;
+  color: #63718a;
+  font-size: 11.5px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color 200ms var(--md-ease-smooth, ease), border-color 200ms linear, background 200ms linear;
+}
+
+.ask-presets button:hover {
+  color: var(--blue, #2563eb);
+  border-color: #bcd3f8;
+  background: #eef5ff;
+}
+
+.cmd-ask-hint {
+  margin: 0;
+  padding: 0 4px;
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: #93a0b2;
+}
+
+.cmd-ask-hint.is-loading {
+  color: var(--blue, #2563eb);
+}
+
+.cmd-ask-results {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ask-results-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 4px;
+}
+
+.ask-results-head span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--ink, #1b2b45);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ask-results-head small {
+  margin-left: auto;
+  flex: none;
+  font-size: 10px;
+  letter-spacing: 1.2px;
+  color: #a9b4c3;
+}
+
+.ask-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 11px 13px 12px 17px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid #e9eff7;
+  box-shadow: 0 1px 2px rgba(27, 43, 69, 0.03);
+}
+
+/* 左侧语气色条：info=蓝 / warn=琥珀 / ok=青 / danger=红 */
+.ask-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 11px;
+  bottom: 11px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--blue, #2563eb);
+}
+
+.ask-card.tone-warn::before {
+  background: #e3a83b;
+}
+
+.ask-card.tone-ok::before {
+  background: var(--teal, #138d85);
+}
+
+.ask-card.tone-danger::before {
+  background: var(--red, #d9534f);
+}
+
+.ask-card h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 680;
+  color: var(--ink, #1b2b45);
+}
+
+.ask-card p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.65;
+  color: #6b7a90;
+  white-space: pre-line;
+}
+
+/* 芯片的语气变体（基础样式复用 stage.css 的 .insight-chip） */
+.insight-chip.tone-off {
+  color: #9aa6b5;
+  background: #f6f8fc;
+  border-color: #e9eff6;
+}
+
+.insight-chip.tone-danger {
+  color: #b8423e;
+  background: #fdeff0;
+  border-color: #f2d4d5;
+}
+
+.insight-chip.tone-off:hover,
+.insight-chip.tone-danger:hover {
+  background: #eef5ff;
+}
+
+.insight-chip:disabled {
+  cursor: default;
+  opacity: 0.75;
+}
+
+/* ---------------------------------------------------------------------------
+   7. 顶栏触发器（替代原来的搜索框）
+   --------------------------------------------------------------------------- */
+.cmd-trigger {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  width: 255px;
+  height: 38px;
+  padding: 0 10px 0 12px;
+  border: 1px solid #edf1f7;
+  border-radius: 9px;
+  background: #f6f8fc;
+  color: #9aa6b6;
+  font-family: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--md-dur-fast, 180ms) linear,
+    background var(--md-dur-fast, 180ms) linear,
+    box-shadow var(--md-dur-base, 280ms) var(--md-ease-smooth, ease);
+}
+
+.cmd-trigger:hover {
+  border-color: #d8e3f2;
+  background: #fff;
+  box-shadow: var(--md-shadow-hover, 0 4px 10px rgba(27, 43, 69, 0.06));
+  color: #7d8ba0;
+}
+
+.cmd-trigger-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.cmd-trigger .kbd {
+  border-bottom-width: 1px;
+  background: #fff;
+}
+
+@media (max-width: 900px) {
+  .cmd-trigger {
+    width: 38px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .cmd-trigger-label,
+  .cmd-trigger .kbd {
+    display: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   8. 自适应 & 减少动效
+   --------------------------------------------------------------------------- */
+@media (max-width: 720px) {
+  .cmd-overlay {
+    padding: clamp(24px, 6vh, 60px) 12px 20px;
+  }
+
+  .cmd-panel {
+    max-width: none;
+    border-radius: var(--md-r-lg, 16px);
+  }
+
+  .cmd-label {
+    max-width: 100%;
+  }
+
+  .cmd-sub {
+    display: none;
+  }
+
+  .cmd-foot {
+    gap: 10px;
+    font-size: 11px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cmd-overlay,
+  .cmd-panel,
+  .cmd-thumb,
+  .ask-presets button,
+  .cmd-item,
+  .cmd-go {
+    animation: none !important;
+    transition: none !important;
+  }
+}

@@ -75,6 +75,7 @@ class WorkflowInstance(Base):
     id = Column(Integer, primary_key=True, index=True)
     def_id = Column(Integer, index=True, nullable=False)
     row_id = Column(Integer, nullable=True)
+    creator_id = Column(Integer, nullable=True, index=True)
     current_index = Column(Integer, default=0)
     assignees_json = Column(Text, default="[]")
     history_json = Column(Text, default="[]")

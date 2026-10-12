@@ -42,7 +42,7 @@ document.addEventListener('keydown',e=>{const m=document.querySelector('.modal')
 window.addEventListener('hashchange',()=>navigate(location.hash.slice(1)));navigate(location.hash.slice(1)||'dashboard');icons();
 </script>
 <script>
-document.querySelector('.sidebar nav').insertAdjacentHTML('beforeend','<a class="nav-item" href="login.html">'+icon('shield')+'员工 / 患者登录</a><a class="nav-item" href="patient.html">'+icon('phone')+'患者端完整预览 ↗</a>');
+document.querySelector('.sidebar nav').insertAdjacentHTML('beforeend','<a class="nav-item" href="login.html">'+icon('shield')+'员工 / 患者登录</a><a class="nav-item" href="patient.html">'+icon('phone')+'患者端完整预览 ↗</a><a class="nav-item" href="pages.html">'+icon('grid')+'功能页 UI 设计 ↗</a>');
 document.querySelector('.sidebar').style.overflowY='auto';
 const originalNavigate=navigate;
 navigate=function(next){originalNavigate(next);let selected=false;document.querySelectorAll('.nav-item').forEach(b=>{const active=!selected&&b.dataset.page===page;b.classList.toggle('active',active);if(active)selected=true})};

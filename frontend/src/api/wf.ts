@@ -28,3 +28,8 @@ export async function listInstances(def_key?: string, status?: string): Promise<
 export async function actInstance(id: number, action: "approve" | "reject", comment?: string): Promise<any> {
   const res = await api.post(`/workflow/instances/${id}/${action}`, { comment }); return res.data;
 }
+
+/** 申请人撤回自己的申请：按流程 key + 动态行 id 定位实例（返回 {detail} 表示无实例） */
+export async function cancelInstanceByRow(def_key: string, row_id: number): Promise<any> {
+  const res = await api.post("/workflow/cancel-by-row", { def_key, row_id }); return res.data;
+}

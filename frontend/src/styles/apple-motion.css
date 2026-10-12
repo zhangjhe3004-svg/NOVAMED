@@ -1,0 +1,1000 @@
+/* ============================================================================
+   MediCode · Apple 风格高级交互动效系统  (apple-motion.css)
+   ----------------------------------------------------------------------------
+   设计原则（对齐 Apple Human Interface Guidelines / SwiftUI 动效规范）：
+     1. 响应即时   —— 交互按下瞬间即有反馈，动画只做「收尾」，绝不延迟启动。
+     2. 缓动优先   —— 统一使用苹果的平滑曲线，禁用线性与生硬的 ease。
+     3. 位移克制   —— 主要靠 opacity + 极小的 translate/scale，避免夸张跳动。
+     4. 同源同构   —— 所有元素的进出场、悬浮、按压共享同一套 token。
+     5. 可访问性   —— 尊重系统「减弱动态效果」设置。
+   员工端与患者端共用本文件（两端 main.tsx 均已引入）。
+   ============================================================================ */
+
+/* ---------------------------------------------------------------------------
+   1. 动效 Token
+   --------------------------------------------------------------------------- */
+:root {
+  /* --- 缓动曲线 ---
+     --md-ease-smooth : 苹果最常用的「柔和进出」，用于悬浮/展开/尺寸变化
+     --md-ease-out    : 强出缓入（quint），用于元素进入视口
+     --md-ease-in-out : 对称曲线，用于往复运动
+     --md-spring      : 带轻微回弹的曲线，用于按压回弹、图标缩放 */
+  --md-ease-smooth: cubic-bezier(0.32, 0.72, 0, 1);
+  --md-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --md-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --md-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* --- 时长梯度（越大的对象动得越久）--- */
+  --md-dur-instant: 90ms;   /* 按压反馈 */
+  --md-dur-fast: 180ms;     /* 颜色 / 边框 / 小图标 */
+  --md-dur-base: 280ms;     /* 悬浮抬升 / 展开 */
+  --md-dur-slow: 420ms;     /* 面板 / 抽屉 */
+  --md-dur-page: 520ms;     /* 整页转场 */
+
+  /* --- 位移与尺度 --- */
+  --md-lift: -3px;          /* 卡片悬浮抬升距离 */
+  --md-press: 0.972;        /* 按压缩放比 */
+
+  /* --- 阴影层级（柔和、多层、低透明度，苹果式「呼吸感」）--- */
+  --md-shadow-rest: 0 1px 2px rgba(27, 43, 69, 0.04), 0 1px 3px rgba(27, 43, 69, 0.03);
+  --md-shadow-hover: 0 4px 10px rgba(27, 43, 69, 0.06), 0 12px 28px -8px rgba(27, 43, 69, 0.12);
+  --md-shadow-active: 0 2px 6px rgba(27, 43, 69, 0.06);
+  --md-shadow-pop: 0 8px 20px rgba(27, 43, 69, 0.08), 0 24px 48px -12px rgba(27, 43, 69, 0.16);
+
+  /* --- 圆角（苹果连续圆角观感）--- */
+  --md-r-sm: 8px;
+  --md-r-md: 12px;
+  --md-r-lg: 16px;
+  --md-r-xl: 20px;
+}
+
+/* ---------------------------------------------------------------------------
+   2. 全局基座
+   --------------------------------------------------------------------------- */
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* 覆盖浏览器默认的硬切换滚动 */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 文本选中色跟随主色，观感更统一 */
+::selection {
+  background: rgba(37, 99, 235, 0.16);
+}
+.patient-app ::selection,
+.md-theme-patient ::selection {
+  background: rgba(39, 133, 125, 0.16);
+}
+
+/* 细滚动条（macOS 观感） */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(27, 43, 69, 0.18) transparent;
+}
+*::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(27, 43, 69, 0.14);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+  transition: background 0.25s var(--md-ease-smooth);
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(27, 43, 69, 0.28);
+  background-clip: content-box;
+}
+
+/* 键盘可达性：苹果式双层焦点环（仅键盘触发，鼠标点击不出现） */
+:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.9), 0 0 0 5.5px rgba(37, 99, 235, 0.45);
+  border-radius: var(--md-r-sm);
+  transition: box-shadow 0.15s var(--md-ease-out);
+}
+
+/* ---------------------------------------------------------------------------
+   3. 页面转场（路由切换）
+   .md-page-enter 由 MainLayout 挂载在 Outlet 外层，随 pathname 变化重新挂载
+   --------------------------------------------------------------------------- */
+.md-page-enter {
+  animation: mdPageEnter var(--md-dur-page) var(--md-ease-out) backwards;
+  will-change: opacity, transform;
+}
+
+@keyframes mdPageEnter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0) scale(0.992);
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: blur(0);
+  }
+}
+
+/* 页面转场宿主：承载动画并隔离布局，避免 transform 外溢 */
+.md-route-host {
+  position: relative;
+  isolation: isolate;
+}
+
+/* ---------------------------------------------------------------------------
+   4. 通用入场动画与错峰编排
+   --------------------------------------------------------------------------- */
+@keyframes mdRiseIn {
+  from { opacity: 0; transform: translate3d(0, 12px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes mdFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes mdPopIn {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.md-rise { animation: mdRiseIn 0.5s var(--md-ease-out) backwards; }
+.md-fade { animation: mdFadeIn 0.4s var(--md-ease-out) backwards; }
+.md-pop  { animation: mdPopIn 0.42s var(--md-spring) backwards; }
+
+/* 错峰容器：子元素依次入场。
+   用 backwards 填充，动画结束后不残留 transform，避免破坏内部 fixed 元素。 */
+.md-stagger > * {
+  animation: mdRiseIn 0.52s var(--md-ease-out) backwards;
+}
+.md-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.md-stagger > *:nth-child(2) { animation-delay: 55ms; }
+.md-stagger > *:nth-child(3) { animation-delay: 110ms; }
+.md-stagger > *:nth-child(4) { animation-delay: 165ms; }
+.md-stagger > *:nth-child(5) { animation-delay: 220ms; }
+.md-stagger > *:nth-child(6) { animation-delay: 275ms; }
+.md-stagger > *:nth-child(7) { animation-delay: 330ms; }
+.md-stagger > *:nth-child(8) { animation-delay: 385ms; }
+.md-stagger > *:nth-child(n + 9) { animation-delay: 420ms; }
+
+/* 统计卡网格：全局自动错峰（页面普遍使用 .stats > .stat） */
+.stats > .stat {
+  animation: mdRiseIn 0.55s var(--md-ease-out) backwards;
+}
+.stats > .stat:nth-child(1) { animation-delay: 30ms; }
+.stats > .stat:nth-child(2) { animation-delay: 90ms; }
+.stats > .stat:nth-child(3) { animation-delay: 150ms; }
+.stats > .stat:nth-child(4) { animation-delay: 210ms; }
+.stats > .stat:nth-child(n + 5) { animation-delay: 260ms; }
+
+/* ---------------------------------------------------------------------------
+   5. 卡片 / 面板 —— 悬浮抬升与深度反馈
+   --------------------------------------------------------------------------- */
+.stat,
+.panel,
+.ant-card {
+  transition:
+    transform var(--md-dur-base) var(--md-ease-smooth),
+    box-shadow var(--md-dur-base) var(--md-ease-smooth),
+    border-color var(--md-dur-base) var(--md-ease-smooth);
+  will-change: transform;
+}
+
+.stat:hover,
+.panel:hover,
+.ant-card:hover {
+  transform: translateY(var(--md-lift));
+  box-shadow: var(--md-shadow-hover);
+  border-color: rgba(37, 99, 235, 0.16);
+}
+
+/* 面板不参与抬升的变体（表格容器等大面积块，抬升会显笨重） */
+.md-no-lift:hover {
+  transform: none !important;
+  box-shadow: var(--md-shadow-rest) !important;
+  border-color: inherit !important;
+}
+
+/* 表格包裹层保持静止，仅微调阴影 */
+.ant-table-wrapper {
+  transition: box-shadow var(--md-dur-base) var(--md-ease-smooth);
+}
+.ant-table-wrapper:hover {
+  box-shadow: var(--md-shadow-rest);
+}
+
+/* 可点击卡片语义：光标 + 按压 */
+.md-clickable {
+  cursor: pointer;
+}
+.md-clickable:active {
+  transform: translateY(0) scale(0.994);
+  transition-duration: var(--md-dur-instant);
+}
+
+/* ---------------------------------------------------------------------------
+   6. 微交互：按钮、图标、列表项
+   --------------------------------------------------------------------------- */
+
+/* Apple 式按压：快速缩放，松开回弹 */
+.ant-btn,
+.btn,
+.ant-btn:not(:disabled) {
+  transition:
+    transform var(--md-dur-fast) var(--md-spring),
+    box-shadow var(--md-dur-base) var(--md-ease-smooth),
+    background-color var(--md-dur-fast) var(--md-ease-smooth),
+    border-color var(--md-dur-fast) var(--md-ease-smooth),
+    color var(--md-dur-fast) var(--md-ease-smooth);
+}
+
+.ant-btn:not(:disabled):not(.ant-btn-loading):active,
+.btn:not(:disabled):active {
+  transform: scale(var(--md-press));
+}
+
+/* 主按钮悬浮时轻抬并加深投影，形成「浮起」的空间暗示 */
+.ant-btn-primary:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.28);
+}
+.ant-btn-primary:not(:disabled):active {
+  transform: translateY(0) scale(var(--md-press));
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.22);
+}
+
+/* 纯文字 / 图标按钮：悬浮底色渐显 */
+.ant-btn-text:not(:disabled),
+.ant-btn-link:not(:disabled) {
+  transition: background-color var(--md-dur-fast) var(--md-ease-smooth), color var(--md-dur-fast) var(--md-ease-smooth);
+}
+
+/* 按钮内图标：轻微位移，营造方向感 */
+.ant-btn .anticon {
+  transition: transform var(--md-dur-base) var(--md-spring);
+}
+.ant-btn:hover .anticon-arrow-right,
+.ant-btn:hover .anticon-right {
+  transform: translateX(2px);
+}
+.ant-btn:hover .anticon-arrow-left,
+.ant-btn:hover .anticon-left {
+  transform: translateX(-2px);
+}
+.ant-btn:hover .anticon-download,
+.ant-btn:hover .anticon-upload {
+  transform: translateY(-1px);
+}
+
+/* 表格行：柔和高亮 + 左侧箭头滑入（沿用既有 ▶ 机制） */
+.ant-table-tbody > tr > td {
+  transition: background-color var(--md-dur-fast) var(--md-ease-smooth);
+}
+.ant-table-tbody > tr > td:first-child::before {
+  transition: transform var(--md-dur-base) var(--md-ease-out), color var(--md-dur-fast) var(--md-ease-smooth) !important;
+}
+
+/* 列表项 */
+.list-item,
+.side-list button {
+  transition:
+    background-color var(--md-dur-base) var(--md-ease-smooth),
+    border-color var(--md-dur-base) var(--md-ease-smooth),
+    box-shadow var(--md-dur-base) var(--md-ease-smooth),
+    transform var(--md-dur-base) var(--md-ease-smooth);
+}
+.list-item:hover,
+.side-list button:hover {
+  transform: translateX(3px);
+}
+.list-item:active,
+.side-list button:active {
+  transform: translateX(1px) scale(0.996);
+  transition-duration: var(--md-dur-instant);
+}
+
+/* 头像 / 徽标：悬浮微放大 */
+.avatar,
+.ant-avatar {
+  transition: transform var(--md-dur-base) var(--md-spring), box-shadow var(--md-dur-base) var(--md-ease-smooth);
+}
+.list-item:hover .avatar,
+.side-list button:hover .avatar,
+.md-clickable:hover > .ant-avatar {
+  transform: scale(1.06);
+}
+
+/* 统计数字：进入时轻微上浮，突出「数据到达」的观感 */
+.stat-value,
+.mini b {
+  animation: mdRiseIn 0.6s var(--md-ease-out) backwards;
+  animation-delay: 120ms;
+}
+
+/* ---------------------------------------------------------------------------
+   7. 侧边栏导航微交互
+   --------------------------------------------------------------------------- */
+.md-nav-item {
+  transition:
+    background-color var(--md-dur-base) var(--md-ease-smooth),
+    color var(--md-dur-fast) var(--md-ease-smooth),
+    transform var(--md-dur-base) var(--md-ease-out),
+    box-shadow var(--md-dur-base) var(--md-ease-smooth) !important;
+}
+.md-nav-item:not([data-active="true"]):hover {
+  transform: translateX(2px);
+}
+.md-nav-item:active {
+  transform: scale(0.98);
+  transition-duration: var(--md-dur-instant);
+}
+/* 图标：悬浮放大 + 当前项着色过渡 */
+.md-nav-item .md-nav-icon {
+  transition: transform var(--md-dur-base) var(--md-spring), color var(--md-dur-fast) var(--md-ease-smooth);
+}
+.md-nav-item:hover .md-nav-icon {
+  transform: scale(1.14);
+}
+.md-nav-item[data-active="true"] {
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.1);
+}
+/* 当前项的左侧指示条（滑入） */
+.md-nav-item {
+  position: relative;
+}
+.md-nav-item::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 3px;
+  height: 0;
+  border-radius: 999px;
+  background: var(--md-primary, #2563eb);
+  transform: translateY(-50%);
+  opacity: 0;
+  transition:
+    height var(--md-dur-base) var(--md-ease-out),
+    opacity var(--md-dur-base) var(--md-ease-out);
+}
+.md-nav-item[data-active="true"]::before {
+  height: 20px;
+  opacity: 1;
+}
+
+/* 侧边栏整体宽度变化（折叠/展开）——交给布局元素过渡 */
+.ant-layout-sider {
+  transition: width var(--md-dur-slow) var(--md-ease-smooth), flex-basis var(--md-dur-slow) var(--md-ease-smooth) !important;
+}
+.ant-layout-content {
+  transition: margin-left var(--md-dur-slow) var(--md-ease-smooth), width var(--md-dur-slow) var(--md-ease-smooth) !important;
+}
+
+/* 侧栏 Logo：悬浮时整体轻抬 */
+.md-brand {
+  transition: transform var(--md-dur-base) var(--md-ease-smooth);
+}
+.md-brand:hover {
+  transform: translateY(-1px);
+}
+.md-brand svg {
+  transition: transform var(--md-dur-slow) var(--md-spring), filter var(--md-dur-base) var(--md-ease-smooth);
+}
+.md-brand:hover svg {
+  transform: scale(1.05) rotate(-3deg);
+  filter: drop-shadow(0 6px 14px rgba(37, 99, 235, 0.42));
+}
+
+/* ---------------------------------------------------------------------------
+   8. antd 组件动效覆盖
+   —— 统一缓动曲线 + 苹果式进出场，覆盖 rc-motion 的默认曲线
+   --------------------------------------------------------------------------- */
+
+/* 8.1 弹窗 / 抽屉 —— 从下方轻推 + 缩放淡入 */
+.ant-modal-mask,
+.ant-drawer-mask {
+  transition: opacity var(--md-dur-base) var(--md-ease-smooth) !important;
+}
+
+.ant-modal {
+  transition: transform var(--md-dur-slow) var(--md-ease-smooth) !important;
+}
+.ant-modal-content {
+  border-radius: var(--md-r-xl) !important;
+  box-shadow: var(--md-shadow-pop) !important;
+}
+.ant-modal.css-var-root,
+.ant-modal-wrap > .ant-modal {
+  transition-timing-function: var(--md-ease-smooth) !important;
+}
+
+.ant-drawer-content {
+  transition: transform var(--md-dur-slow) var(--md-ease-smooth) !important;
+  box-shadow: var(--md-shadow-pop) !important;
+}
+
+/* 8.2 下拉 / 选择器 / 气泡 / 提示 —— 快速淡入 + 轻微上浮 */
+.ant-dropdown,
+.ant-select-dropdown,
+.ant-popover,
+.ant-picker-dropdown,
+.ant-cascader-dropdown {
+  transition:
+    opacity var(--md-dur-fast) var(--md-ease-out),
+    transform var(--md-dur-fast) var(--md-ease-out) !important;
+}
+
+.ant-dropdown-menu,
+.ant-select-dropdown,
+.ant-popover-inner,
+.ant-picker-panel-container {
+  border-radius: var(--md-r-lg) !important;
+  box-shadow: var(--md-shadow-pop) !important;
+}
+
+/* 下拉菜单项：悬浮时轻微位移，苹果式「跟随手指」感 */
+.ant-dropdown-menu-item,
+.ant-select-item {
+  transition:
+    background-color var(--md-dur-fast) var(--md-ease-smooth),
+    transform var(--md-dur-fast) var(--md-ease-out) !important;
+}
+.ant-dropdown-menu-item:not(.ant-dropdown-menu-item-disabled):hover {
+  transform: translateX(2px);
+}
+.ant-select-item-option-active {
+  transform: translateX(2px);
+}
+
+.ant-tooltip-inner {
+  border-radius: var(--md-r-md) !important;
+  transition: opacity var(--md-dur-fast) var(--md-ease-out) !important;
+}
+
+/* 8.3 输入框 —— 聚焦时柔和的边界高亮 */
+.ant-input,
+.ant-input-affix-wrapper,
+.ant-select-selector,
+.ant-picker,
+.ant-input-number {
+  transition:
+    border-color var(--md-dur-fast) var(--md-ease-smooth),
+    box-shadow var(--md-dur-base) var(--md-ease-smooth),
+    background-color var(--md-dur-fast) var(--md-ease-smooth) !important;
+}
+.ant-input:focus,
+.ant-input-focused,
+.ant-input-affix-wrapper-focused,
+.ant-select-focused .ant-select-selector,
+.ant-picker-focused {
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
+}
+
+/* 8.4 标签页 —— 指示条平滑滑动 */
+.ant-tabs-ink-bar {
+  transition: left var(--md-dur-base) var(--md-ease-smooth), width var(--md-dur-base) var(--md-ease-smooth) !important;
+}
+.ant-tabs-tab {
+  transition: color var(--md-dur-fast) var(--md-ease-smooth) !important;
+}
+
+/* 8.5 开关 / 单选 / 复选 —— 弹性滑块 */
+.ant-switch .ant-switch-handle {
+  transition: transform var(--md-dur-base) var(--md-spring) !important;
+}
+.ant-radio-inner,
+.ant-checkbox-inner {
+  transition:
+    background-color var(--md-dur-fast) var(--md-ease-smooth),
+    border-color var(--md-dur-fast) var(--md-ease-smooth),
+    transform var(--md-dur-fast) var(--md-spring) !important;
+}
+.ant-radio-wrapper:active .ant-radio-inner,
+.ant-checkbox-wrapper:active .ant-checkbox-inner {
+  transform: scale(0.9);
+}
+
+/* 8.6 折叠面板 / 树 —— 缓动展开 */
+.ant-collapse-content,
+.ant-tree-treenode {
+  transition: height var(--md-dur-base) var(--md-ease-smooth), opacity var(--md-dur-base) var(--md-ease-smooth) !important;
+}
+
+/* 8.7 分页 / 徽标 / Tag */
+.ant-pagination-item,
+.ant-pagination-prev,
+.ant-pagination-next {
+  transition:
+    background-color var(--md-dur-fast) var(--md-ease-smooth),
+    border-color var(--md-dur-fast) var(--md-ease-smooth),
+    transform var(--md-dur-fast) var(--md-spring) !important;
+}
+.ant-pagination-item:hover,
+.ant-pagination-prev:hover,
+.ant-pagination-next:hover {
+  transform: translateY(-1px);
+}
+.ant-pagination-item:active,
+.ant-pagination-prev:active,
+.ant-pagination-next:active {
+  transform: scale(0.94);
+}
+.ant-tag {
+  transition: transform var(--md-dur-fast) var(--md-spring), background-color var(--md-dur-fast) var(--md-ease-smooth) !important;
+}
+
+/* 8.8 消息通知 / 通知条 —— 从右上角弹性滑入 */
+.ant-message-notice,
+.ant-notification-notice {
+  animation: mdNoticeIn 0.42s var(--md-ease-out) backwards !important;
+}
+@keyframes mdNoticeIn {
+  from { opacity: 0; transform: translate3d(0, -12px, 0) scale(0.96); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+
+/* 8.9 骨架屏 / 加载 —— 苹果式流光 */
+.ant-skeleton-content .ant-skeleton-paragraph > li,
+.ant-skeleton-content .ant-skeleton-title {
+  background-image: linear-gradient(
+    90deg,
+    rgba(27, 43, 69, 0.05) 25%,
+    rgba(27, 43, 69, 0.09) 37%,
+    rgba(27, 43, 69, 0.05) 63%
+  ) !important;
+  background-size: 400% 100% !important;
+  animation: mdShimmer 1.6s var(--md-ease-in-out) infinite !important;
+}
+@keyframes mdShimmer {
+  0%   { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+/* 8.10 进度条 —— 数值变化平滑过渡 */
+.ant-progress-bg {
+  transition: width var(--md-dur-slow) var(--md-ease-smooth), background-color var(--md-dur-base) var(--md-ease-smooth) !important;
+}
+
+/* ---------------------------------------------------------------------------
+   9. 顶栏 —— 磨砂玻璃质感
+   --------------------------------------------------------------------------- */
+.ant-layout-header {
+  transition: box-shadow var(--md-dur-base) var(--md-ease-smooth), background-color var(--md-dur-base) var(--md-ease-smooth) !important;
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
+  backdrop-filter: saturate(180%) blur(14px) !important;
+}
+
+/* 顶栏右侧的用户胶囊：悬浮时整体抬升（已有内联过渡，这里补充弹性） */
+.ant-layout-header [role="button"],
+.ant-layout-header .ant-badge {
+  transition: transform var(--md-dur-base) var(--md-ease-smooth);
+}
+
+/* ---------------------------------------------------------------------------
+   10. 路由 / 内容容器滚动增强
+   --------------------------------------------------------------------------- */
+.md-scroll-area,
+nav,
+.ant-table-body,
+.ant-modal-body {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* ---------------------------------------------------------------------------
+   11. 可访问性：尊重「减弱动态效果」系统设置
+   —— 关闭所有动画与过渡，但保留状态切换的即时可见性
+   --------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+  .md-page-enter,
+  .md-stagger > *,
+  .stats > .stat,
+  .stat-value,
+  .mini b {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+  }
+  .stat:hover,
+  .panel:hover,
+  .ant-card:hover,
+  .ant-btn:active,
+  .list-item:hover,
+  .side-list button:hover {
+    transform: none !important;
+  }
+}
+
+/* ============================================================================
+   【权限链路】拖拽看板 —— ChainBoard
+   ----------------------------------------------------------------------------
+   语汇来自 scaffold 的看板分列（珍珠玻璃）：
+     放 Discharge   拖起卡片，幽灵卡跟随并轻旋
+     结 Crystallize 落位成功 → 弹簧飞向新位置
+     停摆 Halt      取消 / 被拒 → 弹射归位飞回原处
+     自动让位       其余卡片 FLIP 平滑移位
+   ============================================================================ */
+
+/* --- 分类色：只区分类别，不表示状态 --- */
+.cat-1 { --cat-bg: #eef5ff; --cat-ink: #4774b9; --cat-line: #d3e2f7; }
+.cat-2 { --cat-bg: #eaf7f2; --cat-ink: #298f70; --cat-line: #cfeadf; }
+.cat-3 { --cat-bg: #f3effc; --cat-ink: #7a5cc4; --cat-line: #e0d6f5; }
+.cat-4 { --cat-bg: #fdeff0; --cat-ink: #c4423e; --cat-line: #f2d4d5; }
+.cat-5 { --cat-bg: #fbf3e6; --cat-ink: #a8792a; --cat-line: #e8d9bd; }
+
+.tnum { font-variant-numeric: tabular-nums; }
+
+.cb-board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  align-items: stretch;
+}
+
+.cb-col {
+  display: flex;
+  flex-direction: column;
+  min-height: 300px;
+  border-radius: var(--md-r-lg);
+  border: 1px solid #edf1f7;
+  background: color-mix(in srgb, var(--cat-bg) 34%, #ffffff);
+  transition:
+    border-color var(--md-dur-base) var(--md-ease-smooth),
+    box-shadow var(--md-dur-base) var(--md-ease-smooth),
+    background-color var(--md-dur-base) var(--md-ease-smooth);
+}
+
+/* 落点高亮：整列呼吸式让位提示 */
+.cb-col.is-over {
+  border-color: color-mix(in srgb, var(--cat-ink) 50%, transparent);
+  background: color-mix(in srgb, var(--cat-bg) 66%, #ffffff);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--cat-bg) 72%, transparent);
+}
+.cb-col.is-locked {
+  background: #fafbfd;
+}
+.cb-col.is-locked.is-over {
+  border-color: #f0c9c7;
+  background: #fdf3f3;
+  box-shadow: 0 0 0 4px rgba(196, 66, 62, 0.08);
+}
+
+.cb-col-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 15px 16px 6px;
+}
+.cb-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  background: var(--cat-ink);
+  box-shadow: 0 0 0 3px var(--cat-bg);
+  flex: none;
+}
+.cb-col.is-locked .cb-dot { background: #aab4c2; box-shadow: 0 0 0 3px #eef1f5; }
+.cb-col-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 650;
+  color: #1b2b45;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.cb-col-count {
+  min-width: 24px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--cat-ink);
+  background: var(--cat-bg);
+}
+.cb-col-hint {
+  margin: 0 16px 8px;
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: #8b98aa;
+}
+
+.cb-col-body {
+  flex: 1;
+  min-height: 0;
+  max-height: max(420px, calc(100vh - 420px));
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 12px 14px;
+}
+
+/* --- 卡片 --- */
+.cb-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--md-r-md);
+  border: 1px solid #e6ecf3;
+  background: #fff;
+  box-shadow: var(--md-shadow-rest);
+  transition:
+    box-shadow var(--md-dur-base) var(--md-ease-smooth),
+    opacity var(--md-dur-fast) var(--md-ease-smooth),
+    border-color var(--md-dur-base) var(--md-ease-smooth),
+    transform var(--md-dur-base) var(--md-ease-smooth);
+}
+.cb-board.is-draggable .cb-card {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.cb-card:hover {
+  box-shadow: var(--md-shadow-hover);
+  border-color: #dbe4f0;
+  transform: translateY(-1px);
+}
+.cb-card:active { cursor: grabbing; }
+/* 占位态：原位留一张虚线空壳，让幽灵卡读作「那张卡」 */
+.cb-card.is-placeholder {
+  opacity: 0.32;
+  box-shadow: none;
+  border-style: dashed;
+}
+.cb-board.is-busy .cb-card { pointer-events: none; }
+
+.cb-badge {
+  flex: none;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #f0f3f7;
+  color: #7d8ba0;
+  white-space: nowrap;
+}
+.cb-badge.hot { background: #fdeeee; color: #c4423e; }
+
+.cb-empty {
+  margin: 18px 0;
+  text-align: center;
+  font-size: 11.5px;
+  color: #a9b3c0;
+}
+
+/* --- 幽灵卡：外层管位移，内层管旋转缩放，两条通道互不覆盖 --- */
+.cb-ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 900;
+  pointer-events: none;
+  will-change: transform;
+}
+.cb-ghost-inner {
+  transform-origin: center;
+  filter: drop-shadow(0 10px 24px rgba(27, 43, 69, 0.18));
+}
+.cb-ghost-inner .cb-card,
+.cb-ghost-inner > * {
+  width: 100%;
+  cursor: grabbing;
+  opacity: 0.96;
+  box-shadow: 0 8px 20px rgba(27, 43, 69, 0.14);
+}
+
+/* --- 卡片右上角「移动到…」键盘替代路径 --- */
+.cb-menu-wrap { position: absolute; top: 6px; right: 6px; }
+.cb-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #a9b3c0;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity var(--md-dur-fast) var(--md-ease-smooth),
+    background-color var(--md-dur-fast) var(--md-ease-smooth),
+    color var(--md-dur-fast) var(--md-ease-smooth);
+}
+.cb-card:hover .cb-menu-btn,
+.cb-menu-btn:focus-visible,
+.cb-menu-btn[aria-expanded="true"] { opacity: 1; }
+.cb-menu-btn:hover { background: #f0f3f7; color: #1b2b45; }
+
+.cb-menu {
+  position: absolute;
+  right: 0;
+  top: 26px;
+  z-index: 30;
+  min-width: 156px;
+  padding: 8px 6px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-radius: var(--md-r-md);
+  border: 1px solid #e6ecf3;
+  background: #fff;
+  box-shadow: var(--md-shadow-pop);
+  animation: mdPopIn 0.24s var(--md-ease-out) backwards;
+}
+.cb-menu-label {
+  padding: 0 9px 5px;
+  font-size: 10px;
+  letter-spacing: 1.2px;
+  color: #a9b3c0;
+}
+.cb-menu-item {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  font-size: 12.5px;
+  color: #1b2b45;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background-color var(--md-dur-fast) var(--md-ease-smooth), transform var(--md-dur-fast) var(--md-ease-out);
+}
+.cb-menu-item:hover { background: #f5f8fd; transform: translateX(2px); }
+
+/* ============================================================================
+   【权限链路】上溯链路节点
+   ============================================================================ */
+.chain-rail {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.chain-step { display: flex; align-items: center; gap: 10px; }
+.chain-arrow { color: #c2cddb; font-size: 13px; transform: rotate(90deg); }
+
+.chain-node {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--md-r-md);
+  border: 1px solid #e6ecf3;
+  background: #fff;
+  box-shadow: var(--md-shadow-rest);
+  transition:
+    box-shadow var(--md-dur-base) var(--md-ease-smooth),
+    border-color var(--md-dur-base) var(--md-ease-smooth),
+    transform var(--md-dur-base) var(--md-ease-smooth);
+}
+.chain-node:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--md-shadow-hover);
+  border-color: #dbe4f0;
+}
+.chain-node.is-me {
+  border-color: #cddcf7;
+  background: linear-gradient(135deg, #f5f9ff, #eef5ff);
+}
+
+.chain-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  flex: none;
+  background: #eaf1ff;
+  color: #4774b9;
+}
+.chain-avatar.teal { background: #e6f4f1; color: #1f8a7e; }
+.chain-avatar.navy { background: #142d53; color: #fff; }
+
+.chain-meta { display: flex; flex-direction: column; min-width: 0; }
+.chain-meta b {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1b2b45;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1.3;
+}
+.chain-meta b em {
+  font-style: normal;
+  font-size: 9.5px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #eaf1ff;
+  color: #4774b9;
+}
+.chain-meta small {
+  font-size: 10.5px;
+  color: #8b98aa;
+  margin-top: 3px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.chain-empty {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: var(--md-r-md);
+  border: 1px dashed #dbe3ee;
+  font-size: 12px;
+  color: #9aa6b5;
+}
+
+/* 窄屏：看板改为纵向单列，链路横向滚动 */
+@media (max-width: 1100px) {
+  .cb-board { grid-template-columns: 1fr; }
+  .cb-col-body { max-height: 340px; }
+  .chain-rail { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 6px; }
+}
+
+/* 减少动态效果：看板动效全部降级 */
+@media (prefers-reduced-motion: reduce) {
+  .cb-card,
+  .cb-col,
+  .chain-node,
+  .cb-menu-item {
+    transition-duration: 0.01ms !important;
+  }
+  .cb-card:hover,
+  .cb-menu-item:hover,
+  .chain-node:hover {
+    transform: none !important;
+  }
+  .cb-menu { animation: none !important; }
+  .cb-ghost { display: none !important; }
+}

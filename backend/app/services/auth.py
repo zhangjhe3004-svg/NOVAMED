@@ -10,6 +10,7 @@ from fastapi import HTTPException, status
 
 from ..models.models import User, UserRole
 from ..core.security import hash_password, verify_password, create_access_token
+from ..core import session_archive
 from ..schemas import UserCreate, Token, UserInfo
 
 
@@ -35,8 +36,9 @@ def login(db: Session, username: str, password: str) -> Token:
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    sid = session_archive.start_session(user)
     access_token = create_access_token(
-        data={"sub": str(user.id), "username": user.username, "role": user.role.value}
+        data={"sub": str(user.id), "username": user.username, "role": user.role.value, "sid": sid}
     )
 
     return Token(
@@ -60,6 +62,8 @@ def login(db: Session, username: str, password: str) -> Token:
             department=user.department,
             title=user.title,
             work_status=user.work_status or "在职",
+            auth_level=user.auth_level or 1,
+            superior_id=user.superior_id,
         ),
     )
 
@@ -93,6 +97,8 @@ def create_user(db: Session, user_data: UserCreate) -> User:
         department=user_data.department,
         title=user_data.title,
         work_status=(user_data.work_status or "在职"),
+        auth_level=(user_data.auth_level if user_data.auth_level is not None else 1),
+        superior_id=user_data.superior_id,
     )
     db.add(user)
     db.commit()
@@ -142,6 +148,8 @@ def _user_dict(u: User) -> dict:
         "department": u.department,
         "title": u.title,
         "work_status": u.work_status or "在职",
+        "auth_level": u.auth_level or 1,
+        "superior_id": u.superior_id,
         "is_active": bool(u.is_active),
         "created_at": u.created_at.isoformat() if u.created_at else None,
     }
@@ -186,6 +194,10 @@ def update_user(db: Session, user_id: int, payload: dict) -> User:
 
     if "role" in payload and payload["role"] is not None:
         user.role = UserRole(payload["role"])
+    if "auth_level" in payload and payload["auth_level"] is not None:
+        user.auth_level = int(payload["auth_level"])
+    if "superior_id" in payload:
+        user.superior_id = int(payload["superior_id"]) if payload["superior_id"] else None
     for field in ("real_name", "phone", "email", "id_number", "id_type", "surname",
                   "given_name", "valid_until", "issue_date", "registered_place",
                   "employee_no", "department", "title", "work_status"):
@@ -205,3 +217,20 @@ def reset_user_password(db: Session, user_id: int, new_password: str) -> None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
     user.hashed_password = hash_password(new_password)
     db.commit()
+
+
+def collect_session_actions(db: Session, user: User) -> list:
+    """收集员工本会话的审计动作，用于生成 .sql 归档。"""
+    from ..models.models import AuditLog
+    logs = (
+        db.query(AuditLog)
+        .filter(AuditLog.user_id == user.id)
+        .order_by(AuditLog.id.desc())
+        .limit(200)
+        .all()
+    )
+    return [{
+        "action": a.action,
+        "detail": a.detail or a.resource or "",
+        "logged_at": a.created_at.strftime("%Y-%m-%d %H:%M:%S") if a.created_at else "",
+    } for a in logs]

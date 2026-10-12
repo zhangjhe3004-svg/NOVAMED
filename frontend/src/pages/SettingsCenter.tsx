@@ -445,7 +445,7 @@ export default function SettingsCenter() {
           <Card title="自定义品牌">
             <Descriptions column={1} bordered size="small">
               <Descriptions.Item label="系统名称">MediCode 全域智慧医疗系统</Descriptions.Item>
-              <Descriptions.Item label="副标题">Smart Medical System</Descriptions.Item>
+              <Descriptions.Item label="副标题">智慧医疗系统</Descriptions.Item>
               <Descriptions.Item label="品牌色">#1677ff</Descriptions.Item>
             </Descriptions>
           </Card>

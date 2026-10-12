@@ -4,6 +4,7 @@
 物理表命名规则：dyn_<collection_name>。
 """
 import json
+import re
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import text
@@ -85,6 +86,16 @@ def _create_table(db: Session, name: str, fields: List[dict]):
     ddl = f"CREATE TABLE IF NOT EXISTS {_table_name(name)} ({', '.join(cols)})"
     db.execute(text(ddl))
     db.commit()
+    # 已存在的物理表补齐新增列（幂等；CREATE TABLE IF NOT EXISTS 不会改旧表结构）
+    try:
+        existing_cols = {row[1] for row in
+                         db.execute(text(f"PRAGMA table_info({_table_name(name)})")).fetchall()}
+        for f in fields:
+            fname = f.get("name", "")
+            if fname and not f.get("primary") and fname not in existing_cols:
+                _add_column(db, name, fname, f.get("type"))
+    except Exception:
+        db.rollback()
 
 
 def drop_collection(db: Session, name: str):
@@ -97,12 +108,28 @@ def drop_collection(db: Session, name: str):
     return True
 
 
-def list_rows(db: Session, name: str, page: int = 1, page_size: int = 20) -> dict:
+_IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def list_rows(db: Session, name: str, page: int = 1, page_size: int = 20,
+              filters: Optional[Dict[str, Any]] = None) -> dict:
     _ensure_exists(db, name)
     t = _table_name(name)
-    total = db.execute(text(f"SELECT COUNT(*) FROM {t}")).scalar() or 0
-    rows = db.execute(text(f"SELECT * FROM {t} ORDER BY id DESC LIMIT :l OFFSET :o"),
-                      {"l": page_size, "o": (page - 1) * page_size}).mappings().all()
+    params: Dict[str, Any] = {"l": page_size, "o": (page - 1) * page_size}
+    where = ""
+    if filters:
+        conds = []
+        for i, (k, v) in enumerate(filters.items()):
+            # 字段名只允许合法标识符，值一律走绑定参数，防注入
+            if not _IDENT_RE.match(str(k)):
+                continue
+            conds.append(f"{k} = :flt_{i}")
+            params[f"flt_{i}"] = v
+        if conds:
+            where = " WHERE " + " AND ".join(conds)
+    total = db.execute(text(f"SELECT COUNT(*) FROM {t}{where}"), params).scalar() or 0
+    rows = db.execute(text(f"SELECT * FROM {t}{where} ORDER BY id DESC LIMIT :l OFFSET :o"),
+                      params).mappings().all()
     return {"total": total, "items": [dict(r) for r in rows]}
 
 
@@ -111,10 +138,18 @@ def insert_row(db: Session, name: str, data: dict) -> dict:
     t = _table_name(name)
     cols = ", ".join(data.keys())
     placeholders = ", ".join(f":{k}" for k in data.keys())
-    db.execute(text(f"INSERT INTO {t} ({cols}) VALUES ({placeholders})"), data)
-    db.commit()
-    row_id = db.execute(text("SELECT last_insert_rowid()")).scalar()
+    # 用 RETURNING id 原子取回新行主键（同一连接，不受连接池影响）。
+    # 旧实现 commit 后再 SELECT last_insert_rowid() 会拿到 0/陈旧值，
+    # 导致返回 id=0、工作流实例 row_id=0、审批结果无法回写动态行。
+    try:
+        row_id = db.execute(
+            text(f"INSERT INTO {t} ({cols}) VALUES ({placeholders}) RETURNING id"), data
+        ).scalar()
+    except Exception:
+        result = db.execute(text(f"INSERT INTO {t} ({cols}) VALUES ({placeholders})"), data)
+        row_id = getattr(result, "lastrowid", None)
     row = db.execute(text(f"SELECT * FROM {t} WHERE id = :i"), {"i": row_id}).mappings().first()
+    db.commit()
     return dict(row) if row else {"id": row_id}
 
 
@@ -140,3 +175,53 @@ def _ensure_exists(db: Session, name: str):
     c = db.query(DynCollection).filter(DynCollection.name == name).first()
     if not c:
         raise KeyError(f"集合不存在: {name}")
+
+
+def patch_collection(db: Session, name: str, payload: dict) -> dict:
+    """更新集合元数据（标题/描述/启用状态/字段），并为新增字段加列。"""
+    c = db.query(DynCollection).filter(DynCollection.name == name).first()
+    if not c:
+        raise KeyError(f"集合不存在: {name}")
+
+    old_fields = []
+    try:
+        old_fields = json.loads(c.fields_json or "[]")
+    except Exception:
+        old_fields = []
+
+    if "title" in payload:
+        c.title = payload["title"]
+    if "description" in payload:
+        c.description = payload["description"]
+    if "enabled" in payload:
+        c.enabled = bool(payload["enabled"])
+
+    new_fields = old_fields
+    if "fields" in payload:
+        new_fields = payload["fields"] or old_fields
+        if not any(f.get("name") == "id" for f in new_fields):
+            new_fields.insert(0, {"name": "id", "type": "integer", "primary": True})
+        c.fields_json = json.dumps(new_fields, ensure_ascii=False)
+
+    old_names = {f.get("name") for f in old_fields}
+    for f in new_fields:
+        fname = f.get("name", "")
+        if not fname or fname in old_names or f.get("primary"):
+            continue
+        _add_column(db, name, fname, f.get("type"))
+
+    db.commit()
+    return _collection_dict(c)
+
+
+def _add_column(db: Session, name: str, fname: str, ftype: str):
+    ftype = (ftype or "string").lower()
+    if ftype in ("integer", "int", "number"):
+        col_type = "INTEGER"
+    elif ftype in ("float", "double"):
+        col_type = "REAL"
+    elif ftype in ("boolean", "bool"):
+        col_type = "INTEGER DEFAULT 0"
+    else:
+        col_type = "TEXT"
+    db.execute(text(f"ALTER TABLE {_table_name(name)} ADD COLUMN {fname} {col_type}"))

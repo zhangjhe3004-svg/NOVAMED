@@ -1,0 +1,1101 @@
+/* ============================================================================
+   MediCode · 仪表组件库 (instruments.css)
+   ----------------------------------------------------------------------------
+   给「总览控制台 / 运营数据 / 各业务看板」共用的一套读数元件。
+   语汇取自 scaffold 的 instruments.css，但配色与圆角跟随 MediCode 现有令牌，
+   且读数一律 tabular-nums，避免数字跳动时整行左右抖。
+
+   元件：Metric/Odometer（读数）、DeltaPill（环比）、TickRing（刻度环）、
+        TrendChart（趋势）、BarChart（横向条）、Ruler（刻度尺）、SpecPlate（铭牌）
+   ============================================================================ */
+
+/* ---------------------------------------------------------------------------
+   1. 读数：等宽大数字 + 上标单位
+   --------------------------------------------------------------------------- */
+.metric {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.metric-label {
+  font-size: 11px;
+  color: #8593a6;
+  letter-spacing: 0.2px;
+}
+
+.metric-figure {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  color: var(--ink, #1b2b45);
+  font-weight: 660;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+
+.metric-xl .metric-figure {
+  font-size: 40px;
+}
+
+.metric-l .metric-figure {
+  font-size: 30px;
+}
+
+.metric-m .metric-figure {
+  font-size: 24px;
+}
+
+.metric-s .metric-figure {
+  font-size: 18px;
+}
+
+.metric-unit {
+  font-size: 0.46em;
+  font-weight: 500;
+  color: #8d9aae;
+  letter-spacing: 0;
+  top: -0.5em;
+}
+
+/* 逐位滚动读数：每位一条 0–9 竖带，只有变化的位会滚 */
+.odometer {
+  display: inline-flex;
+  align-items: baseline;
+  overflow: hidden;
+}
+
+.odo-cell {
+  display: inline-block;
+  height: 1.05em;
+  overflow: hidden;
+  vertical-align: baseline;
+}
+
+.odo-cell.is-sep {
+  display: inline-block;
+  line-height: 1.05em;
+  transform: none;
+}
+
+.odo-strip {
+  display: block;
+  transition: transform 620ms cubic-bezier(0.32, 0.72, 0, 1);
+  will-change: transform;
+}
+
+.odo-strip > span {
+  display: block;
+  height: 1.05em;
+  line-height: 1.05em;
+}
+
+/* ---------------------------------------------------------------------------
+   2. 环比胶囊
+   --------------------------------------------------------------------------- */
+.delta-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 上升=青柠（正向）/ 下降=红（负向）/ 持平与新增=中性 —— 医疗看板里
+   增长是好事；若某项指标「涨了才是坏事」（如待审积压），传 invert 反转语气。 */
+.delta-pill.is-up {
+  color: #1d7a63;
+  background: #e7f6f0;
+}
+
+.delta-pill.is-down {
+  color: #b8423e;
+  background: #fdeff0;
+}
+
+.delta-pill.is-flat,
+.delta-pill.is-new {
+  color: #6b7a90;
+  background: #f1f4f8;
+}
+
+.delta-pill.is-up.is-invert {
+  color: #b8423e;
+  background: #fdeff0;
+}
+
+.delta-pill.is-down.is-invert {
+  color: #1d7a63;
+  background: #e7f6f0;
+}
+
+/* ---------------------------------------------------------------------------
+   3. 刻度环
+   --------------------------------------------------------------------------- */
+.tick-ring {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.tick-ring-figure {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+
+.tick-ring-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.tick-ring-tick {
+  stroke: #dde5ef;
+  stroke-width: 0.012;
+  opacity: 0;
+}
+
+.tick-ring-tick.is-major {
+  stroke-width: 0.016;
+}
+
+.tick-ring-tick.is-on {
+  stroke: var(--cat-ink, #2563eb);
+  opacity: 0.85;
+}
+
+.tick-ring-tick.is-major.is-on {
+  opacity: 1;
+}
+
+.tick-ring-center {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+
+.tick-ring-unit {
+  font-size: 10px;
+  color: #8d9aae;
+  letter-spacing: 0.6px;
+}
+
+.tick-ring-caption {
+  font-size: 11.5px;
+  color: #78869b;
+  text-align: center;
+}
+
+/* ---------------------------------------------------------------------------
+   4. 趋势图（SVG + 准星读数）
+   --------------------------------------------------------------------------- */
+.trend {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.trend svg {
+  display: block;
+  width: 100%;
+  overflow: visible;
+}
+
+.trend-grid {
+  stroke: #eef2f7;
+  stroke-width: 1;
+}
+
+.trend-axis {
+  font-size: 9.5px;
+  fill: #a3aebe;
+}
+
+.trend-line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.trend-line.is-dashed {
+  stroke-dasharray: 4 4;
+  stroke-width: 1.6;
+}
+
+.trend-dot {
+  stroke: #fff;
+  stroke-width: 1.5;
+}
+
+.trend-area {
+  stroke: none;
+}
+
+.trend-cross {
+  stroke: #c9d6e6;
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  pointer-events: none;
+}
+
+.trend-focus {
+  stroke: #fff;
+  stroke-width: 2;
+  pointer-events: none;
+}
+
+/* 悬停读数：毛玻璃小卡 */
+.trend-tip {
+  position: absolute;
+  z-index: 3;
+  min-width: 96px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid #e4ebf4;
+  box-shadow: var(--md-shadow-hover, 0 4px 10px rgba(27, 43, 69, 0.06));
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+  opacity: 0;
+  transition: opacity 140ms linear;
+}
+
+.trend-tip.is-on {
+  opacity: 1;
+}
+
+.trend-tip-head {
+  font-size: 10.5px;
+  color: #8593a6;
+  margin-bottom: 4px;
+}
+
+.trend-tip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: #33445f;
+  font-variant-numeric: tabular-nums;
+}
+
+.trend-tip-row i {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  flex: none;
+}
+
+.trend-tip-row b {
+  margin-left: auto;
+  font-weight: 650;
+  color: var(--ink, #1b2b45);
+}
+
+.trend-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  padding-top: 6px;
+}
+
+.trend-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: #6b7a90;
+}
+
+.trend-legend-item i {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  flex: none;
+}
+
+.trend-legend-item b {
+  color: var(--ink, #1b2b45);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------------------
+   5. 横向条（科室 / 医生这类长中文标签用横向比竖柱可读）
+   --------------------------------------------------------------------------- */
+.bars {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.bar-row {
+  display: grid;
+  grid-template-columns: minmax(64px, 34%) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 0;
+  border-radius: 8px;
+  cursor: default;
+  transition: background 200ms linear;
+}
+
+.bar-row.is-hover {
+  background: #f7fafd;
+}
+
+.bar-name {
+  font-size: 12px;
+  color: #4d5f7a;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.bar-track {
+  position: relative;
+  height: 9px;
+  border-radius: 999px;
+  background: #f1f4f9;
+  overflow: hidden;
+}
+
+.bar-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 999px;
+  background: var(--cat-ink, #2563eb);
+  transform-origin: 0 50%;
+  transition: width 620ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.bar-fill.is-peak {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85), 0 2px 6px rgba(27, 43, 69, 0.12);
+}
+
+.bar-value {
+  font-size: 11.5px;
+  font-weight: 620;
+  color: var(--ink, #1b2b45);
+  font-variant-numeric: tabular-nums;
+  min-width: 30px;
+  text-align: right;
+}
+
+.bars-empty {
+  padding: 22px 0;
+  text-align: center;
+  font-size: 12px;
+  color: #a3aebe;
+}
+
+/* ---------------------------------------------------------------------------
+   6. 刻度尺
+   --------------------------------------------------------------------------- */
+.ruler {
+  position: relative;
+  height: 34px;
+  padding-top: 12px;
+}
+
+.ruler-ticks {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 9px;
+  /* 主刻度靠 repeating-linear-gradient 画，避免几十个 DOM 节点 */
+  background-image:
+    repeating-linear-gradient(90deg, #cdd8e6 0 1px, transparent 1px calc(100% / var(--ruler-major))),
+    repeating-linear-gradient(90deg, #e6ecf3 0 1px, transparent 1px calc(100% / (var(--ruler-major) * var(--ruler-minor))));
+  background-repeat: repeat-x;
+  background-size: calc(100% / var(--ruler-major)) 100%, calc(100% / (var(--ruler-major) * var(--ruler-minor))) 100%;
+}
+
+.ruler-ticks::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 8px;
+  height: 1px;
+  background: #e2e9f2;
+}
+
+.ruler-labels {
+  position: relative;
+  height: 14px;
+  font-size: 10px;
+  color: #a3aebe;
+  font-variant-numeric: tabular-nums;
+}
+
+.ruler-labels span {
+  position: absolute;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.ruler-marker {
+  position: absolute;
+  top: 4px;
+  width: 2px;
+  height: 12px;
+  margin-left: -1px;
+  border-radius: 2px;
+  background: var(--blue, #2563eb);
+}
+
+.ruler-marker-label {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 650;
+  color: #fff;
+  background: var(--blue, #2563eb);
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------------------
+   7. 规格铭牌（深色玻璃小板，只读读数）
+   --------------------------------------------------------------------------- */
+.spec-plate {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: linear-gradient(150deg, #1b2b45 0%, #25405f 100%);
+  color: #e8eef7;
+  border: 1px solid #2f4b6d;
+}
+
+.spec-title {
+  font-size: 10px;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: #8fa5bf;
+  margin-bottom: 2px;
+}
+
+.spec-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 11.5px;
+}
+
+.spec-row dt {
+  color: #9fb2ca;
+  white-space: nowrap;
+}
+
+.spec-row dd {
+  margin: 0;
+  margin-left: auto;
+  font-weight: 600;
+  color: #f2f6fc;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spec-row dd.is-lime {
+  color: #7fd0c4;
+}
+
+.spec-row dd.is-red {
+  color: #f0a09d;
+}
+
+/* ---------------------------------------------------------------------------
+   8. 指标卡外壳（KPI 瓦片：图标 + 读数 + 环比 + 脚注）
+   --------------------------------------------------------------------------- */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.kpi-grid.is-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.kpi {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 17px 19px 15px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid #e6ecf3;
+  box-shadow: var(--md-shadow-rest, 0 1px 2px rgba(27, 43, 69, 0.04));
+  cursor: pointer;
+  text-align: left;
+  transition: box-shadow var(--md-dur-base, 280ms) var(--md-ease-smooth, ease),
+    border-color var(--md-dur-fast, 180ms) linear,
+    translate var(--md-dur-base, 280ms) var(--md-ease-smooth, ease);
+}
+
+.kpi:hover {
+  box-shadow: var(--md-shadow-hover, 0 4px 10px rgba(27, 43, 69, 0.06));
+  border-color: #cfdcf0;
+  translate: 0 -3px;
+}
+
+.kpi-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.kpi-title {
+  font-size: 12px;
+  color: #78869b;
+}
+
+.kpi-ico {
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  width: 33px;
+  height: 33px;
+  border-radius: 10px;
+  font-size: 16px;
+  flex: none;
+  color: var(--cat-ink, #7d8ba0);
+  background: var(--cat-bg, #f2f6fb);
+  border: 1px solid var(--cat-line, #e7eef7);
+}
+
+.kpi-mid {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.kpi-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10.5px;
+  color: #9aa6b5;
+}
+
+.kpi-spark {
+  margin-left: auto;
+  width: 62px;
+  height: 22px;
+  flex: none;
+  opacity: 0.75;
+}
+
+.kpi-spark path {
+  fill: none;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---------------------------------------------------------------------------
+   9. 读数单位 / 无障碍小工具
+   --------------------------------------------------------------------------- */
+.metric-unit {
+  position: relative;
+  vertical-align: baseline;
+}
+
+/* sup 自带 vertical-align:super，会和 top 偏移叠加，先归零再统一用 top 抬 */
+sup.metric-unit,
+sup.tick-ring-unit {
+  vertical-align: baseline;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------------------------------------------------------------------------
+   10. 刻度环：刻度明暗 / 末端圆点 / 中心读数
+   --------------------------------------------------------------------------- */
+.tick-ring-tick {
+  /* viewBox 是 0 0 1 1，stroke-width 也走用户单位：1 会变成整个直径那么粗，
+     所以这里必须用小数（0.012 ≈ 2px @158）。 */
+  stroke-width: 0.012;
+  stroke-linecap: round;
+  opacity: 0.42;
+  transition: opacity 280ms linear;
+}
+
+.tick-ring-tick.is-major {
+  stroke-width: 0.016;
+  opacity: 0.58;
+}
+
+.tick-ring-tick.is-on {
+  opacity: 0.95;
+}
+
+.tick-ring-tick.is-major.is-on {
+  opacity: 1;
+}
+
+/* 末端圆点：回弹落定；延迟到刻度扫完再出现 */
+.tick-ring-cap {
+  fill: var(--cat-ink, #2563eb);
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 520ms cubic-bezier(0.34, 1.56, 0.64, 1) 780ms;
+}
+
+.tick-ring-value {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  font-size: 26px;
+  font-weight: 660;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  color: var(--ink, #1b2b45);
+}
+
+sup.tick-ring-unit {
+  font-size: 0.46em;
+  font-weight: 500;
+  color: #8d9aae;
+  letter-spacing: 0;
+  top: -0.5em;
+}
+
+/* ---------------------------------------------------------------------------
+   11. 趋势图：容器 / 节点光晕 / 读数卡定位
+   --------------------------------------------------------------------------- */
+.trend-box {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.trend-box svg {
+  display: block;
+}
+
+.trend-halo {
+  opacity: 0.16;
+  pointer-events: none;
+}
+
+/* 单点数据的直接标签（点数 > 1 时用不到） */
+.trend-value-label {
+  font-size: 11px;
+  font-weight: 650;
+  fill: var(--ink, #1b2b45);
+  font-variant-numeric: tabular-nums;
+}
+
+.trend-tip {
+  transition: opacity 140ms linear, left 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    top 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 首次出现时不要从上一个位置滑过来 */
+.trend-tip.is-instant {
+  transition: opacity 0ms linear, left 0ms linear, top 0ms linear;
+}
+
+/* ---------------------------------------------------------------------------
+   12. 数据页骨架（读数页共用的排布原语）
+   --------------------------------------------------------------------------- */
+.data-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.page-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.page-head h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--ink, #1b2b45);
+}
+
+.page-head p {
+  margin: 5px 0 0;
+  font-size: 12px;
+  color: #8593a6;
+}
+
+.data-loading {
+  padding: 80px 0;
+  text-align: center;
+}
+
+.grid-2,
+.grid-3 {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+
+.grid-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* 环形 + 图例：环居中、图例在下方一行铺开 */
+.ring-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+  padding: 4px 0 6px;
+}
+
+.ring-block .trend-legend {
+  justify-content: center;
+  padding-top: 0;
+}
+
+/* 环形在左、横条在右 */
+.ring-bars {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 22px;
+  align-items: center;
+}
+
+/* 与环形并排时横条的标签都很短，没必要再占 34% 的行宽 */
+.ring-bars .bar-row {
+  grid-template-columns: minmax(56px, 92px) minmax(0, 1fr) auto;
+}
+
+/* ---------------------------------------------------------------------------
+   13. 自适应 & 减少动效
+   --------------------------------------------------------------------------- */
+@media (max-width: 900px) {
+  .grid-2,
+  .grid-3,
+  .ring-bars {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 1180px) {
+  .kpi-grid,
+  .kpi-grid.is-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .kpi-grid,
+  .kpi-grid.is-3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .metric-xl .metric-figure {
+    font-size: 32px;
+  }
+}
+
+/* KPI 瓦片本身是 <button>，把浏览器默认字体/行高清掉 */
+.kpi {
+  width: 100%;
+  font: inherit;
+  color: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .odo-strip,
+  .bar-fill,
+  .kpi,
+  .trend-tip,
+  .tick-ring-tick,
+  .tick-ring-cap {
+    transition: none !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   14. 登录热力（星期 × 小时）—— 复刻 scaffold HeatGrid.vue
+   --------------------------------------------------------------------------- */
+.heat {
+  --cell-gap: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--cell-gap);
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+.heat.is-loading {
+  opacity: 0.5;
+}
+.heat-hours,
+.heat-row {
+  display: grid;
+  grid-template-columns: 40px repeat(24, minmax(18px, 1fr));
+  gap: var(--cell-gap);
+  min-width: 560px;
+}
+.heat-hours span {
+  grid-row: 1;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10px;
+  color: var(--lv-faint);
+  transition: color 0.2s;
+}
+.heat-hours span:first-child {
+  grid-column: 2;
+}
+.heat-hours span.is-on {
+  color: var(--lv-ink);
+}
+.heat-day {
+  font-size: 11.5px;
+  color: var(--lv-soft);
+  align-self: center;
+  transition: color 0.2s;
+}
+.heat-day.is-on {
+  color: var(--lv-ink);
+  font-weight: 650;
+}
+.heat-cell {
+  position: relative;
+  aspect-ratio: 1;
+  min-height: 18px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--lv-hover-bg);
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  transition: filter 0.15s, box-shadow 0.15s;
+  animation: heat-pop 0.5s var(--md-ease-out, cubic-bezier(0.22, 1, 0.36, 1)) backwards;
+}
+@keyframes heat-pop {
+  from {
+    transform: scale(0.2);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.heat-cell.lv-1 { background: color-mix(in srgb, var(--lv-lime) 18%, var(--lv-surface-solid)); }
+.heat-cell.lv-2 { background: color-mix(in srgb, var(--lv-lime) 38%, var(--lv-surface-solid)); }
+.heat-cell.lv-3 { background: color-mix(in srgb, var(--lv-lime) 62%, var(--lv-surface-solid)); }
+.heat-cell.lv-4 {
+  background: color-mix(in srgb, var(--lv-leaf-text) 88%, var(--lv-surface-solid));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--lv-leaf-text) 40%, transparent),
+    0 4px 10px rgba(130, 221, 45, 0.25);
+}
+.heat-cell.is-risky::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--lv-red-text) 70%, transparent) 0 1.5px,
+    transparent 1.5px 4.5px
+  );
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lv-red-text) 55%, transparent);
+}
+.heat:has(.is-hover) .heat-cell:not(.is-cross) {
+  filter: saturate(0.4) opacity(0.55);
+}
+.heat-cell.is-hover {
+  box-shadow: 0 0 0 2px var(--lv-blue), 0 6px 14px rgba(var(--lv-shade), 0.18);
+  z-index: 1;
+}
+.heat-cell:focus-visible {
+  outline: 2px solid var(--lv-blue);
+  outline-offset: 2px;
+}
+.heat-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  min-width: 0;
+}
+.heat-readout {
+  font-size: 12.5px;
+  color: var(--lv-muted);
+  font-variant-numeric: tabular-nums;
+}
+.heat-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--lv-faint);
+}
+.heat-legend i {
+  position: relative;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--lv-hover-bg);
+}
+.heat-legend i.lv-1 { background: color-mix(in srgb, var(--lv-lime) 18%, var(--lv-surface-solid)); }
+.heat-legend i.lv-2 { background: color-mix(in srgb, var(--lv-lime) 38%, var(--lv-surface-solid)); }
+.heat-legend i.lv-3 { background: color-mix(in srgb, var(--lv-lime) 62%, var(--lv-surface-solid)); }
+.heat-legend i.lv-4 {
+  background: color-mix(in srgb, var(--lv-leaf-text) 88%, var(--lv-surface-solid));
+  margin-right: 4px;
+}
+.heat-legend i.is-risky {
+  margin-left: 10px;
+  background: repeating-linear-gradient(135deg, var(--lv-red-text) 0 1.5px, transparent 1.5px 4px);
+  box-shadow: inset 0 0 0 1px var(--lv-red-text);
+}
+
+/* ---------------------------------------------------------------------------
+   15. 失败聚集告警卡（登录日志·异常聚合）—— 复刻 scaffold alert-card
+   --------------------------------------------------------------------------- */
+.alert-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+}
+.alert-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px 14px 18px;
+  border-radius: var(--lv-r-lg);
+  border: 1px solid color-mix(in srgb, var(--lv-red-text) 22%, var(--lv-line));
+  background: linear-gradient(140deg, var(--lv-red-soft), transparent 70%), var(--lv-surface-solid);
+  text-align: left;
+  color: var(--lv-ink);
+  font: inherit;
+  cursor: pointer;
+  box-shadow: var(--lv-e1);
+  transition: box-shadow 0.25s, border-color 0.25s;
+}
+.alert-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 14px;
+  bottom: 14px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--lv-red);
+}
+.alert-card:hover {
+  border-color: color-mix(in srgb, var(--lv-red-text) 45%, var(--lv-line));
+  box-shadow: var(--lv-e1), 0 8px 22px rgba(var(--lv-shade), 0.1);
+}
+.alert-card:focus-visible {
+  outline: 2px solid var(--lv-blue);
+  outline-offset: 2px;
+}
+.alert-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.alert-kind {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lv-red-text);
+}
+.alert-key {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.alert-figure {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.alert-figure b {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: var(--lv-red-text);
+}
+.alert-figure span {
+  font-size: 12px;
+  color: var(--lv-soft);
+}
+.alert-meta {
+  font-size: 11.5px;
+  color: var(--lv-faint);
+  font-variant-numeric: tabular-nums;
+}
+.alert-calm {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: var(--lv-r-lg);
+  background: var(--lv-lime-soft);
+  color: var(--lv-leaf-text);
+  font-size: 13px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .heat-cell {
+    animation: none !important;
+  }
+}

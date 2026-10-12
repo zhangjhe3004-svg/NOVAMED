@@ -1,0 +1,419 @@
+/* ============================================================
+   后台列表板块通用样式（复刻 scaffold「珍珠玻璃」——值逐项对齐其 tokens.css / components.css）
+   供全站列表页（.lv-*）复用。颜色/圆角/阴影与 scaffold 完全一致。
+   ============================================================ */
+
+/* 令牌挂 :root —— Modal/Drawer 会 portal 到 body，脱离 .lv 作用域后仍可取值 */
+:root {
+  /* 字色：五档（对齐 scaffold tokens.css） */
+  --lv-ink: #101418;         /* 正文 / 标题 */
+  --lv-muted: #596368;       /* 次级正文 */
+  --lv-soft: #7e888c;        /* 次级标签 */
+  --lv-faint: #99a2a5;       /* 元信息 */
+  /* 语义色 */
+  --lv-blue: #236de9;
+  --lv-blue-hover: #1d61d5;
+  --lv-blue-soft: rgba(35, 109, 233, .1);
+  --lv-lime: #82dd2d;
+  --lv-lime-soft: rgba(130, 221, 45, .14);
+  --lv-leaf-text: #58a021;
+  --lv-red: #ff5a50;
+  --lv-red-text: #e0443b;
+  --lv-red-soft: rgba(255, 90, 80, .11);
+  /* 中性描边（shade 46,58,62） */
+  --lv-shade: 46, 58, 62;
+  --lv-line: rgba(46, 58, 62, .085);
+  --lv-line-strong: rgba(46, 58, 62, .11);
+  /* 材质 */
+  --lv-surface-solid: #fbfcfc;
+  --lv-hover-bg: rgba(46, 58, 62, .045);
+  --lv-e1: 0 1px 2px rgba(46, 58, 62, .05), 0 5px 14px rgba(46, 58, 62, .04);
+  --lv-e-accent: 0 1px 2px rgba(20, 66, 148, .28), 0 8px 18px rgba(35, 109, 233, .24);
+  --lv-e-accent-hover: 0 1px 2px rgba(20, 66, 148, .32), 0 12px 24px rgba(35, 109, 233, .3);
+  /* 圆角：4px 一档 */
+  --lv-r-xs: 8px;
+  --lv-r-sm: 12px;
+  --lv-r-md: 16px;
+  --lv-r-lg: 20px;
+  --lv-r-xl: 24px;
+}
+
+.lv {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  color: var(--lv-ink);
+  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+/* ── 页头 ─────────────────────────────────────────────────── */
+.lv-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.lv-sub {
+  margin: 0;
+  font-size: 13px;
+  color: var(--lv-soft);
+  line-height: 1.7;
+  max-width: 560px;
+}
+.lv-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* ── 按钮（对齐 scaffold .btn）────────────────────────────── */
+.lv-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 16px;
+  border-radius: var(--lv-r-xs);
+  border: 1px solid var(--lv-line);
+  background: #fff;
+  color: var(--lv-ink);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: box-shadow .18s ease, background-color .18s ease, transform .12s ease;
+}
+.lv-btn:hover {
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(46, 58, 62, .06), 0 12px 30px rgba(46, 58, 62, .055), inset 0 1px 0 rgba(255, 255, 255, .98), inset 0 -1px 0 rgba(105, 122, 128, .08);
+  color: var(--lv-ink);
+}
+.lv-btn:active {
+  transform: scale(.98);
+}
+.lv-btn--primary {
+  background: var(--lv-blue);
+  border-color: var(--lv-blue);
+  color: #fff;
+  font-weight: 660;
+  box-shadow: var(--lv-e-accent);
+}
+.lv-btn--primary:hover {
+  background: var(--lv-blue-hover);
+  border-color: var(--lv-blue-hover);
+  color: #fff;
+  box-shadow: var(--lv-e-accent-hover);
+}
+.lv-submit {
+  background: var(--lv-blue, #236de9) !important;
+  border-color: var(--lv-blue, #236de9) !important;
+  height: 36px;
+  border-radius: 8px;
+  font-weight: 660;
+  box-shadow: var(--lv-e-accent);
+}
+.lv-submit:hover {
+  background: var(--lv-blue-hover, #1d61d5) !important;
+}
+
+/* ── 统计读数条 ───────────────────────────────────────────── */
+.lv-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+.lv-metrics.is-5 {
+  grid-template-columns: repeat(5, 1fr);
+}
+.lv-metric {
+  background: #fff;
+  border: 1px solid var(--lv-line);
+  border-radius: var(--lv-r-md);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-shadow: var(--lv-e1);
+}
+.lv-metric-label {
+  font-size: 12px;
+  color: var(--lv-faint);
+  font-weight: 600;
+}
+.lv-metric-figure {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -.5px;
+  color: var(--lv-ink);
+  line-height: 1.1;
+}
+
+/* ── 查询区 ───────────────────────────────────────────────── */
+.lv-query {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px 16px;
+  background: #fff;
+  border: 1px solid var(--lv-line);
+  border-radius: var(--lv-r-lg);
+  padding: 16px 20px;
+  flex-wrap: wrap;
+  box-shadow: var(--lv-e1);
+}
+.lv-query-input {
+  flex: 1;
+  min-width: 220px;
+}
+.lv-query-select {
+  width: 150px;
+}
+.lv-query-actions {
+  display: flex;
+  gap: 10px;
+  margin-left: auto;
+}
+.lv-query .ant-input,
+.lv-query .ant-select-selector {
+  border-radius: 8px !important;
+}
+
+/* ── 面板（对齐 scaffold .panel：圆角 r-lg=20px）───────────── */
+.lv-panel {
+  background: #fff;
+  border: 1px solid var(--lv-line);
+  border-radius: var(--lv-r-lg);
+  overflow: hidden;
+  box-shadow: var(--lv-e1);
+}
+.lv-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 60px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--lv-line);
+}
+.lv-panel-title {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--lv-ink);
+}
+.lv-panel-meta {
+  font-size: 12px;
+  color: var(--lv-soft);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.lv-panel-tools {
+  margin-left: auto;
+  display: flex;
+  gap: 2px;
+}
+
+.lv .ant-table {
+  background: transparent;
+}
+.lv .ant-table-thead > tr > th {
+  background: var(--lv-surface-solid);
+  color: var(--lv-soft);
+  font-size: 12px;
+  font-weight: 620;
+  border-top: 1px solid var(--lv-line);
+  border-bottom: 1px solid var(--lv-line);
+  white-space: nowrap;
+}
+.lv .ant-table-tbody > tr > td {
+  border-bottom: 1px solid var(--lv-line);
+  color: var(--lv-ink);
+}
+.lv .ant-table-tbody > tr:hover > td {
+  background: var(--lv-hover-bg) !important;
+}
+
+/* ── 分页条（对齐 scaffold .pager）────────────────────────── */
+.lv-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--lv-line);
+  flex-wrap: wrap;
+}
+.lv-pager-meta {
+  font-size: 12px;
+  color: var(--lv-soft);
+  font-variant-numeric: tabular-nums;
+}
+.lv-pager-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.lv-pager-btns {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.lv-pager-cur {
+  font-size: 12.5px;
+  color: var(--lv-muted);
+  font-weight: 600;
+  min-width: 44px;
+  text-align: center;
+}
+
+/* ── 状态胶囊（对齐 scaffold .tag + tone）──────────────────── */
+.lv-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--lv-muted);
+  background: rgba(46, 58, 62, .065);
+}
+.lv-tag-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+  flex: none;
+}
+.lv-tag--amber { color: #b9770a; background: rgba(232, 161, 58, .16); }
+.lv-tag--amber .lv-tag-dot { box-shadow: 0 0 0 3px rgba(232, 161, 58, .16); }
+.lv-tag--leaf { color: var(--lv-leaf-text); background: var(--lv-lime-soft); }
+.lv-tag--leaf .lv-tag-dot { background: var(--lv-lime); box-shadow: 0 0 0 3px var(--lv-lime-soft); }
+.lv-tag--red { color: var(--lv-red-text); background: var(--lv-red-soft); }
+.lv-tag--red .lv-tag-dot { box-shadow: 0 0 0 3px var(--lv-red-soft); }
+.lv-tag--gray { color: var(--lv-soft); background: rgba(46, 58, 62, .08); }
+.lv-tag--neutral { color: var(--lv-muted); background: rgba(46, 58, 62, .06); }
+
+/* ── 头像（对齐 scaffold .avatar）─────────────────────────── */
+.lv-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: -.02em;
+  flex: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), 0 1px 2px rgba(46, 58, 62, .12);
+}
+
+/* ── 卡片视图 ─────────────────────────────────────────────── */
+.lv-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+  padding: 16px;
+}
+.lv-card {
+  background: #fff;
+  border: 1px solid var(--lv-line);
+  border-left: 3px solid #c7d2e0;
+  border-radius: var(--lv-r-md);
+  padding: 14px 16px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: box-shadow .18s ease, transform .14s ease;
+}
+.lv-card:hover {
+  box-shadow: 0 1px 3px rgba(46, 58, 62, .06), 0 12px 30px rgba(46, 58, 62, .055);
+  transform: translateY(-2px);
+}
+.lv-card--amber { border-left-color: #e8a13a; }
+.lv-card--leaf { border-left-color: #58a021; }
+.lv-card--red { border-left-color: #e0443b; }
+.lv-card--gray { border-left-color: #b8c3d1; }
+.lv-card-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.lv-card-name { font-weight: 650; font-size: 14px; }
+.lv-card-top .lv-tag { margin-left: auto; }
+.lv-card-type { font-size: 12px; color: var(--lv-faint); font-weight: 600; }
+.lv-card-reason {
+  font-size: 13px;
+  color: var(--lv-muted);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 39px;
+}
+.lv-card-foot {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--lv-soft);
+  border-top: 1px solid var(--lv-line);
+  padding-top: 10px;
+}
+
+/* ── 弹窗表单 ─────────────────────────────────────────────── */
+.lv-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 18px;
+}
+.lv .ant-modal-content {
+  border-radius: var(--lv-r-xl);
+}
+.lv .ant-modal-header {
+  border-radius: var(--lv-r-xl) var(--lv-r-xl) 0 0;
+}
+.lv-form .ant-input,
+.lv-form .ant-select-selector,
+.lv-form .ant-input-number,
+.lv-form .ant-picker {
+  border-radius: 8px !important;
+}
+
+/* ── 详情抽屉 ─────────────────────────────────────────────── */
+.lv-detail { display: flex; flex-direction: column; }
+.lv-detail-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--lv-line);
+  font-size: 13px;
+}
+.lv-detail-k { color: var(--lv-faint); flex: none; }
+.lv-detail-v { color: var(--lv-ink); font-weight: 600; text-align: right; }
+.lv-detail-block { padding: 14px 0; }
+.lv-detail-reason {
+  margin-top: 8px;
+  background: #f7f9fc;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 13px;
+  color: var(--lv-muted);
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 720px) {
+  .lv-metrics,
+  .lv-metrics.is-5 { grid-template-columns: repeat(2, 1fr); }
+  .lv-form-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 1180px) {
+  .lv-metrics.is-5 { grid-template-columns: repeat(3, 1fr); }
+}

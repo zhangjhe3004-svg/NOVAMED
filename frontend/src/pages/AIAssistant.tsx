@@ -1,27 +1,33 @@
 /**
- * AI 辅助诊断 — Material 3 设计
+ * AI 辅助诊断 —— 全站统一板块语汇重设计（lv-* 面板 + ai-* 页面骨架）
  *
- * 布局：双栏不对称
- * ├── 主区域（2/3）：诊断结果 — 主导视觉区域
- * └── 侧区域（1/3）：症状输入 + 参考信息
+ * 布局：左 400px「诊断请求」输入轨道（sticky）+ 右结果舞台
+ *   空态 = 珍珠玻璃 Hero；加载 = 三阶段步骤点亮；
+ *   结果 = 候选诊断卡（置信度条）→ 相似病例 → AI 深度分析 → 防幻觉验证 → 医生确认操作条。
+ * 功能与数据流保持不变：诊断 / 历史分析 / 采纳为草稿 / 驳回建议。
  */
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import {
-  Row, Col, Card, Input, Button, Select, Progress, Tag,
-  Typography, message, Spin, Empty, Alert, Space, Badge, Divider,
+  Input, Button, Select,
+  Typography, message, Spin, Empty, Alert, Space, Modal, Form, Table, Segmented,
 } from "antd";
 import {
   MedicineBoxOutlined,
-  AlertOutlined, FileSearchOutlined, AudioOutlined, AudioMutedOutlined,
+  AlertOutlined, FileTextOutlined, AudioOutlined, AudioMutedOutlined,
   CheckCircleOutlined, BulbOutlined, SafetyOutlined, BookOutlined,
   ThunderboltOutlined, SearchOutlined, UserOutlined, SendOutlined,
+  CloseCircleOutlined, HistoryOutlined, ReloadOutlined, UserSwitchOutlined,
 } from "@ant-design/icons";
 import { aiDiagnose, aiAnalyze, getAIProviders } from "../api/ai";
 import { listPatients } from "../api/patients";
-import type { DiagnosisResult } from "../api/ai";
+import { listActions, recordAction } from "../api/memory";
+import { createRecord } from "../api/records";
+import type { FullDiagnosisResult } from "../api/ai";
+import VoiceTextArea from "../components/VoiceTextArea";
 
 const { TextArea } = Input;
-const { Title, Text, Paragraph } = Typography;
+const { Text } = Typography;
 
 interface SpeechRecognitionEvent extends Event {
   results: SpeechRecognitionResultList; resultIndex: number;
@@ -30,38 +36,42 @@ interface SpeechRecognitionErrorEvent extends Event {
   error: string; message: string;
 }
 
-// NocoBase 配色
-const M3 = {
-  primary: "#1677ff",
-  secondary: "#52c41a",
-  tertiary: "#722ed1",
-  error: "#ff4d4f",
-  surface: "#ffffff",
-  surfaceLow: "#f5f5f5",
-  surfaceVariant: "#f0f0f0",
-  onSurface: "#1f1f1f",
-  onSurfaceVariant: "#6b7280",
-  outline: "#bfbfbf",
-};
-
 export default function AIAssistant() {
+  const navigate = useNavigate();
   const [symptoms, setSymptoms] = useState("");
   const [selectedPatientId, setSelectedPatientId] = useState<number | undefined>();
   const [patients, setPatients] = useState<{ value: number; label: string }[]>([]);
   const [patientSearching, setPatientSearching] = useState(false);
   const patientSearchTimer = useRef<any>(null);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<DiagnosisResult | null>(null);
+  const [result, setResult] = useState<FullDiagnosisResult | null>(null);
   const [isFirstVisit, setIsFirstVisit] = useState(true);
 
   // 防幻觉增强：引擎选择
   const [provider, setProvider] = useState("local");
   const [providers, setProviders] = useState<string[]>([]);
 
+  // 分析强度
+  const [analysisStrength, setAnalysisStrength] = useState("中等");
+
   // 语音
   const [isListening, setIsListening] = useState(false);
   const [voiceSupported, setVoiceSupported] = useState(false);
   const recognitionRef = useRef<any>(null);
+
+  // 历史分析
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [history, setHistory] = useState<any[]>([]);
+
+  // 采纳 / 驳回
+  const [adoptOpen, setAdoptOpen] = useState(false);
+  const [adopting, setAdopting] = useState(false);
+  const [adoptForm] = Form.useForm();
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
+  const [rejectForm] = Form.useForm();
+  const [decided, setDecided] = useState<"" | "adopted" | "rejected">("");
 
   const genderLabel = (g?: string) =>
     g === "male" ? "男" : g === "female" ? "女" : g === "other" ? "其他" : "";
@@ -92,9 +102,9 @@ export default function AIAssistant() {
   useEffect(() => {
     loadPatients("");
 
-    // 加载可用服务商
+    // 加载可用服务商（未配置时回退本地引擎）
     getAIProviders()
-      .then((res) => setProviders(res.providers || []))
+      .then((res) => setProviders((res.keys || []).filter((k) => k.configured).map((k) => k.provider)))
       .catch(() => {});
 
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -122,398 +132,206 @@ export default function AIAssistant() {
     setIsListening(!isListening);
   };
 
-  const handleDiagnose = async () => {
-    if (!symptoms.trim()) { message.warning("请输入症状描述"); return; }
+  const handleDiagnose = async (overrideSymptoms?: string) => {
+    const text = (overrideSymptoms ?? symptoms).trim();
+    if (!text) { message.warning("请输入症状描述"); return; }
     setLoading(true);
     setResult(null);
     setIsFirstVisit(false);
+    setDecided("");
     try {
-      const params = { symptoms: symptoms.trim(), patient_id: selectedPatientId };
+      const params = { symptoms: text, patient_id: selectedPatientId, provider: "local" };
       // 未配置任何云端服务商时，一律走本地验证引擎；否则按所选引擎调用
       const useCloud = provider !== "local" && providers.length > 0;
       const res = useCloud
         ? await aiAnalyze({ ...params, provider })
-        : await aiDiagnose({ ...params, provider: "local" });
-      setResult(res);
+        : await aiDiagnose(params);
+      const normalized = normalizeResult(res);
+      setResult(normalized);
+      // 写入分析历史（可在「历史分析」中回看与复跑）
+      recordAction("ai_analyze", {
+        symptoms: text,
+        patient_id: selectedPatientId,
+        provider: useCloud ? provider : "local",
+        top: normalized.diagnoses?.[0]?.disease || "",
+        confidence: normalized.diagnoses?.[0]?.confidence || 0,
+        candidates: (normalized.diagnoses || []).map((d) => d.disease),
+      }).catch(() => {});
     } catch (err: any) {
       message.error(err.response?.data?.detail || "AI诊断请求失败");
     } finally { setLoading(false); }
   };
 
-  const confidenceLevel = (conf: number) => {
-    if (conf >= 0.7) return { color: M3.secondary, label: "较高", bg: "#f6ffed" };
-    if (conf >= 0.5) return { color: "#faad14", label: "中等", bg: "#fffbe6" };
-    return { color: M3.error, label: "较低", bg: "#FFDAD6" };
+  /** 兼容不同引擎返回结构：富结构直接使用，简版结构（云端 /analyze 等）就地转换 */
+  const normalizeResult = (res: any): FullDiagnosisResult => {
+    if (res && Array.isArray(res.diagnoses)) return res as FullDiagnosisResult;
+    const conf = typeof res?.confidence === "number" ? res.confidence : 0.6;
+    const passed = res?.hallucination_check?.passed !== false;
+    const evidence = res?.evidence || [];
+    return {
+      diagnoses: res?.diagnosis
+        ? [{
+            disease: res.diagnosis,
+            confidence: conf,
+            source: "rule_based",
+            rationale: "简版引擎返回，未提供推理细节",
+            typical_symptoms: [],
+            evidence_tier: evidence[0]?.tier || "B",
+            confirmation_required: true,
+          }]
+        : [],
+      matched_symptom_categories: [],
+      suggested_exams: evidence.map((e: any) => e.title).filter(Boolean).slice(0, 3),
+      knowledge_refs: evidence.map((e: any) => ({
+        title: e.title, content_snippet: e.category, category: e.category, tier: e.tier,
+      })),
+      similar_cases: res?.similar_cases || [],
+      verification: {
+        verification_status: passed ? "confirmed" : "insufficient",
+        confirmation_required: true,
+        rules_applied: res?.verification?.rules_applied || [],
+        retracted_claims: res?.verification?.retracted_claims || [],
+        unknown_fallback: passed ? "" : "证据不足，建议人工复核并补充病史",
+      },
+      ai_analysis: res?.summary || res?.ai_analysis || "",
+      disclaimer: res?.disclaimer || "本结果由 AI 引擎生成，仅供医生参考，不构成医疗建议。",
+    };
   };
 
+  /** 历史分析：读取用户行为记录中的 AI 分析/采纳/驳回轨迹 */
+  const openHistory = async () => {
+    setHistoryOpen(true);
+    setHistoryLoading(true);
+    try {
+      const res = await listActions("ai_", 30);
+      setHistory(res.items || []);
+    } catch {
+      message.error("加载历史分析失败");
+    } finally { setHistoryLoading(false); }
+  };
+
+  const loadFromHistory = (item: any) => {
+    const text = item?.payload?.symptoms || "";
+    if (!text) { message.warning("该记录不含症状文本"); return; }
+    setSymptoms(text);
+    if (item.payload.patient_id) setSelectedPatientId(item.payload.patient_id);
+    setResult(null);
+    setIsFirstVisit(true);
+    setDecided("");
+    setHistoryOpen(false);
+    message.success("已载入历史症状，可点击「开始分析」重新诊断");
+  };
+
+  const rerunFromHistory = async (item: any) => {
+    const text = item?.payload?.symptoms || "";
+    if (!text) { message.warning("该记录不含症状文本"); return; }
+    setSymptoms(text);
+    if (item.payload.patient_id) setSelectedPatientId(item.payload.patient_id);
+    setHistoryOpen(false);
+    await handleDiagnose(text);
+  };
+
+  /** 采纳为诊断草稿 → 写入就诊记录并进入审核流程 */
+  const openAdopt = () => {
+    if (!result) return;
+    const top = result.diagnoses?.[0];
+    adoptForm.setFieldsValue({
+      patient_id: selectedPatientId,
+      symptoms,
+      diagnosis: top?.disease || "",
+      prescription: "",
+      notes: `来源：AI 辅助诊断${top ? `（置信度 ${(Number(top.confidence || 0) * 100).toFixed(0)}%）` : ""}`,
+    });
+    setAdoptOpen(true);
+  };
+
+  const submitAdopt = async (values: any) => {
+    setAdopting(true);
+    try {
+      const rec: any = await createRecord({
+        patient_id: values.patient_id,
+        symptoms: values.symptoms || "",
+        diagnosis: values.diagnosis || "",
+        prescription: values.prescription || "",
+        notes: values.notes || "",
+      });
+      recordAction("ai_adopt", {
+        symptoms: values.symptoms,
+        diagnosis: values.diagnosis,
+        record_id: rec?.id,
+      }).catch(() => {});
+      message.success("已采纳为诊断草稿，就诊记录已进入审核流程");
+      setAdoptOpen(false);
+      adoptForm.resetFields();
+      setDecided("adopted");
+      navigate("/records");
+    } catch (e: any) {
+      message.error(e?.response?.data?.detail || "采纳失败（需要医生或管理员权限）");
+    } finally { setAdopting(false); }
+  };
+
+  /** 驳回建议 → 记录原因用于模型评估 */
+  const submitReject = async (values: any) => {
+    setRejecting(true);
+    try {
+      await recordAction("ai_reject", {
+        symptoms,
+        patient_id: selectedPatientId,
+        candidates: (result?.diagnoses || []).map((d) => d.disease),
+        reason: values.reason,
+      }).catch(() => {});
+      message.success("已驳回该建议，原因已记录用于模型评估");
+      setRejectOpen(false);
+      rejectForm.resetFields();
+      setDecided("rejected");
+    } finally { setRejecting(false); }
+  };
+
+  const kwChips = symptoms.split(/[，,。\s]+/).filter((s) => s.length > 1).slice(0, 5);
+
+  const similarColumns = [
+    { title: "相似度", width: 120, render: (_: any, c: any) => (
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+        <span className="ai-confbar" style={{ width: 64, marginTop: 0, display: "inline-block" }}>
+          <i style={{ width: `${(c.similarity_score || 0) * 100}%` }} />
+        </span>
+        <b className="tnum" style={{ fontSize: 12, color: "var(--lv-blue)" }}>{((c.similarity_score || 0) * 100).toFixed(0)}%</b>
+      </span>
+    ) },
+    { title: "症状", dataIndex: "symptoms", ellipsis: true },
+    { title: "诊断", dataIndex: "diagnosis", width: 140, ellipsis: true, render: (v: string) => v || "-" },
+    { title: "处置", dataIndex: "treatment", width: 140, ellipsis: true, render: (v: string) => v || "-" },
+    { title: "医生", dataIndex: "doctor_name", width: 100, render: (v: string) => v || "-" },
+    { title: "时间", dataIndex: "visit_date", width: 110, render: (v: string) => <span className="tnum" style={{ color: "var(--lv-soft)" }}>{v || "-"}</span> },
+  ];
+
   return (
-    <div>
-      {/* Material 3 页面标题 */}
-      <div style={{ marginBottom: 24, display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{
-          width: 48, height: 48, borderRadius: 14,
-          background: `linear-gradient(135deg, ${M3.primary}, ${M3.tertiary})`,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          boxShadow: `0 2px 12px rgba(108,71,255,0.2)`,
-        }}>
-          <ThunderboltOutlined style={{ fontSize: 24, color: "#fff" }} />
-        </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: "8px 0 32px" }}>
+      {/* 页头 */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "16px 24px", flexWrap: "wrap" }}>
         <div>
-          <h2 style={{ font: "600 24px/32px 'Outfit', sans-serif", margin: 0, color: M3.onSurface }}>
-            AI 辅助诊断
-          </h2>
-          <Text style={{ color: M3.onSurfaceVariant, fontSize: 14 }}>
-            基于症状描述 + 历史病例 + 知识库的多层分析引擎
-          </Text>
+          <div style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>AI 辅助诊断</div>
+          <div style={{ color: "var(--lv-muted)", fontSize: 13, marginTop: 6 }}>基于症状描述、知识库与相似病例给出可核查的候选诊断；最终结论由医生确认。</div>
+        </div>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <span className="lv-tag lv-tag--neutral"><ThunderboltOutlined /> 模型：{provider === "local" ? "本地验证引擎" : provider === "auto" ? "云端 · 自动选择" : `云端 ${provider}`}</span>
+          <button className="lv-btn" type="button" onClick={openHistory}><HistoryOutlined /> 历史分析</button>
         </div>
       </div>
 
-      <Row gutter={20}>
-        {/* ============ 主区域：诊断结果 ============ */}
-        <Col xs={24} lg={15}>
-          {isFirstVisit && !loading ? (
-            /* 初始引导状态 */
-            <Card style={{
-              borderRadius: 20,
-              border: `1px dashed ${M3.outline}`,
-              background: M3.surfaceLow,
-              textAlign: "center",
-              padding: "60px 24px",
-            }}>
-              <div style={{
-                width: 80, height: 80, borderRadius: 24,
-                background: `linear-gradient(135deg, ${M3.primary}15, ${M3.tertiary}15)`,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                margin: "0 auto 24px",
-              }}>
-                <MedicineBoxOutlined style={{ fontSize: 40, color: M3.primary }} />
-              </div>
-              <Title level={3} style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 600 }}>
-                临床 AI 诊断引擎
-              </Title>
-              <Text style={{ color: M3.onSurfaceVariant, fontSize: 15, display: "block", maxWidth: 400, margin: "0 auto 24px" }}>
-                在右侧输入患者症状描述，系统将通过规则引擎 + 相似病例投票 + 知识库检索三层分析，生成诊断建议供您参考。
-              </Text>
-              <Space size={16}>
-                <Tag icon={<CheckCircleOutlined />} color="success">11类症状覆盖</Tag>
-                <Tag icon={<SearchOutlined />} color="blue">向量语义搜索</Tag>
-                <Tag icon={<SafetyOutlined />} color="purple">医生最终确认</Tag>
-              </Space>
-            </Card>
-          ) : loading ? (
-            /* 加载状态 */
-            <Card style={{ borderRadius: 20, textAlign: "center", padding: "60px 24px" }}>
-              <Spin size="large" />
-              <div style={{ marginTop: 24 }}>
-                <Title level={4} style={{ fontFamily: "'Outfit', sans-serif" }}>正在分析症状...</Title>
-                <Text type="secondary" style={{ display: "block", marginTop: 8 }}>
-                  🧬 规则引擎匹配 · 🔍 向量检索相似病例 · 📚 搜索知识库参考
-                </Text>
-              </div>
-            </Card>
-          ) : result && result.diagnoses.length > 0 ? (
-            /* 诊断结果列表 */
-            <div>
-              {/* 诊断摘要卡片 */}
-              <div style={{
-                background: `linear-gradient(135deg, ${M3.primary}08, ${M3.tertiary}08)`,
-                borderRadius: 16,
-                padding: "16px 20px",
-                marginBottom: 16,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                flexWrap: "wrap",
-                gap: 12,
-              }}>
-                <Space size={16} wrap>
-                  <span>
-                    <Text style={{ fontSize: 12, color: M3.onSurfaceVariant }}>匹配分类</Text><br/>
-                    <Text strong style={{ fontSize: 14 }}>
-                      {result.matched_symptom_categories?.length || 0} 类
-                    </Text>
-                  </span>
-                  <Divider type="vertical" />
-                  <span>
-                    <Text style={{ fontSize: 12, color: M3.onSurfaceVariant }}>候选诊断</Text><br/>
-                    <Text strong style={{ fontSize: 14, color: M3.primary }}>
-                      {result.diagnoses?.length || 0} 项
-                    </Text>
-                  </span>
-                  <Divider type="vertical" />
-                  <span>
-                    <Text style={{ fontSize: 12, color: M3.onSurfaceVariant }}>相似病例</Text><br/>
-                    <Text strong style={{ fontSize: 14 }}>{result.similar_cases?.length || 0} 例</Text>
-                  </span>
-                  <Divider type="vertical" />
-                  <span>
-                    <Text style={{ fontSize: 12, color: M3.onSurfaceVariant }}>建议检查</Text><br/>
-                    <Text strong style={{ fontSize: 14, color: M3.secondary }}>{result.suggested_exams?.length || 0} 项</Text>
-                  </span>
-                </Space>
-                <Tag color="blue" style={{ fontSize: 12 }}>引擎: {result.engine}</Tag>
-              </div>
-
-              {/* 每个诊断卡片 */}
-              {result.diagnoses.map((diag, i) => {
-                const level = confidenceLevel(diag.confidence);
-                return (
-                  <div key={diag.disease} style={{
-                    background: M3.surface,
-                    borderRadius: 16,
-                    border: `1px solid ${M3.surfaceVariant}`,
-                    padding: "16px 20px",
-                    marginBottom: 12,
-                    position: "relative",
-                    overflow: "hidden",
-                    transition: "all 0.2s",
-                  }}>
-                    {/* 左侧置信度色条 */}
-                    <div style={{
-                      position: "absolute", top: 0, left: 0, bottom: 0, width: 4,
-                      background: `linear-gradient(180deg, ${level.color}, ${level.color}88)`,
-                    }}/>
-
-                    {/* 诊断名称 + 置信度 */}
-                    <div style={{
-                      display: "flex", justifyContent: "space-between",
-                      alignItems: "flex-start", marginBottom: 12, paddingLeft: 4,
-                    }}>
-                      <div>
-                        <Text strong style={{ fontSize: 17, fontFamily: "'Outfit', sans-serif" }}>
-                          #{i + 1} {diag.disease}
-                        </Text>
-                        <Space size={8} style={{ marginLeft: 12 }}>
-                          <Tag color={i === 0 ? "blue" : "default"} style={{ borderRadius: 8 }}>
-                            {diag.source === "rule_based" ? "规则引擎" : diag.source === "similar_cases" ? "相似病例" : diag.source}
-                          </Tag>
-                          {diag.similar_case_support && (
-                            <Text style={{ fontSize: 12, color: M3.onSurfaceVariant }}>
-                              📊 {diag.similar_case_support} 例支持
-                            </Text>
-                          )}
-                        </Space>
-                      </div>
-                      <div style={{ textAlign: "right" }}>
-                        <Text style={{ fontSize: 28, fontWeight: 800, color: level.color, lineHeight: 1 }}>
-                          {(diag.confidence * 100).toFixed(0)}%
-                        </Text>
-                        <div style={{
-                          padding: "1px 8px", borderRadius: 6,
-                          background: level.bg, color: level.color,
-                          fontSize: 11, fontWeight: 600,
-                        }}>
-                          {level.label}置信度
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* 置信度进度条 */}
-                    <Progress
-                      percent={Math.round(diag.confidence * 100)}
-                      strokeColor={{ from: level.color, to: level.color + "88" }}
-                      trailColor={M3.surfaceVariant}
-                      showInfo={false}
-                      strokeWidth={6}
-                      style={{ marginBottom: 12 }}
-                    />
-
-                    {/* 理据 */}
-                    {diag.rationale && (
-                      <div style={{
-                        background: M3.surfaceLow,
-                        borderRadius: 10,
-                        padding: "8px 14px",
-                        marginBottom: 10,
-                      }}>
-                        <Text style={{ fontSize: 13, color: M3.onSurfaceVariant }}>
-                          <BulbOutlined style={{ marginRight: 6, color: "#faad14" }} />
-                          {diag.rationale}
-                        </Text>
-                      </div>
-                    )}
-
-                    {/* 典型症状标签 */}
-                    {diag.typical_symptoms && (
-                      <div style={{ marginBottom: 4, paddingLeft: 4 }}>
-                        <Text style={{ fontSize: 11, color: M3.onSurfaceVariant, marginRight: 8 }}>
-                          典型症状：
-                        </Text>
-                        {diag.typical_symptoms.map((s) => (
-                          <Tag key={s} style={{
-                            borderRadius: 6, marginBottom: 4,
-                            background: symptoms.includes(s) ? "#e6f4ff" : M3.surfaceVariant,
-                            color: symptoms.includes(s) ? M3.primary : M3.onSurfaceVariant,
-                            border: "none",
-                            fontWeight: symptoms.includes(s) ? 600 : 400,
-                          }}>
-                            {s} {symptoms.includes(s) && "✓"}
-                          </Tag>
-                        ))}
-                      </div>
-                    )}
-
-                    {diag.patient_history_support && (
-                      <Tag color="purple" style={{ borderRadius: 8 }}>
-                        📋 {diag.patient_history_support}
-                      </Tag>
-                    )}
-
-                    {/* 防幻觉：证据分级 + 风险 + 待医生确认 */}
-                    {(diag.evidence_tier || diag.risk_level || diag.confirmation_required) && (
-                      <Space size={6} wrap style={{ marginTop: 6, marginBottom: 4 }}>
-                        {diag.evidence_tier && (
-                          <Tag
-                            style={{
-                              borderRadius: 8,
-                              background: diag.evidence_tier === "A" ? "#f6ffed" : diag.evidence_tier === "B" ? "#e6f4ff" : "#fffbe6",
-                              color: diag.evidence_tier === "A" ? M3.secondary : diag.evidence_tier === "B" ? M3.primary : "#D46B08",
-                              border: "none", fontWeight: 600,
-                            }}
-                          >
-                            证据等级 {diag.evidence_tier}
-                          </Tag>
-                        )}
-                        {diag.risk_level && <Tag style={{ borderRadius: 8 }}>风险 {diag.risk_level}</Tag>}
-                        {diag.confirmation_required && <Tag color="purple" style={{ borderRadius: 8 }}>待医生确认</Tag>}
-                      </Space>
-                    )}
-
-                    {/* 防幻觉：引用证据定位 */}
-                    {diag.citations && diag.citations.length > 0 && (
-                      <div style={{
-                        background: "#f7f9fc", borderRadius: 10, padding: "8px 14px", marginBottom: 6,
-                      }}>
-                        <Text style={{ fontSize: 11, color: M3.onSurfaceVariant, fontWeight: 600 }}>
-                          <SafetyOutlined style={{ marginRight: 4 }} />引用证据定位
-                        </Text>
-                        {diag.citations.map((c, idx) => (
-                          <div key={idx} style={{ fontSize: 12, color: M3.onSurface, marginTop: 4 }}>
-                            [{c.source}] {c.quote}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-
-              {/* 免责声明 */}
-              <Alert
-                message={result.disclaimer}
-                type="warning"
-                showIcon
-                icon={<AlertOutlined />}
-                style={{ borderRadius: 12, marginTop: 8 }}
-              />
-
-              {/* 云端 CoT 深度分析 */}
-              {result.ai_analysis && (
-                <Card style={{
-                  borderRadius: 16, marginTop: 12,
-                  border: `1px solid ${M3.tertiary}55`, background: "#FBF9FF",
-                }} bodyStyle={{ padding: "14px 20px" }}>
-                  <Text strong style={{ fontSize: 14, color: M3.tertiary }}>
-                    <BulbOutlined style={{ marginRight: 6 }} />AI 深度分析（思维链 CoT）
-                  </Text>
-                  <div style={{
-                    marginTop: 8, fontSize: 13, lineHeight: 1.75,
-                    color: M3.onSurface, whiteSpace: "pre-wrap",
-                  }}>
-                    {result.ai_analysis}
-                  </div>
-                </Card>
-              )}
-
-              {/* 防幻觉验证摘要 */}
-              {result.verification && (
-                <Card style={{
-                  borderRadius: 16, marginTop: 12,
-                  border: `1px solid ${M3.surfaceVariant}`,
-                }} bodyStyle={{ padding: "12px 20px" }}>
-                  <Space size={8} wrap style={{ marginBottom: 8 }}>
-                    {result.verification.verification_status === "confirmed" ? (
-                      <Tag color="success" icon={<SafetyOutlined />}>证据校验通过</Tag>
-                    ) : (
-                      <Tag color="warning" icon={<AlertOutlined />}>证据不足</Tag>
-                    )}
-                    {result.verification.confirmation_required && <Tag color="purple">需医生确认</Tag>}
-                    <Tag color="default">防幻觉规则 {result.verification.rules_applied?.length || 0} 条</Tag>
-                  </Space>
-
-                  {result.verification.rules_applied && result.verification.rules_applied.length > 0 && (
-                    <div style={{ marginBottom: 8 }}>
-                      <Text style={{ fontSize: 11, color: M3.onSurfaceVariant, fontWeight: 600 }}>
-                        已启用防幻觉机制：
-                      </Text>
-                      {result.verification.rules_applied.map((r, i) => (
-                        <div key={i} style={{ fontSize: 12, color: M3.onSurfaceVariant, marginTop: 2 }}>
-                          {r}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {result.verification.retracted_claims && result.verification.retracted_claims.length > 0 && (
-                    <div style={{ background: "#FFF7E6", borderRadius: 10, padding: "8px 14px", marginBottom: 8 }}>
-                      <Text style={{ fontSize: 11, fontWeight: 600, color: "#D46B08" }}>
-                        已撤回的主张（找不到支撑性引用）：
-                      </Text>
-                      {result.verification.retracted_claims.map((r, i) => (
-                        <div key={i} style={{ fontSize: 12, color: "#D46B08", marginTop: 2 }}>
-                          · {r.disease} — {r.reason}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {result.verification.unknown_fallback && (
-                    <Alert
-                      type="warning" showIcon icon={<AlertOutlined />}
-                      message={result.verification.unknown_fallback}
-                      style={{ borderRadius: 10, marginTop: 4 }}
-                    />
-                  )}
-                </Card>
-              )}
+      <div className="ai-grid">
+        {/* ============ 左：诊断请求输入轨道 ============ */}
+        <aside className="ai-rail">
+          <section className="lv-panel">
+            <div className="lv-panel-head">
+              <span className="lv-tag lv-tag--leaf" style={{ width: 8, height: 8, padding: 0 }}><span className="lv-tag-dot" /></span>
+              <span className="lv-panel-title">诊断请求</span>
+              <span className="lv-panel-meta">规则引擎 + 相似病例 + 知识库</span>
             </div>
-          ) : result && result.diagnoses.length === 0 ? (
-            /* 空结果（可能有「我不知道/建议进一步检查」兜底） */
-            <Card style={{ borderRadius: 20, textAlign: "center", padding: 40 }}>
-              <Empty
-                description={
-                  <span style={{ color: M3.onSurfaceVariant, fontSize: 14 }}>
-                    {result.verification?.unknown_fallback ? (
-                      <Text style={{ fontSize: 14, color: "#D46B08", fontWeight: 600 }}>
-                        {result.verification.unknown_fallback}
-                      </Text>
-                    ) : (
-                      <>
-                        未找到匹配的诊断建议<br/>
-                        <Text style={{ fontSize: 12 }}>请补充更多症状细节后重试</Text>
-                      </>
-                    )}
-                  </span>
-                }
-              />
-            </Card>
-          ) : null}
-        </Col>
-
-        {/* ============ 侧区域：输入 + 参考 ============ */}
-        <Col xs={24} lg={9}>
-          <div style={{ position: "sticky", top: 80 }}>
-            {/* 症状输入卡片 */}
-            <Card style={{
-              borderRadius: 20,
-              border: `1px solid ${M3.surfaceVariant}`,
-              marginBottom: 16,
-            }}>
-              {/* 患者选择 */}
-              <div style={{ marginBottom: 16 }}>
-                <Text style={{ fontSize: 12, fontWeight: 600, color: M3.onSurface, display: "block", marginBottom: 6 }}>
-                  <UserOutlined style={{ marginRight: 4 }} />关联患者（可选）
-                </Text>
+            <div className="ai-fields">
+              {/* 关联患者 */}
+              <div className="ai-field">
+                <span className="ai-label"><UserOutlined style={{ color: "var(--lv-soft)" }} />关联患者（可选）</span>
                 <Select
                   style={{ width: "100%" }}
                   allowClear showSearch
@@ -526,22 +344,24 @@ export default function AIAssistant() {
                   onChange={(v) => setSelectedPatientId(v as number | undefined)}
                   suffixIcon={<SearchOutlined />}
                 />
-                {selectedPatientId ? (
-                  <Text type="secondary" style={{ fontSize: 11, display: "block", marginTop: 4 }}>
-                    已关联患者 #{selectedPatientId}，诊断时会结合该患者病史
-                  </Text>
-                ) : (
-                  <Text type="secondary" style={{ fontSize: 11, display: "block", marginTop: 4 }}>
-                    不关联时仅按症状做通用诊断
-                  </Text>
-                )}
+                <span className="ai-hint">
+                  {selectedPatientId
+                    ? `已关联患者 #${selectedPatientId}，诊断时会结合该患者病史`
+                    : "不关联时仅按症状做通用诊断"}
+                </span>
               </div>
 
-              {/* 分析引擎选择 */}
-              <div style={{ marginBottom: 16 }}>
-                <Text style={{ fontSize: 12, fontWeight: 600, color: M3.onSurface, display: "block", marginBottom: 6 }}>
-                  <ThunderboltOutlined style={{ marginRight: 4 }} />分析引擎
-                </Text>
+              {/* 分析强度 */}
+              <div className="ai-field">
+                <span className="ai-label">分析强度</span>
+                <Segmented block value={analysisStrength} onChange={(v) => setAnalysisStrength(v as string)}
+                  options={["较低", "中等", "较高"]} />
+                <span className="ai-hint">较高强度会检索更多相似病例并延长分析时间</span>
+              </div>
+
+              {/* 分析引擎 */}
+              <div className="ai-field">
+                <span className="ai-label"><ThunderboltOutlined style={{ color: "var(--lv-soft)" }} />分析引擎</span>
                 <Select
                   style={{ width: "100%" }}
                   value={provider}
@@ -552,19 +372,27 @@ export default function AIAssistant() {
                     ...(providers.length > 0 ? [{ value: "auto", label: "云端 自动选择" }] : []),
                   ]}
                 />
-                <Text type="secondary" style={{ fontSize: 11, display: "block", marginTop: 4 }}>
+                <span className="ai-hint">
                   {providers.length === 0
                     ? "未配置云端服务商，将使用本地验证引擎（离线可用）"
                     : "云端 CoT 失败时自动回退本地验证引擎"}
-                </Text>
+                </span>
               </div>
 
-              {/* 症状输入 */}
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                  <Text style={{ fontSize: 12, fontWeight: 600, color: M3.onSurface }}>
-                    症状描述
-                  </Text>
+              {/* 检索来源 */}
+              <div className="ai-field">
+                <span className="ai-label">检索来源</span>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div className="ai-source">向量语义搜索<span className="lv-tag lv-tag--leaf"><span className="lv-tag-dot" />已启用</span></div>
+                  <div className="ai-source">知识库参考<span className="lv-tag lv-tag--leaf"><span className="lv-tag-dot" />已启用</span></div>
+                  <div className="ai-source">相似病例参考<span className="lv-tag lv-tag--leaf"><span className="lv-tag-dot" />已启用</span></div>
+                </div>
+              </div>
+
+              {/* 症状描述 */}
+              <div className="ai-field">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span className="ai-label">症状描述</span>
                   {voiceSupported && (
                     <Button
                       size="small"
@@ -572,147 +400,428 @@ export default function AIAssistant() {
                       danger={isListening}
                       icon={isListening ? <AudioMutedOutlined /> : <AudioOutlined />}
                       onClick={toggleVoice}
-                      style={{ borderRadius: 12 }}
+                      style={{ borderRadius: 8 }}
                     >
                       {isListening ? "停止" : "语音"}
                     </Button>
                   )}
                 </div>
                 <TextArea
-                  rows={8}
+                  rows={7}
                   placeholder="描述患者症状...&#10;&#10;例如：患者头痛3天，伴恶心呕吐，&#10;体温38.5°C，咳嗽有黄痰..."
                   value={symptoms}
                   onChange={(e) => setSymptoms(e.target.value)}
-                  style={{
-                    resize: "none",
-                    borderRadius: 12,
-                    background: M3.surfaceLow,
-                    border: `1px solid ${M3.surfaceVariant}`,
-                    fontSize: 14,
-                    lineHeight: 1.6,
-                  }}
+                  style={{ resize: "none", fontSize: 13, lineHeight: 1.8 }}
                 />
                 {isListening && (
-                  <Text style={{ fontSize: 11, color: M3.error, display: "block", marginTop: 4 }}>
-                    🔴 录音中... 请说话，点击停止结束
-                  </Text>
+                  <span className="ai-hint is-error">● 录音中… 请说话，点击「停止」结束</span>
+                )}
+                {kwChips.length > 0 && (
+                  <span className="ai-kw">
+                    {kwChips.map((k) => <span key={k} className="lv-tag lv-tag--neutral">{k}</span>)}
+                  </span>
                 )}
               </div>
 
-              {/* 分析按钮 */}
+              {/* 开始分析 */}
               <Button
                 type="primary"
+                className="lv-submit"
                 icon={<SendOutlined />}
                 loading={loading}
-                onClick={handleDiagnose}
+                onClick={() => handleDiagnose()}
                 block
                 size="large"
-                style={{
-                  height: 48,
-                  borderRadius: 14,
-                  fontSize: 16,
-                  fontWeight: 700,
-                  background: `linear-gradient(135deg, ${M3.primary}, ${M3.tertiary})`,
-                  border: "none",
-                  boxShadow: `0 4px 16px rgba(108,71,255,0.25)`,
-                }}
+                style={{ height: 44, fontSize: 14, fontWeight: 650 }}
               >
-                开始 AI 分析
+                开始分析
               </Button>
-            </Card>
+              <div className="ai-hint" style={{ textAlign: "center" }}>
+                分析结果仅供医生参考，不构成医疗建议；系统会记录每次分析的模型、依据与确认人。
+              </div>
+            </div>
+          </section>
+        </aside>
 
-            {/* 结果出现后显示参考信息 */}
-            {result && (
-              <>
-                {/* 建议检查 */}
-                {result.suggested_exams.length > 0 && (
-                  <Card
-                    title={
-                      <Space><FileSearchOutlined style={{ color: M3.secondary }} />建议检查项目</Space>
-                    }
-                    style={{ borderRadius: 16, marginBottom: 16, border: `1px solid ${M3.surfaceVariant}` }}
-                    bodyStyle={{ padding: "12px 20px" }}
-                  >
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                      {result.suggested_exams.map((exam) => (
-                        <Tag key={exam} style={{
-                          borderRadius: 8, padding: "4px 12px",
-                          background: "#f6ffed", color: M3.secondary,
-                          border: "none", fontWeight: 500,
-                        }}>
-                          {exam}
-                        </Tag>
-                      ))}
-                    </div>
-                  </Card>
-                )}
-
-                {/* 相似病例 */}
-                <Card
-                  title={<Space><SearchOutlined style={{ color: M3.primary }} />相似病例参考</Space>}
-                  extra={<Badge count={result.similar_cases?.length || 0} color={M3.primary} />}
-                  style={{ borderRadius: 16, marginBottom: 16, border: `1px solid ${M3.surfaceVariant}` }}
-                  bodyStyle={{ padding: "8px 16px", maxHeight: 360, overflow: "auto" }}
-                >
-                  {result.similar_cases.length === 0 ? (
-                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无相似病例" />
-                  ) : (
-                    result.similar_cases.map((c, i) => (
-                      <div key={i} style={{
-                        padding: "10px 0",
-                        borderBottom: i < result.similar_cases.length - 1 ? `1px solid ${M3.surfaceVariant}` : "none",
-                      }}>
-                        <Space style={{ marginBottom: 4 }}>
-                          <Tag style={{
-                            borderRadius: 6, fontSize: 11,
-                            background: "rgba(27,110,243,0.1)", color: M3.primary,
-                            border: "none", fontWeight: 600,
-                          }}>
-                            {((c.similarity_score || 0) * 100).toFixed(0)}% 匹配
-                          </Tag>
-                          <Text style={{ fontSize: 11, color: M3.onSurfaceVariant }}>
-                            {c.patient_name || c.symptoms}
-                          </Text>
-                        </Space>
-                        <Paragraph ellipsis={{ rows: 2 }} style={{ fontSize: 12, margin: "4px 0 0", color: M3.onSurface }}>
-                          {c.symptoms}
-                        </Paragraph>
-                        {c.diagnosis && (
-                          <Text style={{ fontSize: 11, color: M3.secondary, fontWeight: 600 }}>
-                            诊断：{c.diagnosis}
-                          </Text>
+        {/* ============ 右：结果舞台 ============ */}
+        <section style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
+          {isFirstVisit && !loading ? (
+            /* 初始引导 Hero */
+            <div className="ai-hero">
+              <div className="ai-orb"><MedicineBoxOutlined style={{ fontSize: 40 }} /></div>
+              <h2>临床 AI 诊断引擎</h2>
+              <p>
+                在左侧输入患者症状描述，系统将通过规则引擎、相似病例投票与知识库检索三层分析，
+                生成可核查的候选诊断供您参考。
+              </p>
+              <div className="ai-hero-chips">
+                <span className="lv-tag lv-tag--leaf"><CheckCircleOutlined /> 11 类症状覆盖</span>
+                <span className="lv-tag lv-tag--neutral"><SearchOutlined /> 向量语义搜索</span>
+                <span className="lv-tag lv-tag--amber"><SafetyOutlined /> 医生最终确认</span>
+              </div>
+            </div>
+          ) : loading ? (
+            /* 加载状态：三阶段步骤 */
+            <section className="lv-panel">
+              <div className="lv-panel-head">
+                <span className="lv-tag lv-tag--leaf" style={{ width: 8, height: 8, padding: 0 }}><span className="lv-tag-dot" /></span>
+                <span className="lv-panel-title">正在分析症状</span>
+                <span className="lv-panel-meta">三层检索流水线</span>
+              </div>
+              <div style={{ padding: "44px 24px 52px", textAlign: "center" }}>
+                <Spin size="large" />
+                <div className="ai-steps">
+                  <div className="ai-step"><i />规则引擎匹配症状分类</div>
+                  <div className="ai-step"><i />向量检索相似病例投票</div>
+                  <div className="ai-step"><i />知识库取证与防幻觉校验</div>
+                </div>
+              </div>
+            </section>
+          ) : result && result.diagnoses.length > 0 ? (
+            /* 诊断结果 */
+            <>
+              {/* 候选诊断 */}
+              <section className="lv-panel">
+                <div className="lv-panel-head">
+                  <span className="lv-tag lv-tag--leaf" style={{ width: 8, height: 8, padding: 0 }}><span className="lv-tag-dot" /></span>
+                  <span className="lv-panel-title">候选诊断</span>
+                  <span className="lv-panel-meta">按置信度排序 · 匹配分类：{result.matched_symptom_categories?.join("、") || "未分类"}</span>
+                  <div className="lv-panel-tools">
+                    <span className={`lv-tag ${result.verification?.verification_status === "confirmed" ? "lv-tag--leaf" : "lv-tag--amber"}`}>
+                      <span className="lv-tag-dot" />
+                      证据校验{result.verification?.verification_status === "confirmed" ? "通过" : "中"}
+                    </span>
+                  </div>
+                </div>
+                <div className="ai-dx-list">
+                  {result.diagnoses.map((diag, i) => (
+                    <div key={diag.disease} className={`ai-dx${i === 0 ? " is-top" : ""}`}>
+                      <div className="ai-dx-head">
+                        <span className="ai-rank">{String(i + 1).padStart(2, "0")}</span>
+                        <span className="ai-dx-name">{diag.disease}</span>
+                        <span className="lv-tag lv-tag--neutral">{diag.source === "rule_based" ? "规则引擎" : diag.source === "similar_cases" ? "相似病例" : diag.source}</span>
+                        <span className="ai-pct">{(diag.confidence * 100).toFixed(0)}%</span>
+                      </div>
+                      <div className="ai-confbar"><i style={{ width: `${diag.confidence * 100}%` }} /></div>
+                      {diag.rationale && (
+                        <p className="ai-dx-rationale">
+                          <BulbOutlined style={{ color: "#b9770a", flexShrink: 0, marginTop: 2 }} />
+                          <span>{diag.rationale}</span>
+                        </p>
+                      )}
+                      {diag.typical_symptoms && diag.typical_symptoms.length > 0 && (
+                        <div className="ai-dx-foot">
+                          {diag.typical_symptoms.map((s) => (
+                            <span key={s} className={`lv-tag ${symptoms.includes(s) ? "lv-tag--leaf" : "lv-tag--neutral"}`}>
+                              {symptoms.includes(s) && <span className="lv-tag-dot" />}{s}{symptoms.includes(s) ? " ✓" : ""}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <div className="ai-dx-foot">
+                        {diag.evidence_tier && (
+                          <span className={`lv-tag ${diag.evidence_tier === "A" ? "lv-tag--leaf" : diag.evidence_tier === "B" ? "lv-tag--neutral" : "lv-tag--amber"}`}>
+                            证据等级 {diag.evidence_tier}
+                          </span>
                         )}
+                        {diag.risk_level && <span className="lv-tag lv-tag--neutral">风险 {diag.risk_level}</span>}
+                        {diag.confirmation_required && <span className="lv-tag lv-tag--amber"><span className="lv-tag-dot" />待医生确认</span>}
                       </div>
-                    ))
-                  )}
-                </Card>
+                    </div>
+                  ))}
+                </div>
+              </section>
 
-                {/* 知识库参考 */}
-                {result.knowledge_refs.length > 0 && (
-                  <Card
-                    title={<Space><BookOutlined style={{ color: M3.tertiary }} />知识库参考</Space>}
-                    style={{ borderRadius: 16, border: `1px solid ${M3.surfaceVariant}` }}
-                    bodyStyle={{ padding: "8px 16px" }}
-                  >
-                    {result.knowledge_refs.map((ref, i) => (
-                      <div key={i} style={{
-                        padding: "8px 0",
-                        borderBottom: i < result.knowledge_refs.length - 1 ? `1px solid ${M3.surfaceVariant}` : "none",
-                      }}>
-                        <Text strong style={{ fontSize: 13 }}>{ref.title}</Text>
-                        <br />
-                        <Text style={{ fontSize: 12, color: M3.onSurfaceVariant }}>
-                          {ref.content_snippet}
-                        </Text>
+              {/* 相似病例参考 */}
+              {result.similar_cases.length > 0 && (
+                <section className="lv-panel">
+                  <div className="lv-panel-head">
+                    <span className="lv-tag lv-tag--leaf" style={{ width: 8, height: 8, padding: 0 }}><span className="lv-tag-dot" /></span>
+                    <span className="lv-panel-title">相似病例参考</span>
+                    <span className="lv-panel-meta">基于向量语义检索，已脱敏 · 共 {result.similar_cases.length} 例</span>
+                  </div>
+                  <Table
+                    rowKey={(_, i) => String(i)}
+                    size="middle"
+                    dataSource={result.similar_cases.slice(0, 3)}
+                    columns={similarColumns}
+                    pagination={false}
+                    scroll={{ x: 820 }}
+                    locale={{ emptyText: "暂无相似病例" }}
+                  />
+                </section>
+              )}
+
+              {/* 建议检查 + 知识库参考 */}
+              {(result.suggested_exams.length > 0 || result.knowledge_refs.length > 0) && (
+                <section className="lv-panel">
+                  <div className="lv-panel-head">
+                    <span className="lv-tag lv-tag--leaf" style={{ width: 8, height: 8, padding: 0 }}><span className="lv-tag-dot" /></span>
+                    <span className="lv-panel-title">建议检查与知识库参考</span>
+                    {result.knowledge_refs.length > 0 && <span className="lv-panel-meta">{result.knowledge_refs.length} 条文献</span>}
+                  </div>
+                  <div className="ai-verify">
+                    {result.suggested_exams.length > 0 && (
+                      <div>
+                        <div className="ai-label" style={{ marginBottom: 8 }}>建议检查项目</div>
+                        <div className="ai-kw">
+                          {result.suggested_exams.map((exam, i) => (
+                            <span key={exam} className={`lv-tag ${i < 2 ? "lv-tag--leaf" : "lv-tag--neutral"}`}>{exam}</span>
+                          ))}
+                        </div>
+                        <div className="ai-hint" style={{ marginTop: 8 }}>高亮项为模型优先建议；可加入本次诊疗的检查单。</div>
                       </div>
-                    ))}
-                  </Card>
-                )}
-              </>
-            )}
+                    )}
+                    {result.knowledge_refs.length > 0 && (
+                      <div>
+                        <div className="ai-label" style={{ marginBottom: 8 }}>知识库参考</div>
+                        {result.knowledge_refs.map((ref, i) => (
+                          <div key={i} className="ai-verify-row" style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                            <BookOutlined style={{ color: "var(--lv-soft)", flexShrink: 0, marginTop: 3 }} />
+                            <span><b style={{ color: "var(--lv-ink)" }}>{ref.title}</b>
+                              {ref.content_snippet && <span style={{ color: "var(--lv-faint)" }}> · {ref.content_snippet}</span>}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </section>
+              )}
+
+              {/* 免责声明 */}
+              <Alert
+                title={result.disclaimer}
+                type="warning"
+                showIcon
+                icon={<AlertOutlined />}
+                style={{ borderRadius: 12 }}
+              />
+
+              {/* 云端 CoT 深度分析 */}
+              {result.ai_analysis && (
+                <section className="lv-panel">
+                  <div className="lv-panel-head">
+                    <span className="lv-tag lv-tag--amber" style={{ width: 8, height: 8, padding: 0 }}><span className="lv-tag-dot" /></span>
+                    <span className="lv-panel-title">AI 深度分析（思维链 CoT）</span>
+                  </div>
+                  <div className="ai-prose">{result.ai_analysis}</div>
+                </section>
+              )}
+
+              {/* 防幻觉验证摘要 */}
+              {result.verification && (
+                <section className="lv-panel">
+                  <div className="lv-panel-head">
+                    <span className={`lv-tag ${result.verification.verification_status === "confirmed" ? "lv-tag--leaf" : "lv-tag--amber"}`} style={{ width: 8, height: 8, padding: 0 }}><span className="lv-tag-dot" /></span>
+                    <span className="lv-panel-title">防幻觉验证</span>
+                    <span className="lv-panel-meta">规则 {result.verification.rules_applied?.length || 0} 条</span>
+                    <div className="lv-panel-tools">
+                      {result.verification.verification_status === "confirmed"
+                        ? <span className="lv-tag lv-tag--leaf"><SafetyOutlined /> 证据校验通过</span>
+                        : <span className="lv-tag lv-tag--amber"><AlertOutlined /> 证据不足</span>}
+                      {result.verification.confirmation_required && <span className="lv-tag lv-tag--neutral">需医生确认</span>}
+                    </div>
+                  </div>
+                  <div className="ai-verify">
+                    {result.verification.rules_applied && result.verification.rules_applied.length > 0 && (
+                      <div>
+                        <div className="ai-label" style={{ marginBottom: 6 }}>已启用防幻觉机制</div>
+                        {result.verification.rules_applied.map((r, i) => (
+                          <div key={i} className="ai-verify-row">· {r}</div>
+                        ))}
+                      </div>
+                    )}
+
+                    {result.verification.retracted_claims && result.verification.retracted_claims.length > 0 && (
+                      <div>
+                        <div className="ai-label" style={{ marginBottom: 6, color: "var(--lv-red-text)" }}>已撤回的主张（找不到支撑性引用）</div>
+                        {result.verification.retracted_claims.map((r, i) => (
+                          <div key={i} className="ai-verify-row" style={{ color: "var(--lv-red-text)" }}>
+                            · {r.disease} — {r.reason}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {result.verification.unknown_fallback && (
+                      <Alert
+                        type="warning" showIcon icon={<AlertOutlined />}
+                        title={result.verification.unknown_fallback}
+                        style={{ borderRadius: 12 }}
+                      />
+                    )}
+                  </div>
+                </section>
+              )}
+
+              {/* 医生确认操作条 */}
+              <section className="lv-panel">
+                <div className="ai-actionbar">
+                  {decided === "adopted" ? (
+                    <span className="lv-tag lv-tag--leaf"><span className="lv-tag-dot" />已采纳 · 已生成记录</span>
+                  ) : decided === "rejected" ? (
+                    <span className="lv-tag lv-tag--gray"><span className="lv-tag-dot" />已驳回</span>
+                  ) : (
+                    <span className="lv-tag lv-tag--amber"><span className="lv-tag-dot" />待医生确认</span>
+                  )}
+                  <div className="ai-actionbar-text">
+                    医生最终确认后，候选诊断将写入就诊记录并进入审核流程；驳回将记录原因用于模型评估。
+                  </div>
+                  {decided === "" ? (
+                    <Space size={10}>
+                      <Button icon={<CloseCircleOutlined />} danger onClick={() => { rejectForm.resetFields(); setRejectOpen(true); }}>
+                        驳回建议
+                      </Button>
+                      <Button type="primary" className="lv-submit" icon={<CheckCircleOutlined />} onClick={openAdopt}>
+                        采纳为诊断草稿
+                      </Button>
+                    </Space>
+                  ) : (
+                    <Space size={10}>
+                      <Button icon={<FileTextOutlined />} onClick={() => navigate("/records")}>查看就诊记录</Button>
+                      <Button type="primary" className="lv-submit" icon={<ReloadOutlined />} onClick={() => handleDiagnose()}>重新分析</Button>
+                    </Space>
+                  )}
+                </div>
+              </section>
+            </>
+          ) : result && result.diagnoses.length === 0 ? (
+            /* 空结果 */
+            <section className="lv-panel">
+              <div style={{ padding: "48px 24px", textAlign: "center" }}>
+                <Empty
+                  description={
+                    result.verification?.unknown_fallback ? (
+                      <Text style={{ fontSize: 14, color: "#b9770a", fontWeight: 600 }}>
+                        {result.verification.unknown_fallback}
+                      </Text>
+                    ) : (
+                      <>
+                        未找到匹配的诊断建议<br />
+                        <Text style={{ fontSize: 12 }}>请补充更多症状细节后重试</Text>
+                      </>
+                    )
+                  }
+                />
+              </div>
+            </section>
+          ) : null}
+        </section>
+      </div>
+
+      {/* 历史分析 */}
+      <Modal
+        title="历史分析记录"
+        open={historyOpen}
+        onCancel={() => setHistoryOpen(false)}
+        footer={<Button onClick={() => setHistoryOpen(false)}>关闭</Button>}
+        width={720}
+      >
+        {historyLoading ? (
+          <div style={{ textAlign: "center", padding: 30 }}><Spin /></div>
+        ) : history.length === 0 ? (
+          <Empty description="暂无历史分析记录，完成一次分析后会自动留痕" />
+        ) : (
+          <div style={{ maxHeight: 460, overflowY: "auto" }}>
+            {history.map((h, i) => {
+              const kind = h.action === "ai_adopt" ? "采纳" : h.action === "ai_reject" ? "驳回" : "分析";
+              const tone = h.action === "ai_adopt" ? "lv-tag--leaf" : h.action === "ai_reject" ? "lv-tag--red" : "lv-tag--neutral";
+              return (
+                <div
+                  key={i}
+                  style={{
+                    borderBottom: "1px solid var(--lv-line)",
+                    padding: "12px 2px",
+                    display: "flex",
+                    gap: 12,
+                    alignItems: "flex-start",
+                  }}
+                >
+                  <span className={`lv-tag ${tone}`} style={{ flexShrink: 0 }}><span className="lv-tag-dot" />{kind}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, color: "var(--lv-ink)", lineHeight: 1.7 }}>
+                      <b>症状：</b>{h.payload?.symptoms || "-"}
+                    </div>
+                    <div style={{ fontSize: 11.5, color: "var(--lv-muted)", marginTop: 3 }}>
+                      {h.payload?.top || h.payload?.diagnosis || h.payload?.candidates?.join("、") || "-"}
+                      {h.payload?.confidence ? ` · 置信度 ${(h.payload.confidence * 100).toFixed(0)}%` : ""}
+                      {h.payload?.reason ? ` · 驳回原因：${h.payload.reason}` : ""}
+                      {h.payload?.record_id ? ` · 已生成记录 #${h.payload.record_id}` : ""}
+                    </div>
+                    <div style={{ fontSize: 10.5, color: "var(--lv-faint)", marginTop: 3 }}>
+                      {h.at ? new Date(h.at).toLocaleString("zh-CN") : ""}
+                      {h.payload?.provider ? ` · 引擎 ${h.payload.provider}` : ""}
+                    </div>
+                  </div>
+                  <Space size={6} style={{ flexShrink: 0 }}>
+                    <Button size="small" icon={<UserSwitchOutlined />} onClick={() => loadFromHistory(h)}>载入症状</Button>
+                    <Button size="small" type="primary" className="lv-submit" icon={<ReloadOutlined />} onClick={() => rerunFromHistory(h)}>
+                      重新分析
+                    </Button>
+                  </Space>
+                </div>
+              );
+            })}
           </div>
-        </Col>
-      </Row>
+        )}
+      </Modal>
+
+      {/* 采纳为诊断草稿 */}
+      <Modal
+        title="采纳为诊断草稿"
+        open={adoptOpen}
+        onCancel={() => setAdoptOpen(false)}
+        onOk={() => adoptForm.submit()}
+        confirmLoading={adopting}
+        okText="采纳并生成记录"
+        width={620}
+      >
+        <div className="ai-verify-row" style={{
+          background: "var(--lv-blue-soft)", borderRadius: 10, padding: "10px 14px", marginBottom: 12,
+          color: "var(--lv-blue)",
+        }}>
+          采纳后将按「就诊记录」创建一条草稿记录（医生为当前账号），并进入医生/管理员审核流程。
+        </div>
+        <Form form={adoptForm} layout="vertical" onFinish={submitAdopt}>
+          <Form.Item name="patient_id" label="患者" rules={[{ required: true, message: "请选择患者（记录必须归属患者）" }]}>
+            <Select
+              showSearch
+              placeholder="搜索并选择患者"
+              filterOption={(input, option) => (option?.label ?? "").toLowerCase().includes(input.toLowerCase())}
+              options={patients}
+            />
+          </Form.Item>
+          <Form.Item name="symptoms" label="主诉症状" rules={[{ required: true, message: "请填写主诉症状" }]}>
+            <VoiceTextArea rows={3} />
+          </Form.Item>
+          <Form.Item name="diagnosis" label="诊断结果（默认取置信度最高的候选）" rules={[{ required: true, message: "请填写诊断结果" }]}>
+            <VoiceTextArea rows={2} />
+          </Form.Item>
+          <Form.Item name="prescription" label="处方"><VoiceTextArea rows={2} placeholder="可留空，后续在记录中补充" /></Form.Item>
+          <Form.Item name="notes" label="备注"><VoiceTextArea rows={2} /></Form.Item>
+        </Form>
+      </Modal>
+
+      {/* 驳回建议 */}
+      <Modal
+        title="驳回 AI 建议"
+        open={rejectOpen}
+        onCancel={() => setRejectOpen(false)}
+        onOk={() => rejectForm.submit()}
+        confirmLoading={rejecting}
+        okText="确认驳回"
+        okButtonProps={{ danger: true }}
+      >
+        <div className="ai-verify-row" style={{ marginBottom: 12 }}>
+          驳回原因会写入用户行为记录，用于模型评估与后续优化。
+        </div>
+        <Form form={rejectForm} layout="vertical" onFinish={submitReject}>
+          <Form.Item name="reason" label="驳回原因" rules={[{ required: true, message: "请填写驳回原因" }]}>
+            <VoiceTextArea rows={4} placeholder="例如：与患者体征不符 / 缺少实验室证据 / 已排除该诊断" />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 }

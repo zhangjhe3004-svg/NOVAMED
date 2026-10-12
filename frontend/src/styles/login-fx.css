@@ -1,0 +1,323 @@
+/* ============================================================
+   登录页动态效果（lf- 前缀）—— 移植 scaffold 登录页动效体系
+   神经网络画布 / 网格与光晕 / 秒针刻度时钟 / 服务状态铭牌 /
+   登录卡指针轻倾 + 辉光跟随 / 开场编排 / 登录成功三拍
+   ============================================================ */
+
+/* 神经网络画布容器 */
+.lf-net {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.lf-net canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* 网格 + 光晕背景层 */
+.lf-grid,
+.lf-glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.lf-grid {
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: radial-gradient(90% 80% at 50% 45%, #000 30%, transparent 78%);
+  -webkit-mask-image: radial-gradient(90% 80% at 50% 45%, #000 30%, transparent 78%);
+}
+.lf-glow {
+  background:
+    radial-gradient(46% 42% at 74% 30%, rgba(66, 125, 241, 0.22), transparent 70%),
+    radial-gradient(40% 38% at 22% 78%, rgba(130, 221, 45, 0.1), transparent 70%);
+}
+
+/* 左栏内容层级压过画布 */
+.loginfx .lf-layer {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── 画布主区：文案居左，时钟刻度盘居右垂直居中（对齐 scaffold canvas-main） ── */
+.lf-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+}
+
+/* ── 底部铭牌带：服务状态 + 能力列表（对齐 scaffold canvas-plates） ── */
+.lf-plates {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.lf-plates .lf-plate {
+  align-self: center;
+}
+
+/* ── 秒针刻度时钟 ── */
+.lf-dial {
+  position: relative;
+  width: clamp(190px, 17vw, 250px);
+  aspect-ratio: 1;
+  flex: none;
+}
+.lf-dial svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.lf-tick {
+  stroke: rgba(255, 255, 255, 0.16);
+  stroke-width: 0.7;
+  stroke-linecap: round;
+  transition: stroke 0.35s ease;
+}
+.lf-tick.is-major {
+  stroke-width: 1.1;
+  stroke: rgba(255, 255, 255, 0.3);
+}
+.lf-tick.is-on {
+  stroke: #82dd2d;
+}
+.lf-dial-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.lf-time {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: clamp(22px, 2.2vw, 30px);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+.lf-date {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* ── 服务状态铭牌（深色玻璃） ── */
+.lf-plate {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 14px 18px;
+  font-size: 13px;
+  color: #fff;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(8px);
+  width: fit-content;
+}
+.lf-plate .lf-eyebrow {
+  grid-column: 1 / -1;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.5);
+}
+.lf-health-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #ff5a50;
+  box-shadow: 0 0 0 4px rgba(255, 90, 80, 0.2);
+  transition: background 0.3s, box-shadow 0.3s;
+}
+.lf-health-dot.is-ok {
+  background: #82dd2d;
+  box-shadow: 0 0 0 4px rgba(130, 221, 45, 0.2), 0 0 12px rgba(130, 221, 45, 0.6);
+}
+.lf-plate b {
+  font-weight: 650;
+}
+.lf-plate .lf-lat {
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.5);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 能力列表铭牌（占满剩余宽度，三项一行） */
+.lf-caplist {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 20px;
+  align-content: center;
+}
+.lf-capitem {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  min-width: 0;
+}
+.lf-capico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  color: #82dd2d;
+  background: rgba(130, 221, 45, 0.12);
+  flex: none;
+}
+.lf-captitle {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: #fff;
+}
+.lf-capdesc {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.5);
+  line-height: 1.5;
+}
+
+/* ── 右侧登录卡：辉光跟随 + 指针轻倾 ── */
+.lf-card {
+  position: relative;
+  border-radius: 20px;
+  background: #fff;
+  border: 1px solid rgba(230, 238, 246, 0.9);
+  box-shadow: 0 24px 60px rgba(24, 52, 96, 0.12), 0 2px 8px rgba(24, 52, 96, 0.05);
+  transform-style: preserve-3d;
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+.lf-card-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s;
+  background: radial-gradient(
+    320px circle at var(--gx, 50%) var(--gy, 50%),
+    rgba(66, 125, 241, 0.1),
+    transparent 65%
+  );
+}
+.lf-card:hover .lf-card-glow {
+  opacity: 1;
+}
+
+/* ── 登录成功三拍：按钮收拢 → 圆环描出 → 对勾 ── */
+.lf-success-slot {
+  display: flex;
+  justify-content: center;
+  min-height: 47px;
+  align-items: center;
+}
+.lf-success-orb {
+  width: 46px;
+  height: 46px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(140deg, #4f8bff, #236de9 60%, #1d4ed8);
+  box-shadow: 0 10px 24px rgba(35, 109, 233, 0.35);
+  animation: lf-orb-pop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+@keyframes lf-orb-pop {
+  0% {
+    transform: scale(0.55);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.lf-success-orb circle {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.55);
+  stroke-width: 2.4;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+  stroke-dasharray: 126;
+  animation: lf-ring-draw 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.12s backwards;
+}
+.lf-success-orb path {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 24;
+  animation: lf-check-draw 0.32s cubic-bezier(0.22, 1, 0.36, 1) 0.4s backwards;
+}
+@keyframes lf-ring-draw {
+  from { stroke-dashoffset: 126; }
+  to { stroke-dashoffset: 0; }
+}
+@keyframes lf-check-draw {
+  from { stroke-dashoffset: 24; }
+  to { stroke-dashoffset: 0; }
+}
+
+/* ── 开场编排：is-ready 前隐藏，WAAPI 接管入场 ── */
+.loginfx:not(.is-ready) .lf-in {
+  opacity: 0;
+}
+
+/* ── 响应式 / 降级 ── */
+@media (max-width: 1080px) {
+  .lf-dial {
+    display: none;
+  }
+  .lf-caplist {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .lf-plates {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .lf-plates .lf-plate {
+    align-self: stretch;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lf-tick,
+  .lf-health-dot,
+  .lf-card {
+    transition: none !important;
+  }
+  .lf-success-orb,
+  .lf-success-orb circle,
+  .lf-success-orb path {
+    animation: none !important;
+    stroke-dashoffset: 0 !important;
+  }
+  .loginfx:not(.is-ready) .lf-in {
+    opacity: 1;
+  }
+}

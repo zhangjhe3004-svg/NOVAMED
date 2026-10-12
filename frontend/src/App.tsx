@@ -1,15 +1,15 @@
 /**
  * 路由配置 + NocoBase 风格主题（员工系统）
  */
-import { lazy, Suspense } from "react";
+import { Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import ErrorBoundary from "./components/ErrorBoundary";
 import { ConfigProvider, App as AntApp } from "antd";
 import { appTheme } from "./theme";
 import zhCN from "antd/locale/zh_CN";
 import { AuthProvider, useAuth } from "./stores/auth";
 import MainLayout from "./layouts/MainLayout";
 import LoginPage from "./pages/Login";
+import MessageBridge from "./components/MessageBridge";
 import Dashboard from "./pages/Dashboard";
 import PatientList from "./pages/PatientList";
 import {
@@ -21,6 +21,9 @@ import RecordList from "./pages/RecordList";
 import AIAssistant from "./pages/AIAssistant";
 import KnowledgeBase from "./pages/KnowledgeBase";
 import UserManagement from "./pages/UserManagement";
+import MenuStarMap from "./pages/MenuStarMap";
+import OperLog from "./pages/OperLog";
+import LoginLog from "./pages/LoginLog";
 import AdminReview from "./pages/AdminReview";
 import Settings from "./pages/Settings";
 import SettingsCenter from "./pages/SettingsCenter";
@@ -31,12 +34,20 @@ import LowCodeStudio from "./pages/LowCodeStudio";
 import DynPage from "./pages/dyn/DynPage";
 import LcpPage from "./pages/dyn/LcpPage";
 import SuperviseRecords from "./pages/SuperviseRecords";
+import PermissionChain from "./pages/PermissionChain";
+import PostLadder from "./pages/PostLadder";
+import RoleTrace from "./pages/RoleTrace";
+import OrgCanvas from "./pages/OrgCanvas";
 import ScheduleManager from "./pages/ScheduleManager";
 import StaffPage from "./pages/StaffPage";
-const SkillManager = lazy(() => import("./pages/SkillManager"));
-const McpManager = lazy(() => import("./pages/McpManager"));
-const ConversationManager = lazy(() => import("./pages/ConversationManager"));
-const TokenUsage = lazy(() => import("./pages/TokenUsage"));
+import NearbyShare from "./pages/NearbyShare";
+import Pharmacy from "./pages/Pharmacy";
+import Billing from "./pages/Billing";
+import LabTest from "./pages/LabTest";
+import Analytics from "./pages/Analytics";
+import Hub from "./pages/Hub";
+import Tasks from "./pages/Tasks";
+import ComingSoon from "./pages/ComingSoon";
 
 /** 路由守卫：员工系统未登录跳转到登录页 */
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -49,6 +60,8 @@ export default function App() {
   return (
     <ConfigProvider locale={zhCN} theme={appTheme}>
       <AntApp>
+        {/* antd v6 静态 message 失效 → 用 App 上下文回填（见 MessageBridge） */}
+        <MessageBridge />
         <AuthProvider>
           <BrowserRouter>
             <Suspense fallback={<div style={{ padding: 48, textAlign: "center", color: "#999" }}>加载中...</div>}>
@@ -73,6 +86,9 @@ export default function App() {
                 <Route path="/ai-assistant" element={<AIAssistant />} />
                 <Route path="/knowledge" element={<KnowledgeBase />} />
                 <Route path="/users" element={<UserManagement />} />
+                <Route path="/menu-star" element={<MenuStarMap />} />
+                <Route path="/oper-log" element={<OperLog />} />
+                <Route path="/login-log" element={<LoginLog />} />
                 <Route path="/admin-review" element={<AdminReview />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/lowcode" element={<LowCodeStudio />} />
@@ -82,13 +98,21 @@ export default function App() {
                 <Route path="/messages" element={<Messages />} />
                 <Route path="/doctor-workbench" element={<DoctorWorkbench />} />
                 <Route path="/supervise-records" element={<SuperviseRecords />} />
+                <Route path="/permission-chain" element={<PermissionChain />} />
+                <Route path="/post-ladder" element={<PostLadder />} />
+                <Route path="/role-trace" element={<RoleTrace />} />
+                <Route path="/org-canvas" element={<OrgCanvas />} />
                 <Route path="/schedule-source" element={<ScheduleManager />} />
                 <Route path="/patient-accounts" element={<PatientAccounts />} />
                 <Route path="/staff" element={<StaffPage />} />
-                <Route path="/ai-mgmt/skills" element={<ErrorBoundary><SkillManager /></ErrorBoundary>} />
-                <Route path="/ai-mgmt/mcp" element={<ErrorBoundary><McpManager /></ErrorBoundary>} />
-                <Route path="/ai-mgmt/conversations" element={<ErrorBoundary><ConversationManager /></ErrorBoundary>} />
-                <Route path="/ai-mgmt/tokens" element={<ErrorBoundary><TokenUsage /></ErrorBoundary>} />
+                <Route path="/nearby" element={<NearbyShare />} />
+                <Route path="/pharmacy" element={<Pharmacy />} />
+                <Route path="/billing" element={<Billing />} />
+                <Route path="/labtest" element={<LabTest />} />
+                <Route path="/analytics" element={<Analytics />} />
+                <Route path="/hub" element={<Hub />} />
+                <Route path="/tasks" element={<Tasks />} />
+                <Route path="/coming-soon/:key?" element={<ComingSoon />} />
               </Route>
 
               <Route path="*" element={<Navigate to="/login" replace />} />

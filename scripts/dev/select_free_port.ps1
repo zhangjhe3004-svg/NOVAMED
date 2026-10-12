@@ -1,45 +1,64 @@
-# 自动检测空闲端口并分配
-# 用法：powershell -ExecutionPolicy Bypass -File select_free_port.ps1
+# Auto-detect free ports and update frontend/backend configs.
+# Usage: powershell -NoProfile -ExecutionPolicy Bypass -File select_free_port.ps1
+$ErrorActionPreference = "Stop"
+
+$root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 
 function Test-Port {
-    param($Port, $Host = "127.0.0.1")
+    param($Port, $HostName = "127.0.0.1")
     try {
         $tcp = New-Object System.Net.Sockets.TcpClient
-        $tcp.Connect($Host, $Port)
+        $tcp.Connect($HostName, $Port)
         $tcp.Close()
-        return $true  # 端口被占用
+        return $true
     } catch {
-        return $false # 端口空闲
+        return $false
     }
 }
 
 function Find-FreePort {
-    param($StartPort, $EndPort = 65535, $Host = "127.0.0.1")
-    for ($port = $StartPort; $port -le $EndPort; $port++) {
-        if (-not (Test-Port $Port $Host)) {
-            return $port
-        }
+    param($StartPort, $HostName = "127.0.0.1")
+    for ($p = $StartPort; $p -le ($StartPort + 2000); $p++) {
+        if (-not (Test-Port $p $HostName)) { return $p }
     }
-    return -1
+    throw "No free port found (start: $StartPort)"
 }
 
-# 默认端口配置
-$backend_default = 18001
-$staff_default = 3051
-$patient_default = 3005
+function Write-Utf8NoBom {
+    param([string]$Path, [string]$Content)
+    $enc = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($Path, $Content, $enc)
+}
 
-# 检查并分配端口
-$backend_port = if (Test-Port $backend_default) { Find-FreePort $backend_default } else { $backend_default }
-$staff_port = if (Test-Port $staff_default) { Find-FreePort $staff_default } else { $staff_default }
-$patient_port = if (Test-Port $patient_default) { Find-FreePort $patient_default } else { $patient_default }
+$backend = Find-FreePort 18001
+$staff = Find-FreePort 3051
+$patient = Find-FreePort 3005
 
-# 输出端口配置
-Write-Output "BACKEND_PORT=$backend_port"
-Write-Output "STAFF_PORT=$staff_port"
-Write-Output "PATIENT_PORT=$patient_port"
+# Backend: update CORS origins. The PORT field is env-driven via BACKEND_PORT.
+$config = Join-Path $root "backend\app\core\config.py"
+$c = [System.IO.File]::ReadAllText($config)
+$c = $c -replace 'CORS_ORIGINS: list\[str\] = .*', ('CORS_ORIGINS: list[str] = ["http://localhost:' + $staff + '", "http://localhost:' + $patient + '"]')
+Write-Utf8NoBom $config $c
 
-# 显示分配结果
-Write-Host "端口分配结果:" -ForegroundColor Green
-Write-Host "后端端口: $backend_port" -ForegroundColor Cyan
-Write-Host "员工前端: $staff_port" -ForegroundColor Cyan
-Write-Host "患者前端: $patient_port" -ForegroundColor Cyan
+# Staff frontend.
+$vc = Join-Path $root "frontend\vite.config.ts"
+$c = [System.IO.File]::ReadAllText($vc)
+$c = $c -replace 'port: \d+', "port: $staff"
+$c = $c -replace 'target: "[^"]*"', ('target: "http://localhost:' + $backend + '"')
+Write-Utf8NoBom $vc $c
+
+# Patient frontend.
+$vp = Join-Path $root "frontend\vite.patient.config.ts"
+$c = [System.IO.File]::ReadAllText($vp)
+$c = $c -replace 'port: \d+', "port: $patient"
+$c = $c -replace 'target: "[^"]*"', ('target: "http://localhost:' + $backend + '"')
+Write-Utf8NoBom $vp $c
+
+# Persist allocated ports.
+$ports = "BACKEND_PORT=$backend`r`nSTAFF_PORT=$staff`r`nPATIENT_PORT=$patient"
+Write-Utf8NoBom (Join-Path $root "backend\.ports") $ports
+
+Write-Output "BACKEND_PORT=$backend"
+Write-Output "STAFF_PORT=$staff"
+Write-Output "PATIENT_PORT=$patient"
+Write-Host "Ports: backend $backend, staff $staff, patient $patient" -ForegroundColor Green
