@@ -22,6 +22,8 @@ import AIAssistant from "./pages/AIAssistant";
 import KnowledgeBase from "./pages/KnowledgeBase";
 import UserManagement from "./pages/UserManagement";
 import MenuStarMap from "./pages/MenuStarMap";
+import DeptManage from "./pages/DeptManage";
+import PostManage from "./pages/PostManage";
 import OperLog from "./pages/OperLog";
 import LoginLog from "./pages/LoginLog";
 import AdminReview from "./pages/AdminReview";
@@ -87,6 +89,8 @@ export default function App() {
                 <Route path="/knowledge" element={<KnowledgeBase />} />
                 <Route path="/users" element={<UserManagement />} />
                 <Route path="/menu-star" element={<MenuStarMap />} />
+                <Route path="/depts" element={<DeptManage />} />
+                <Route path="/posts" element={<PostManage />} />
                 <Route path="/oper-log" element={<OperLog />} />
                 <Route path="/login-log" element={<LoginLog />} />
                 <Route path="/admin-review" element={<AdminReview />} />

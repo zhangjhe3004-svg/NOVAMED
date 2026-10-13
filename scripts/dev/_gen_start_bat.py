@@ -82,20 +82,18 @@ echo   正在启动服务（后台最小化运行）
 echo ============================================
 echo.
 
-REM 后端：0.0.0.0 监听，手机/局域网可访问
+REM 后端：0.0.0.0 监听，手机/局域网可访问（三个 start 都是异步的，无需互相等待）
 start "MediCode-Backend" /min cmd /c "cd /d %CD%\backend && set BACKEND_PORT=%BACKEND_PORT%&& python -m uvicorn app.main:app --reload --host 0.0.0.0 --port %BACKEND_PORT% > %CD%\bat\logs\backend.log 2>&1"
-timeout /t 2 /nobreak >nul
 
-REM 员工端前端
-start "MediCode-Frontend" /min cmd /c "cd /d %CD%\frontend && set STAFF_PORT=%STAFF_PORT%&& set BACKEND_PORT=%BACKEND_PORT%&& npm run dev > %CD%\bat\logs\frontend.log 2>&1"
-timeout /t 2 /nobreak >nul
+REM 员工端前端（直接调 vite，跳过 npm 中间层，省 1-2 秒）
+start "MediCode-Frontend" /min cmd /c "cd /d %CD%\frontend && set STAFF_PORT=%STAFF_PORT%&& set BACKEND_PORT=%BACKEND_PORT%&& node node_modules\vite\bin\vite.js > %CD%\bat\logs\frontend.log 2>&1"
 
 REM 患者端前端
-start "MediCode-Patient" /min cmd /c "cd /d %CD%\frontend && set PATIENT_PORT=%PATIENT_PORT%&& set BACKEND_PORT=%BACKEND_PORT%&& npm run dev:patient > %CD%\bat\logs\patient.log 2>&1"
+start "MediCode-Patient" /min cmd /c "cd /d %CD%\frontend && set PATIENT_PORT=%PATIENT_PORT%&& set BACKEND_PORT=%BACKEND_PORT%&& node node_modules\vite\bin\vite.js --config vite.patient.config.ts > %CD%\bat\logs\patient.log 2>&1"
 
-REM 等待员工端（统一登录页）就绪后自动打开浏览器
-echo [信息] 等待员工端就绪（最多 40 秒），稍后自动打开浏览器...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=%STAFF_PORT%; for($i=0;$i -lt 40;$i++){ try { $c=New-Object Net.Sockets.TcpClient; $r=$c.BeginConnect('127.0.0.1',$p,$null,$null); if($r.AsyncWaitHandle.WaitOne(600)){ $c.EndConnect($r); $c.Close(); break } ; $c.Close() } catch {}; Start-Sleep -Milliseconds 500 }"
+REM 等待员工端（统一登录页）就绪后自动打开浏览器：node 单进程轮询，150ms 间隔，就绪即开
+echo [信息] 等待员工端就绪（最多 30 秒），就绪后立即打开浏览器...
+node -e "const t0=Date.now();(function p(){const s=require('net').connect({port:%STAFF_PORT%,host:'127.0.0.1'});s.on('connect',()=>{s.destroy();process.exit(0)});s.on('error',()=>{s.destroy();if(Date.now()-t0>30000)process.exit(1);setTimeout(p,150)})})()"
 start "" "http://localhost:%STAFF_PORT%/login"
 echo [OK] 已打开统一登录页：http://localhost:%STAFF_PORT%/login
 

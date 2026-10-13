@@ -34,7 +34,16 @@ export interface InsightPanelProps {
   title: string;
   sub?: string;
   cat?: number;
+  /** 实体类型名（如「角色 / 用户 / 页面」），显示在标题上方 */
+  kind?: string;
+  /** 实体类型图标（title 左侧） */
+  kindIcon?: ReactNode;
+  status?: string;
   stats?: Array<{ label: string; value: ReactNode }>;
+  /** 三格小读数（对齐 scaffold InsightTile） */
+  tiles?: Array<{ label: string; value: ReactNode }>;
+  /** 洞察卡（对齐 scaffold InsightCard：tone 色 + 标题 + 说明） */
+  insights?: Array<{ tone: "info" | "warn" | "danger" | "ok"; title: string; text: string }>;
   sections?: InsightSection[];
   note?: string;
   actions?: ReactNode;
@@ -46,7 +55,12 @@ export default function InsightPanel({
   title,
   sub,
   cat,
+  kind,
+  kindIcon,
+  status,
   stats,
+  tiles,
+  insights,
   sections = [],
   note,
   actions,
@@ -72,8 +86,15 @@ export default function InsightPanel({
       <div className="insight-head">
         <span className={`insight-swatch cat-${cat ?? 0}`} aria-hidden="true" />
         <div className="insight-title">
+          {kind && (
+            <small style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--lv-soft)", fontSize: 11 }}>
+              {kindIcon}
+              {kind}
+            </small>
+          )}
           <b>{title}</b>
           {sub && <small>{sub}</small>}
+          {status && <small style={{ color: "var(--lv-faint)" }}>{status}</small>}
         </div>
         {onClose && (
           <Button
@@ -86,12 +107,23 @@ export default function InsightPanel({
         )}
       </div>
 
-      {stats && stats.length > 0 && (
+      {(stats || tiles) && (stats?.length ?? 0) + (tiles?.length ?? 0) > 0 && (
         <div className="insight-stats">
-          {stats.map((s) => (
-            <div className="insight-stat" key={s.label}>
+          {[...(stats ?? []), ...(tiles ?? [])].map((s, i) => (
+            <div className="insight-stat" key={`${s.label}-${i}`}>
               <span className="tnum">{s.value}</span>
               <small>{s.label}</small>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {insights && insights.length > 0 && (
+        <div className="insight-cards">
+          {insights.map((c, i) => (
+            <div className={`insight-card is-${c.tone}`} key={`${c.title}-${i}`}>
+              <b>{c.title}</b>
+              <p>{c.text}</p>
             </div>
           ))}
         </div>

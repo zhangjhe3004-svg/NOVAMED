@@ -79,7 +79,11 @@ _EMPLOYEE_TABLES = {"users", "messages", "notifications", "audit_logs", "login_l
                     # 员工域低代码引擎元数据表（动态集合/页面/ACL/业务工作流）
                     "dyn_collections", "page_schemas", "acl_rules", "wf_defs", "wf_instances", "permission_levels", "nearby_transfers", "nearby_connections",
                     # 角色管理（sys_roles + 角色菜单授权）
-                    "sys_roles", "sys_role_menus"}
+                    "sys_roles", "sys_role_menus",
+                    # 菜单管理（目录/页面/按钮三级菜单树）
+                    "menu_items",
+                    # 部门管理（组织架构树）/ 岗位管理
+                    "sys_depts", "sys_posts"}
 
 
 def init_db():

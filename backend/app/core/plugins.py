@@ -72,6 +72,9 @@ def register_builtin_plugins(mgr: PluginManager) -> None:
     from ..api.analytics import router as analytics_router
     from ..api.tasks import router as tasks_router
     from ..api.roles import router as roles_router
+    from ..api.menus import router as menus_router
+    from ..api.depts import router as depts_router
+    from ..api.posts import router as posts_router
 
     definitions = [
         ("auth", "认证", "登录/注册/重置密码/JWT 令牌", auth.router),
@@ -95,6 +98,9 @@ def register_builtin_plugins(mgr: PluginManager) -> None:
         ("analytics", "运营数据", "患者/就诊/预约/收费/检查多维运营指标聚合", analytics_router),
         ("tasks", "定时任务", "任务 CRUD/后台调度执行/站内提醒", tasks_router),
         ("roles", "角色管理", "角色 CRUD/菜单授权/权限矩阵数据源（sys_roles + sys_role_menus）", roles_router),
+        ("menus", "菜单管理", "菜单树 CRUD：目录/页面/按钮三级 + 权限标识（menu_items）", menus_router),
+        ("depts", "部门管理", "组织架构树 CRUD：部门层级/负责人/联系方式（sys_depts）", depts_router),
+        ("posts", "岗位管理", "岗位 CRUD：编码/名称/排序/状态（sys_posts）", posts_router),
     ]
 
     state = _load_state()

@@ -19,11 +19,9 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button, Empty, Spin, Segmented, Table, Modal, Form, Input, InputNumber, Switch, Popconfirm, Drawer, Tree, Select, message } from "antd";
 import {
   AppstoreOutlined,
-  ArrowLeftOutlined,
-  DatabaseOutlined,
   DeleteOutlined,
+  DownloadOutlined,
   EditOutlined,
-  NodeIndexOutlined,
   PartitionOutlined,
   PlusOutlined,
   ReloadOutlined,
@@ -42,6 +40,7 @@ import { buildNavGroups, roleMeta, type NavGroup } from "../config/nav";
 import StageGraph, { type GraphLink, type GraphNode } from "../components/StageGraph";
 import PermissionMatrix, { type MatrixChange } from "../components/PermissionMatrix";
 import { listRoles, createRole, updateRole, removeRole, saveRoleMenus, type RoleItem } from "../api/roles";
+import { fetchMenuTree, type MenuItemRow } from "../api/menus";
 import InsightPanel, { type InsightSection } from "../components/InsightPanel";
 import { ask, type AnswerCard } from "../utils/ask";
 import type { NetLink, NetNode } from "../utils/stage";
@@ -84,16 +83,6 @@ interface EntryRow {
   tone?: "off";
 }
 
-interface ChainLink {
-  label: string;
-  sub: string;
-  cat: number;
-  count?: number;
-  ratio?: number;
-  hub: boolean;
-  meta?: string;
-}
-
 interface Entity {
   type: "user" | "role" | "group";
   key: string;
@@ -104,6 +93,8 @@ interface Entity {
   person?: Staff;
   roleRow?: RoleRow;
   group?: NavGroup;
+  /** group 实体指向的 DB 页面（e-menu-<permission>） */
+  menu?: MenuItemRow;
 }
 
 const CATS: Array<{ key: ModuleKey; name: string; cat: number }> = [
@@ -136,7 +127,7 @@ export default function RoleTrace() {
   const [aclRules, setAclRules] = useState<AclRule[]>([]);
   const [scope, setScope] = useState<"all" | "chain">("all");
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<"trace" | "matrix" | "list">("trace");
+  const [view, setView] = useState<"trace" | "matrix" | "list">("list");
 
   const [layer, setLayer] = useState<Layer>(1);
   const [module, setModule] = useState<ModuleKey | null>(null);
@@ -171,21 +162,86 @@ export default function RoleTrace() {
   }, [rolePage, roleKw, statusF]);
   useEffect(() => { if (view !== "trace") loadRoles(); }, [view, loadRoles]);
 
+  /** 导出当前页角色为 CSV（对齐 scaffold 列表面板的导出按钮） */
+  const exportRoles = () => {
+    const head = ["角色名称", "角色编码", "数据权限", "用户数", "排序", "状态", "创建时间"];
+    const lines = roleRows.map((r) => [
+      r.name, r.code, SCOPE_LABELS[r.data_scope] || r.data_scope,
+      r.user_count ?? 0, r.sort, r.status === 1 ? "正常" : "停用", r.created_at || "",
+    ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","));
+    const blob = new Blob(["\uFEFF" + [head.join(","), ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `角色列表_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  /* ---------- 溯源数据：DB 菜单树页面 + 全量角色授权（sys_role_menus） ---------- */
+  // 溯源的真实授权链：用户 --(role code)--> sys_roles --(menu_ids)--> 页面（menu_items.permission = 导航 key）
+  const [menuPages, setMenuPages] = useState<MenuItemRow[]>([]);
+  const [allRoles, setAllRoles] = useState<RoleItem[]>([]);
+  useEffect(() => {
+    if (view !== "trace") return;
+    fetchMenuTree().then((r) => {
+      const pages: MenuItemRow[] = [];
+      const walk = (ns: MenuItemRow[]) => ns.forEach((n) => { if (n.type === "menu") pages.push(n); walk(n.children ?? []); });
+      walk(r.items || []);
+      setMenuPages(pages);
+    }).catch(() => {});
+    listRoles({ page: 1, page_size: 100 }).then((r) => setAllRoles(r.items || [])).catch(() => {});
+  }, [view, staff.length]);
+
+  /** 角色 → 可访问页面（DB 授权；内置 admin 拥有全部） */
+  const menusOfRole = useCallback(
+    (roleCode: string): MenuItemRow[] => {
+      const r = allRoles.find((x) => x.code === roleCode);
+      if (!r) return [];
+      if (r.builtin) return menuPages;
+      const ids = new Set(r.menu_ids || []);
+      return menuPages.filter((m) => ids.has(m.permission));
+    },
+    [allRoles, menuPages]
+  );
+  /** 页面 → 授予它的启用普通角色 */
+  const holdersOfPage = useCallback(
+    (permission: string) =>
+      allRoles.filter((r) => !r.builtin && r.status === 1 && (r.menu_ids || []).includes(permission)),
+    [allRoles]
+  );
+  /** 用户持有的启用角色（单角色模型，最多 1 个） */
+  const rolesOfUser = useCallback(
+    (roleCode: string) => {
+      const r = allRoles.find((x) => x.code === roleCode);
+      return r ? [r] : [];
+    },
+    [allRoles]
+  );
+
   // 新增 / 编辑角色
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<RoleItem | null>(null);
   const [formSaving, setFormSaving] = useState(false);
   const [roleForm] = Form.useForm();
 
+  // 表单值在 Modal 真正挂载后再写入（destroyOnHidden 下提前 setFieldsValue 会触发
+  // 「useForm not connected」告警），这里用 effect 跟随 formOpen。
+  useEffect(() => {
+    if (!formOpen) return;
+    if (editing) {
+      roleForm.setFieldsValue({ name: editing.name, code: editing.code, data_scope: editing.data_scope, sort: editing.sort, status: editing.status, remark: editing.remark });
+    } else {
+      roleForm.resetFields();
+      roleForm.setFieldsValue({ name: "", code: "", data_scope: "SELF", sort: 10, status: 1, remark: "" });
+    }
+  }, [formOpen, editing, roleForm]);
+
   const openCreate = () => {
     setEditing(null);
-    roleForm.resetFields();
-    roleForm.setFieldsValue({ name: "", code: "", data_scope: "SELF", sort: 10, status: 1, remark: "" });
     setFormOpen(true);
   };
   const openEdit = (r: RoleItem) => {
     setEditing(r);
-    roleForm.setFieldsValue({ name: r.name, code: r.code, data_scope: r.data_scope, sort: r.sort, status: r.status, remark: r.remark });
     setFormOpen(true);
   };
   const submitForm = async () => {
@@ -318,6 +374,7 @@ export default function RoleTrace() {
       return;
     }
     if (loading) return; // staff 还没到，留着参数等下一轮
+    setView("trace"); // 深链落点在溯源视图（默认视图是列表）
     setModule(kind === "role" ? "roles" : "users");
     setEntityId(`e-${kind}-${id}`);
     setLayer(3);
@@ -376,11 +433,6 @@ export default function RoleTrace() {
 
   /* ---------- 配置与聚合 ---------- */
   const navGroups = useMemo(() => buildNavGroups(), []);
-  const menuTotal = useMemo(() => navGroups.reduce((n, g) => n + g.items.length, 0), [navGroups]);
-  const globalMenus = useMemo(
-    () => navGroups.filter((g) => !(g as any).adminOnly).reduce((n, g) => n + g.items.length, 0),
-    [navGroups]
-  );
 
   const runAsk = (q?: string) => {
     const question = (q ?? askQ).trim();
@@ -407,34 +459,37 @@ export default function RoleTrace() {
       .sort((a, b) => b.members.length - a.members.length);
   }, [staff]);
 
-  const onDuty = staff.filter((s) => s.work_status === "在职").length;
-
-  /** 表盘读数：分子 / 分母都是真实数据，ratio 只是把同一个比例画成刻度弧 */
-  const ruleRoles = useMemo(() => new Set(aclRules.map((r) => r.role)), [aclRules]);
-  const idleRoles = useMemo(
-    () => roles.filter((r) => !staff.some((s) => (s as any).role === (r as any).role)).length,
-    [roles, staff]
+  /** 表盘读数（真实数据，对齐 scaffold）：
+   *  users = 已分配角色的用户占比；roles = 有人持有的角色占比；menus = 被普通角色授权的页面占比 */
+  const assignedUsers = useMemo(
+    () => staff.filter((s) => allRoles.some((r) => r.code === s.role)).length,
+    [staff, allRoles]
   );
-  const rolesWithRules = roles.filter(
-    (r) => ruleRoles.has(r.role) || ruleRoles.has(r.meta.text)
-  ).length;
+  const heldRoles = useMemo(() => allRoles.filter((r) => (r.user_count || 0) > 0).length, [allRoles]);
+  const grantedPages = useMemo(
+    () => menuPages.filter((m) => holdersOfPage(m.permission).length > 0).length,
+    [menuPages, holdersOfPage]
+  );
+  const idleRoleCount = useMemo(() => allRoles.length - heldRoles, [allRoles, heldRoles]);
+  const orphanPageCount = useMemo(() => menuPages.length - grantedPages, [menuPages, grantedPages]);
+  const userlessCount = useMemo(
+    () => staff.filter((s) => !allRoles.some((r) => r.code === s.role)).length,
+    [staff, allRoles]
+  );
   const catCount: Record<ModuleKey, number> = {
     users: staff.length,
-    roles: roles.length,
-    menus: navGroups.reduce((n, g) => n + g.items.length, 0),
+    roles: allRoles.length,
+    menus: menuPages.length,
   };
-  const commonMenus = navGroups
-    .filter((g) => !g.adminOnly)
-    .reduce((n, g) => n + g.items.length, 0);
   const catRatio: Record<ModuleKey, number> = {
-    users: staff.length ? onDuty / staff.length : 0,
-    roles: roles.length ? rolesWithRules / roles.length : 0,
-    menus: catCount.menus ? commonMenus / catCount.menus : 0,
+    users: staff.length ? assignedUsers / staff.length : 0,
+    roles: allRoles.length ? heldRoles / allRoles.length : 0,
+    menus: menuPages.length ? grantedPages / menuPages.length : 0,
   };
   const catSub: Record<ModuleKey, string> = {
-    users: `在职 ${onDuty}/${staff.length}`,
-    roles: `有规则 ${rolesWithRules}/${roles.length}`,
-    menus: `通用 ${commonMenus}/${catCount.menus}`,
+    users: "刻度：已分配角色占比",
+    roles: "刻度：有人持有占比",
+    menus: "刻度：已授权页面占比",
   };
 
   /* ---------- 舞台几何 ---------- */
@@ -463,55 +518,80 @@ export default function RoleTrace() {
     [layer, size]
   );
 
-  /* ---------- 菜单查询：全部走同一个 navGroups ---------- */
-  const menusOf = useCallback(
-    (role: string): NavGroup[] => {
-      const meta = roleMeta(role);
-      return navGroups.filter((g) => meta.groups.includes(g.short));
-    },
-    [navGroups]
-  );
+  /* ---------- 菜单查询：全部走 DB 授权（sys_role_menus × menu_items） ---------- */
 
-  const menuCountOf = useCallback(
-    (role: string) => menusOf(role).reduce((n, g) => n + g.items.length, 0),
-    [menusOf]
-  );
+  /** 纵列布局（对齐 scaffold column()：上留面包屑、下留问答坞，超出折成「还有 N 项」） */
+  const COL_TOP = 76;
+  const COL_BOTTOM = 96;
+  function columnNodes<T>(
+    items: T[], x: number, H: number,
+    make: (item: T, y: number, i: number, n: number) => GraphNode,
+    moreId: string, align: GraphNode["align"], minGap = 34
+  ): GraphNode[] {
+    const span = Math.max(120, H - COL_TOP - COL_BOTTOM);
+    const cap = Math.max(4, Math.floor(span / minGap) + 1);
+    const shown = items.slice(0, cap);
+    const n = shown.length + (items.length > cap ? 1 : 0);
+    const gap = n > 1 ? Math.min(46, span / (n - 1)) : 0;
+    const y0 = COL_TOP + span / 2 - (gap * (n - 1)) / 2;
+    const nodes = shown.map((item, i) => make(item, y0 + i * gap, i, n));
+    if (items.length > cap) {
+      nodes.push({ id: moreId, x, y: y0 + shown.length * gap, label: `还有 ${items.length - cap} 项`, kind: "item", align, interactive: false, delay: 0.5 });
+    }
+    return nodes;
+  }
 
-  /* ---------- 某类的条目清单（②③ 两层的胶囊来源） ---------- */
+  const stagger = (i: number, n: number, base = 0) => base + i * Math.min(0.09, 1.8 / Math.max(n, 1));
+
+  /* ---------- 某类的条目清单（② 模块层的胶囊来源；sub/tone 对齐 scaffold） ---------- */
   const moduleEntries = useCallback(
     (key: ModuleKey): EntryRow[] => {
       if (key === "users") {
-        return staff.slice(0, 60).map((s) => ({
-          id: `e-user-${s.id}`,
-          name: s.real_name,
-          sub: `${roleMeta(s.role).text} · ${s.title || s.department || "未分配"}`,
-          cat: roleMeta(s.role).cat,
-          badge: `L${s.auth_level}`,
-          meta: `${s.real_name} · L${s.auth_level} · ${s.work_status}`,
-          tone: s.work_status === "在职" ? undefined : "off",
-        }));
+        return [...staff]
+          .sort((a, b) => rolesOfUser(b.role).length - rolesOfUser(a.role).length)
+          .map((s) => {
+            const rs = rolesOfUser(s.role);
+            return {
+              id: `e-user-${s.id}`,
+              name: s.real_name,
+              sub: rs.length ? `${s.department || "未分配部门"} · ${rs.length} 个角色` : "未分配角色",
+              cat: roleMeta(s.role).cat,
+              badge: `L${s.auth_level}`,
+              meta: `${s.real_name} · L${s.auth_level} · ${s.work_status}`,
+              tone: s.work_status === "在职" ? undefined : "off",
+            };
+          });
       }
       if (key === "roles") {
-        return roles.map((r) => ({
-          id: `e-role-${r.role}`,
-          name: r.meta.text,
-          sub: `${r.members.length} 人 · ${menuCountOf(r.role)} 个菜单`,
-          cat: r.meta.cat,
-          badge: r.members.length,
-          meta: `角色 ${r.meta.text}`,
-        }));
+        return allRoles.map((r) => {
+          const users = r.user_count || 0;
+          const pageCount = menusOfRole(r.code).length;
+          const idle = !users;
+          return {
+            id: `e-role-${r.code}`,
+            name: r.name,
+            sub: idle ? "闲置 · 没有持有人" : `${users} 人持有 · ${pageCount} 个页面`,
+            cat: roleMeta(r.code).cat,
+            badge: users || undefined,
+            meta: r.builtin ? "内置角色 · 全部权限" : r.data_scope,
+            tone: r.status !== 1 ? ("off" as const) : idle ? ("danger" as const) : undefined,
+          } as EntryRow;
+        });
       }
-      return navGroups.map((g) => ({
-        id: `e-group-${g.short}`,
-        name: g.short,
-        sub: `${g.items.length} 个菜单${g.adminOnly ? " · 管理员专属" : ""}`,
-        cat: g.cat,
-        badge: g.items.length,
-        meta: g.label,
-        tone: g.adminOnly ? "off" : undefined,
-      }));
+      return menuPages.map((m) => {
+        const grants = holdersOfPage(m.permission).length;
+        return {
+          id: `e-menu-${m.permission}`,
+          name: m.name,
+          sub: grants ? `${grants} 个角色授予` : "孤立 · 仅超级管理员可见",
+          cat: 3,
+          badge: grants || undefined,
+          meta: m.path,
+          tone: m.status !== 1 ? ("off" as const) : grants ? undefined : ("danger" as const),
+        } as EntryRow;
+      });
     },
-    [staff, roles, navGroups, menuCountOf]
+    [staff, allRoles, menuPages, menusOfRole, holdersOfPage, rolesOfUser]
   );
 
   /* ---------- 实体解析（③） ---------- */
@@ -533,139 +613,156 @@ export default function RoleTrace() {
       };
     }
     if (entityId.startsWith("e-role-")) {
-      const role = entityId.replace("e-role-", "");
-      const row = roles.find((r) => r.role === role);
-      if (!row) return null;
+      const code = entityId.replace("e-role-", "");
+      const r = allRoles.find((x) => x.code === code);
+      if (!r) return null;
       return {
         type: "role",
         key: entityId,
-        title: row.meta.text,
-        sub: `${row.members.length} 名成员`,
-        cat: row.meta.cat,
-        role,
-        roleRow: row,
+        title: r.name,
+        sub: `${r.user_count || 0} 人持有 · ${menusOfRole(code).length} 个页面`,
+        cat: roleMeta(code).cat,
+        role: code,
+        roleRow: roles.find((row) => row.role === code),
       };
     }
-    if (entityId.startsWith("e-group-")) {
-      const short = entityId.replace("e-group-", "");
-      const group = navGroups.find((g) => g.short === short);
-      if (!group) return null;
+    if (entityId.startsWith("e-menu-")) {
+      const permission = entityId.replace("e-menu-", "");
+      const page = menuPages.find((m) => m.permission === permission);
+      if (!page) return null;
+      const holders = holdersOfPage(permission);
       return {
         type: "group",
         key: entityId,
-        title: group.short,
-        sub: `${group.items.length} 个菜单`,
-        cat: group.cat,
+        title: page.name,
+        sub: `${holders.length} 个角色授予`,
+        cat: 3,
         role: "",
-        group,
-      };
+        group: undefined,
+        menu: page,
+      } as Entity;
     }
     return null;
-  }, [entityId, staff, roles, navGroups]);
+  }, [entityId, staff, allRoles, menuPages, menusOfRole, holdersOfPage, roles]);
 
-  /* ---------- 实体链路（③ 的三个节点） ---------- */
-  const chain = useMemo<ChainLink[] | null>(() => {
-    if (!entity) return null;
+  /** 实体层的双列数据（对齐 scaffold：每类实体 = 中心 + 左列 + 右列） */
+  const twin = useMemo<{
+    center: GraphNode;
+    left: { nodes: GraphNode[]; kind: "user" | "role" | "menu" };
+    right: { nodes: GraphNode[]; kind: "user" | "role" | "menu" };
+    xs: [number, number, number];
+  } | null>(() => {
+    if (layer !== 3 || !entity) return null;
+    const W = size.w;
+    const H = size.h;
+    const cy = H * 0.5;
+
+    if (entity.type === "role") {
+      const code = entity.role;
+      const role = allRoles.find((x) => x.code === code);
+      const userIds = staff.filter((s) => s.role === code);
+      const grantedPages = menusOfRole(code);
+      const xs: [number, number, number] = [W * 0.2, W * 0.47, W * 0.74];
+      const center: GraphNode = {
+        id: `e-role-${code}`, x: xs[1], y: cy, label: entity.title, sub: code,
+        kind: "item", cat: entity.cat, count: `${userIds.length} 人`,
+        tone: role?.status === 1 ? undefined : "off",
+      };
+      const left = {
+        kind: "user" as const,
+        nodes: columnNodes(userIds, xs[0], H, (s, y, i, n) => ({
+          id: `e-user-${s.id}`, x: xs[0], y, label: s.real_name, sub: s.department || "",
+          kind: "item", align: "right", cat: roleMeta(s.role).cat,
+          tone: s.work_status === "在职" ? undefined : "off",
+          from: `e-role-${code}`, delay: stagger(i, n, 0.1),
+        }) as GraphNode, "more-user", "right"),
+      };
+      const right = {
+        kind: "menu" as const,
+        nodes: columnNodes(grantedPages, xs[2], H, (m, y, i, n) => {
+          const btns = (m.children ?? []).length;
+          return {
+            id: `e-menu-${m.permission}`, x: xs[2], y, label: m.name,
+            sub: m.path || m.permission, count: btns ? `${btns} 按钮` : undefined,
+            kind: "item", align: "left", cat: 3,
+            tone: m.status === 1 ? undefined : "off",
+            from: `e-role-${code}`, delay: stagger(i, n, 0.25),
+          } as GraphNode;
+        }, "more-menu", "left"),
+      };
+      return { center, left, right, xs };
+    }
+
     if (entity.type === "user" && entity.person) {
       const person = entity.person;
-      const meta = roleMeta(person.role);
-      const menus = menusOf(person.role);
-      const total = menus.reduce((n, g) => n + g.items.length, 0);
-      const peers = roles.find((r) => r.role === person.role)?.members.length ?? 1;
-      return [
-        {
-          label: person.real_name,
-          sub: `${person.title || person.department || "—"} · L${person.auth_level}`,
-          cat: meta.cat,
-          hub: false,
-          meta: `${person.real_name} · ${person.work_status}`,
-        },
-        {
-          label: meta.text,
-          sub: `${peers} 名同角色`,
-          cat: meta.cat,
-          hub: false,
-          meta: `角色 ${meta.text}`,
-        },
-        {
-          label: "可用菜单",
-          sub: `${total} 个`,
-          cat: 3,
-          count: total,
-          ratio: catCount.menus ? total / catCount.menus : 0,
-          hub: true,
-          meta: menus.map((g) => g.short).join(" / "),
-        },
-      ];
+      const roleIds = rolesOfUser(person.role).map((r) => r.code);
+      const pages = menusOfRole(person.role);
+      const xs: [number, number, number] = [W * 0.14, W * 0.42, W * 0.7];
+      const center: GraphNode = {
+        id: `e-user-${person.id}`, x: xs[0], y: cy, label: entity.title,
+        sub: person.department || person.role,
+        kind: "item", cat: entity.cat, count: `${roleIds.length} 角色`,
+        tone: person.work_status === "在职" ? undefined : "off",
+      };
+      const left = {
+        kind: "role" as const,
+        nodes: columnNodes(roleIds, xs[1], H, (code, y, i, n) => {
+          const r = allRoles.find((x) => x.code === code);
+          return {
+            id: `e-role-${code}`, x: xs[1], y, label: r?.name ?? code, sub: code,
+            kind: "item", cat: roleMeta(code).cat,
+            tone: r?.status === 1 ? undefined : "off",
+            from: `e-user-${person.id}`, delay: stagger(i, n, 0.1),
+          } as GraphNode;
+        }, "more-role", "center"),
+      };
+      const right = {
+        kind: "menu" as const,
+        nodes: columnNodes(pages, xs[2], H, (m, y, i, n) => ({
+          id: `e-menu-${m.permission}`, x: xs[2], y, label: m.name,
+          sub: m.path || m.permission, count: (m.children ?? []).length || undefined,
+          kind: "item", align: "left", cat: 3,
+          from: `e-user-${person.id}`, delay: stagger(i, n, 0.35),
+        }) as GraphNode, "more-menu", "left"),
+      };
+      return { center, left, right, xs };
     }
-    if (entity.type === "role" && entity.roleRow) {
-      const row = entity.roleRow;
-      const menus = menusOf(row.role);
-      const total = menus.reduce((n, g) => n + g.items.length, 0);
-      return [
-        {
-          label: row.meta.text,
-          sub: `角色 · ${row.members.length} 人`,
-          cat: row.meta.cat,
-          hub: false,
-          meta: `角色 ${row.meta.text}`,
-        },
-        {
-          label: "成员",
-          sub: `${row.members.length} 人`,
-          cat: row.meta.cat,
-          count: row.members.length,
-          ratio: staff.length ? row.members.length / staff.length : 0,
-          hub: true,
-          meta: row.members
-            .slice(0, 6)
-            .map((m) => m.real_name)
-            .join(" / "),
-        },
-        {
-          label: "可用菜单",
-          sub: `${total} 个`,
-          cat: 3,
-          count: total,
-          ratio: catCount.menus ? total / catCount.menus : 0,
-          hub: true,
-          meta: menus.map((g) => g.short).join(" / "),
-        },
-      ];
-    }
-    if (entity.type === "group" && entity.group) {
-      const group = entity.group;
-      const holders = roles.filter((r) => r.meta.groups.includes(group.short));
-      return [
-        {
-          label: group.short,
-          sub: `${group.items.length} 个菜单`,
-          cat: group.cat,
-          hub: false,
-          meta: group.label,
-        },
-        {
-          label: "可进入角色",
-          sub: `${holders.length} 个`,
-          cat: 2,
-          count: holders.length,
-          ratio: roles.length ? holders.length / roles.length : 0,
-          hub: true,
-          meta: holders.map((h) => h.meta.text).join(" / "),
-        },
-        {
-          label: "菜单项",
-          sub: `${group.items.length} 个`,
-          cat: 3,
-          count: group.items.length,
-          ratio: undefined,
-          hub: true,
-          meta: group.items.map((i) => i.name).join(" / "),
-        },
-      ];
+
+    // menu 实体：用户 → 角色 → 页面（中心靠右，对齐 scaffold）
+    if (entity.type === "group" && entity.menu) {
+      const permission = entity.menu.permission;
+      const holders = holdersOfPage(permission);
+      const users = staff.filter((s) => holders.some((r) => r.code === s.role));
+      const xs: [number, number, number] = [W * 0.2, W * 0.48, W * 0.76];
+      const orphan = !holders.some((r) => !r.builtin);
+      const center: GraphNode = {
+        id: `e-menu-${permission}`, x: xs[2], y: cy, label: entity.title,
+        sub: permission || entity.menu.path || "",
+        kind: "item", cat: 3, count: `${holders.length} 角色`,
+        tone: orphan ? "danger" : entity.menu.status === 1 ? undefined : "off",
+      };
+      const left = {
+        kind: "user" as const,
+        nodes: columnNodes(users, xs[0], H, (s, y, i, n) => ({
+          id: `e-user-${s.id}`, x: xs[0], y, label: s.real_name, sub: s.department || "",
+          kind: "item", align: "right", cat: roleMeta(s.role).cat,
+          tone: s.work_status === "在职" ? undefined : "off",
+          from: `e-menu-${permission}`, delay: stagger(i, n, 0.35),
+        }) as GraphNode, "more-user", "right"),
+      };
+      const right = {
+        kind: "role" as const,
+        nodes: columnNodes(holders, xs[1], H, (r, y, i, n) => ({
+          id: `e-role-${r.code}`, x: xs[1], y, label: r.name, sub: r.code,
+          kind: "item", cat: roleMeta(r.code).cat,
+          tone: r.status === 1 ? undefined : "off",
+          from: `e-menu-${permission}`, delay: stagger(i, n, 0.1),
+        }) as GraphNode, "more-role", "center"),
+      };
+      return { center, left, right, xs };
     }
     return null;
-  }, [entity, catCount, menusOf, roles, staff]);
+  }, [layer, entity, size, allRoles, staff, menusOfRole, holdersOfPage, rolesOfUser]);
 
   /* ---------- 节点 ---------- */
   const nodes = useMemo<GraphNode[]>(() => {
@@ -742,32 +839,14 @@ export default function RoleTrace() {
       }
     }
 
-    // ③ 实体：起点 → 中段 → 菜单
-    if (layer === 3 && chain && module) {
-      const xs = [size.w * 0.3, size.w * 0.5, size.w * 0.7];
-      const y = size.h * 0.5;
-      chain.forEach((link, i) => {
-        out.push({
-          id: `c-${i + 1}`,
-          x: xs[i],
-          y,
-          label: link.label,
-          sub: link.sub,
-          kind: link.hub ? "hub" : "item",
-          cat: link.cat,
-          size: link.hub ? 76 : undefined,
-          ratio: link.ratio,
-          count: link.count,
-          align: "center",
-          from: i === 0 ? `d-${module}` : `c-${i}`,
-          delay: i * 0.1,
-          title: link.meta,
-        });
-      });
+    // ③ 实体：双列链路（对齐 scaffold：中心 + 左列 + 右列，脉冲贯穿）
+    if (layer === 3 && twin) {
+      out.push(twin.center);
+      out.push(...twin.left.nodes, ...twin.right.nodes);
     }
 
     return out;
-  }, [corePos, dialPos, layer, module, chain, size, catCount, catRatio, catSub, scope, moduleEntries]);
+  }, [corePos, dialPos, layer, module, twin, size, catCount, catRatio, catSub, scope, moduleEntries]);
 
   /* ---------- 连线 ---------- */
   const links = useMemo<GraphLink[]>(() => {
@@ -793,12 +872,35 @@ export default function RoleTrace() {
         out.push({ a: `d-${module}`, b: `e-more-${module}`, flow: "none", cat: 0, shape: "h", dashed: true });
       }
     }
-    if (layer === 3) {
-      out.push({ a: "c-1", b: "c-2", flow: "forward", cat: 2, shape: "h" });
-      out.push({ a: "c-2", b: "c-3", flow: "forward", cat: 3, shape: "h" });
+    if (layer === 3 && twin && entity) {
+      const cId = twin.center.id;
+      // 连线方向对齐 scaffold：用户 → 角色 → 页面 的授权流
+      twin.left.nodes.forEach((n) => {
+        if (n.interactive === false) return;
+        // 左列 → 中心（role/menu 实体）或 中心 → 左列（user 实体：中心在左）
+        if (entity.type === "user") out.push({ a: cId, b: n.id, flow: "forward", shape: "h", cat: 2 });
+        else if (entity.type === "role") out.push({ a: n.id, b: cId, flow: "forward", shape: "h", cat: 1 });
+        else out.push({ a: n.id, b: twin.right.nodes[0]?.id ?? cId, flow: "none", shape: "h", cat: 1, dashed: true });
+      });
+      twin.right.nodes.forEach((n) => {
+        if (n.interactive === false) return;
+        if (entity.type === "group") out.push({ a: n.id, b: cId, flow: "forward", shape: "h", cat: 3 });
+        else out.push({ a: cId, b: n.id, flow: "forward", shape: "h", cat: 3 });
+      });
+      // user 实体：角色 → 页面 的授权线（仅该角色授权的页面）
+      if (entity.type === "user" && entity.person) {
+        const code = entity.person.role;
+        twin.left.nodes.forEach((ln) => {
+          if (ln.id !== `e-role-${code}`) return;
+          twin.right.nodes.forEach((rn) => {
+            if (rn.interactive === false) return;
+            out.push({ a: ln.id, b: rn.id, flow: "forward", shape: "h", cat: 3 });
+          });
+        });
+      }
     }
     return out;
-  }, [layer, module, moduleEntries]);
+  }, [layer, module, twin, entity, moduleEntries]);
 
   /* ---------- 背景网络 ---------- */
   const network = useMemo(() => {
@@ -830,51 +932,49 @@ export default function RoleTrace() {
           netLinks.push({ a: `d-${c.key}`, b: e.id, cat: e.cat });
         });
       });
-      // 跨类授权线：用户 → 角色、角色 → 分组（仅在聚焦某类时显现）
+      // 跨类授权线（真实 DB 数据）：用户 → 其角色；角色 → 其授权页面
       staff.slice(0, 24).forEach((s) => {
-        netLinks.push({ a: `e-user-${s.id}`, b: `e-role-${s.role}`, cross: true });
+        if (allRoles.some((r) => r.code === s.role)) {
+          netLinks.push({ a: `e-user-${s.id}`, b: `e-role-${s.role}`, cross: true });
+        }
       });
-      navGroups.forEach((g) => {
-        roles.forEach((r) => {
-          if (r.meta.groups.includes(g.short)) {
-            netLinks.push({ a: `e-role-${r.role}`, b: `e-group-${g.short}`, cross: true });
+      allRoles.forEach((r) => {
+        if (r.builtin) return;
+        (r.menu_ids || []).forEach((key) => {
+          if (menuPages.some((m) => m.permission === key)) {
+            netLinks.push({ a: `e-role-${r.code}`, b: `e-menu-${key}`, cross: true });
           }
         });
       });
     }
 
-    if (layer === 3 && chain) {
-      const xs = [size.w * 0.3, size.w * 0.5, size.w * 0.7];
-      const y = size.h * 0.5;
-      const menus =
-        entity?.type === "group" && entity.group
-          ? entity.group.items.map((i) => ({ name: i.name, cat: entity.group!.cat }))
-          : entity
-          ? menusOf(entity.role).flatMap((g) => g.items.map((i) => ({ name: i.name, cat: g.cat })))
-          : [];
-      const shown = menus.slice(0, 18);
-      const total = Math.max(1, shown.length);
-      shown.forEach((m, i) => {
+    if (layer === 3 && twin) {
+      // 围绕中心节点的右列条目刻度弧（很淡的底纹）
+      const anchor = twin.center;
+      const kind = twin.right.kind;
+      const items = twin.right.nodes.filter((n) => n.interactive !== false).slice(0, 14);
+      const total = Math.max(1, items.length);
+      items.forEach((n, i) => {
         const ang = Math.PI * 0.62 + (i / total) * Math.PI * 1.76;
         const r = 76 + (i % 2) * 22;
-        const x = xs[2] + Math.cos(ang) * r;
-        const yy = y + Math.sin(ang) * r;
+        const x = anchor.x + Math.cos(ang) * r;
+        const yy = anchor.y + Math.sin(ang) * r;
         netNodes.push({
-          id: `mn-${i}`,
+          id: `bg-${kind}-${i}`,
           x,
           y: yy,
-          cat: m.cat,
+          cat: n.cat ?? 3,
           r: 2.4,
           depth: 1,
-          label: m.name,
-          angle: Math.atan2(yy - y, x - xs[2]),
+          label: n.label,
+          angle: Math.atan2(yy - anchor.y, x - anchor.x),
         });
-        netLinks.push({ a: "c-3", b: `mn-${i}`, cat: m.cat });
+        netLinks.push({ a: anchor.id, b: `bg-${kind}-${i}`, cat: n.cat ?? 3 });
       });
     }
 
     return { nodes: netNodes, links: netLinks };
-  }, [layer, chain, entity, dialPos, staff, roles, navGroups, size, moduleEntries, menusOf]);
+  }, [layer, twin, dialPos, staff, allRoles, menuPages, size, moduleEntries]);
 
   /* ---------- 交互 ---------- */
   const goLayer = (next: Layer) => {
@@ -904,48 +1004,29 @@ export default function RoleTrace() {
     return CATS.find((c) => c.key === hover.replace("d-", ""))?.cat ?? null;
   }, [layer, hover]);
 
-  const selectedNodeId = layer === 3 ? "c-3" : layer === 2 && module ? `d-${module}` : null;
+  const selectedNodeId = layer === 3 && twin ? twin.center.id : layer === 2 && module ? `d-${module}` : null;
 
-  /* ---------- 面包屑 ---------- */
-  const breadcrumb = (
-    <nav className="trace-crumbs" aria-label="溯源层级">
-      <button type="button" className={layer === 1 ? "is-current" : ""} onClick={() => goLayer(1)}>
-        <PartitionOutlined /> 全景
-      </button>
-      {layer >= 2 && module && (
-        <>
-          <span className="trace-sep">/</span>
-          <button type="button" className={layer === 2 ? "is-current" : ""} onClick={() => goLayer(2)}>
-            {CATS.find((c) => c.key === module)?.name}
-          </button>
-        </>
-      )}
-      {layer === 3 && entity && (
-        <>
-          <span className="trace-sep">/</span>
-          <button type="button" className="is-current" onClick={() => goLayer(3)}>
-            {entity.title}
-          </button>
-        </>
-      )}
-      {layer > 1 && (
-        <Button
-          size="small"
-          type="text"
-          icon={<ArrowLeftOutlined />}
-          onClick={() => goLayer((layer - 1) as Layer)}
-        >
-          返回
-        </Button>
-      )}
-    </nav>
-  );
+  /* Esc 逐层返回（对齐 scaffold） */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || view !== "trace") return;
+      if (layer === 3) goLayer(2);
+      else if (layer === 2) goLayer(1);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, layer]);
 
-  /* ---------- 信息卡内容 ---------- */
+  /* ---------- 信息卡内容（对齐 scaffold InsightPanel：tiles + insights + 可点击 chips） ---------- */
   const insight = useMemo(() => {
     if (layer !== 3 || !entity) return null;
     const stats: Array<{ label: string; value: ReactNode }> = [];
     const sections: InsightSection[] = [];
+
+    const chipRow = (id: string, name: string, meta?: string, cat?: number, tone?: "off" | "warn" | "ok") => ({
+      key: id, name, meta, cat, tone, onClick: () => { setEntityId(id); setBurstKey((k) => k + 1); },
+    });
 
     const aclRows = (role: string) =>
       aclRules
@@ -958,32 +1039,27 @@ export default function RoleTrace() {
           tone: r.enabled ? ("ok" as const) : ("off" as const),
         }));
 
-    const groupChips = (role: string) =>
-      menusOf(role).map((g) => ({
-        key: g.short,
-        name: g.short,
-        meta: g.label,
-        cat: g.cat,
-        badge: String(g.items.length),
-      }));
-
     if (entity.type === "user" && entity.person) {
       const p = entity.person;
+      const rs = rolesOfUser(p.role);
+      const pages = menusOfRole(p.role);
       stats.push({ label: "级别", value: `L${p.auth_level}` }, { label: "状态", value: p.work_status });
+      const insights: Array<{ tone: "info" | "warn" | "danger" | "ok"; title: string; text: string }> = [];
+      if (!rs.length) insights.push({ tone: "warn", title: "未分配角色", text: "该用户登录后看不到任何菜单。" });
+      if (rs.some((r) => r.builtin)) insights.push({ tone: "info", title: "超级管理员", text: "拥有全部菜单与按钮权限。" });
+      if (p.work_status !== "在职") insights.push({ tone: "danger", title: "账号不在岗", text: "账号已离岗，权限配置保持不变。" });
       sections.push(
         {
-          title: "身份",
-          rows: [
-            { key: "dept", name: "科室", meta: p.department || "未分配" },
-            { key: "title", name: "职称", meta: p.title || "—" },
-            { key: "role", name: "角色", meta: roleMeta(p.role).text, cat: roleMeta(p.role).cat },
-          ],
+          title: "持有角色",
+          chips: true,
+          rows: rs.map((r) => chipRow(`e-role-${r.code}`, r.name, r.code, roleMeta(r.code).cat)),
+          empty: "未分配角色",
         },
         {
-          title: "可进入的分组",
+          title: "可访问页面",
           chips: true,
-          rows: groupChips(p.role),
-          empty: "该角色未匹配到分组",
+          rows: pages.map((m) => chipRow(`e-menu-${m.permission}`, m.name, m.path, 3)),
+          empty: "该角色未获得页面授权",
         },
         {
           title: "数据权限规则",
@@ -991,56 +1067,72 @@ export default function RoleTrace() {
           empty: isAdmin ? "该角色暂无 DB 级规则（仅菜单级授权）" : "需管理员账号查看",
         }
       );
-    } else if (entity.type === "role" && entity.roleRow) {
-      const row = entity.roleRow;
-      stats.push(
-        { label: "成员", value: row.members.length },
-        { label: "菜单", value: menuCountOf(row.role) }
-      );
+      return { kind: "用户", status: p.department ? `所属部门：${p.department}` : "未分配部门", tiles: [{ label: "角色", value: rs.length }, { label: "页面", value: pages.length }, { label: "状态", value: p.work_status }], insights, stats, sections };
+    }
+
+    if (entity.type === "role") {
+      const code = entity.role;
+      const r = allRoles.find((x) => x.code === code);
+      const userIds = staff.filter((s) => s.role === code);
+      const pages = menusOfRole(code);
+      const insights: Array<{ tone: "info" | "warn" | "danger" | "ok"; title: string; text: string }> = [];
+      if (r?.builtin) insights.push({ tone: "info", title: "超级管理员", text: "内置角色，自动拥有全部菜单与按钮，不受授权勾选影响。" });
+      if (r && r.status !== 1) insights.push({ tone: "warn", title: "角色已停用", text: "持有该角色的用户不会获得其中任何权限。" });
+      if (!userIds.length) insights.push({ tone: "warn", title: "闲置角色", text: "没有分配给任何用户，可考虑停用或与相近角色合并。" });
+      const lonely = pages.filter((m) => holdersOfPage(m.permission).length === 1);
+      if (lonely.length && !r?.builtin) {
+        insights.push({ tone: "info", title: "独占授权", text: `${lonely.slice(0, 4).map((m) => m.name).join("、")}${lonely.length > 4 ? " 等" : ""} 仅由该角色授予，删除角色将导致无人可访问。` });
+      }
       sections.push(
         {
-          title: "成员",
-          rows: row.members.slice(0, 12).map((m) => ({
-            key: m.id,
-            name: m.real_name,
-            meta: `${m.title || m.department || "—"} · L${m.auth_level}`,
-            cat: row.meta.cat,
-          })),
-          empty: "暂无成员",
+          title: "持有用户",
+          chips: true,
+          rows: userIds.slice(0, 24).map((s) => chipRow(`e-user-${s.id}`, s.real_name, s.department || "", roleMeta(s.role).cat)),
+          empty: "暂无持有人",
         },
-        { title: "可进入的分组", chips: true, rows: groupChips(row.role) },
+        {
+          title: "可访问页面",
+          chips: true,
+          rows: pages.map((m) => chipRow(`e-menu-${m.permission}`, m.name, m.path, 3)),
+          empty: "未授权任何页面",
+        },
         {
           title: "数据权限规则",
-          rows: aclRows(row.role),
+          rows: aclRows(code),
           empty: isAdmin ? "该角色暂无 DB 级规则（仅菜单级授权）" : "需管理员账号查看",
         }
       );
-    } else if (entity.type === "group" && entity.group) {
-      const g = entity.group;
-      const holders = roles.filter((r) => r.meta.groups.includes(g.short));
-      stats.push({ label: "菜单", value: g.items.length }, { label: "角色", value: holders.length });
-      sections.push(
-        {
-          title: "菜单项",
-          rows: g.items.map((i) => ({ key: i.key, name: i.name, meta: i.to, cat: g.cat })),
-        },
-        {
-          title: "可进入角色",
-          chips: true,
-          rows: holders.map((h) => ({
-            key: h.role,
-            name: h.meta.text,
-            meta: `${h.members.length} 人`,
-            cat: h.meta.cat,
-            badge: String(h.members.length),
-          })),
-          empty: "暂无角色可进入",
-        }
-      );
+      return { kind: "角色", status: `${r ? (r.builtin ? "内置角色" : "自定义角色") : ""}`, tiles: [{ label: "页面", value: pages.length }, { label: "持有用户", value: userIds.length }, { label: "状态", value: r?.status === 1 ? "正常" : "停用" }], insights, stats, sections };
     }
 
-    return { stats, sections };
-  }, [layer, entity, aclRules, roles, isAdmin, menuCountOf, menusOf]);
+    // menu 实体
+    if (entity.type === "group" && entity.menu) {
+      const m = entity.menu;
+      const holders = holdersOfPage(m.permission);
+      const users = staff.filter((s) => holders.some((r) => r.code === s.role));
+      const insights: Array<{ tone: "info" | "warn" | "danger" | "ok"; title: string; text: string }> = [];
+      if (!holders.some((r) => !r.builtin)) insights.push({ tone: "warn", title: "孤立菜单", text: "除超级管理员外没有任何角色授予，普通用户无法访问。" });
+      if (m.visible === 0) insights.push({ tone: "info", title: "隐藏菜单", text: "不在侧栏显示，但有权限的用户仍可通过路由访问。" });
+      if (m.status !== 1) insights.push({ tone: "warn", title: "已停用", text: "停用后所有角色都无法访问该项。" });
+      sections.push(
+        {
+          title: "授予角色",
+          chips: true,
+          rows: holders.map((r) => chipRow(`e-role-${r.code}`, r.name, r.code, roleMeta(r.code).cat)),
+          empty: "仅超级管理员可见",
+        },
+        {
+          title: "可访问用户",
+          chips: true,
+          rows: users.slice(0, 24).map((s) => chipRow(`e-user-${s.id}`, s.real_name, s.department || "", roleMeta(s.role).cat)),
+          empty: "暂无用户持有授权角色",
+        }
+      );
+      return { kind: "页面", status: m.path, tiles: [{ label: "下级按钮", value: (m.children ?? []).length }, { label: "授予角色", value: holders.length }, { label: "覆盖用户", value: users.length }], insights, stats, sections };
+    }
+
+    return { kind: undefined, status: undefined, tiles: [], insights: [], stats, sections };
+  }, [layer, entity, aclRules, roles, isAdmin, allRoles, staff, menusOfRole, holdersOfPage, rolesOfUser]);
 
   /* 「问问权限」问答条：全景层底部；空数据（无责任链成员）时也保留入口 */
   const askBar =
@@ -1072,7 +1164,7 @@ export default function RoleTrace() {
             value={askQ}
             onChange={(e) => setAskQ(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") runAsk(); }}
-            placeholder="问问权限，例如「谁能进入药房」"
+            placeholder="问问权限…例如「谁能删除用户」"
             style={{ flex: 1, border: 0, outline: "none", fontSize: 13, background: "transparent", color: "var(--lv-ink)", minWidth: 0 }}
           />
           <button type="button" aria-label="发送" onClick={() => runAsk()}
@@ -1081,7 +1173,7 @@ export default function RoleTrace() {
           </button>
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", marginTop: 10 }}>
-          {["哪些角色没人用？", "哪些分组没人能进？", "权限最高的是谁？"].map((q) => (
+          {["谁能删除用户?", "哪些角色没人用?", "哪些用户没分配角色?"].map((q) => (
             <button key={q} type="button" onClick={() => { setAskQ(q); runAsk(q); }}
               style={{ border: "1px solid var(--lv-line)", background: "#fff", borderRadius: 999, padding: "5px 12px", fontSize: 12, cursor: "pointer", color: "var(--lv-muted)", transition: "color .15s ease" }}
               onMouseEnter={(e) => { e.currentTarget.style.color = "var(--lv-blue)"; }}
@@ -1113,13 +1205,9 @@ export default function RoleTrace() {
               { label: "溯源", value: "trace" },
             ]}
           />
-          <span className="lv-tag lv-tag--neutral">
-            <DatabaseOutlined />
-            {scope === "all"
-              ? `全院 ${staff.length} 人 · ${aclRules.length} 条规则`
-              : `责任链内 ${staff.length} 人`}
-          </span>
-          <button className="lv-btn" type="button" onClick={load}><ReloadOutlined /> 刷新</button>
+          {isAdmin && (
+            <button className="lv-btn lv-btn--primary" type="button" onClick={openCreate}><PlusOutlined /> 新增角色</button>
+          )}
         </div>
       </div>
 
@@ -1177,11 +1265,8 @@ export default function RoleTrace() {
               options={[{ value: "1", label: "正常" }, { value: "0", label: "停用" }]}
             />
             <div className="lv-query-actions">
-              <button className="lv-btn" type="button" onClick={() => { setRoleKw(kwInput.trim()); setRolePage(1); }}>查询</button>
-              <button className="lv-btn" type="button" onClick={() => { setKwInput(""); setRoleKw(""); setStatusF(""); setRolePage(1); }}>重置</button>
-              {isAdmin && (
-                <button className="lv-btn lv-btn--primary" type="button" onClick={openCreate}><PlusOutlined /> 新增角色</button>
-              )}
+              <button className="lv-btn" type="button" onClick={() => { setKwInput(""); setRoleKw(""); setStatusF(""); setRolePage(1); }}><ReloadOutlined /> 重置</button>
+              <button className="lv-btn lv-btn--primary" type="button" onClick={() => { setRoleKw(kwInput.trim()); setRolePage(1); }}><SearchOutlined /> 查询</button>
             </div>
           </div>
 
@@ -1192,6 +1277,7 @@ export default function RoleTrace() {
               <span className="lv-panel-title">角色列表</span>
               <span className="lv-panel-meta">共 {roleTotal} 条</span>
               <div className="lv-panel-tools">
+                <button className="icon-btn" title="导出 CSV" onClick={exportRoles}><DownloadOutlined /></button>
                 <button className="icon-btn" title="刷新" onClick={loadRoles}><ReloadOutlined /></button>
               </div>
             </div>
@@ -1259,19 +1345,7 @@ export default function RoleTrace() {
       {view === "trace" && (
       <>
       <section className="panel md-no-lift" style={{ overflow: "hidden" }}>
-        {layer > 1 && (
-          <div className="panel-head">
-            <div>
-              <h2>
-                <NodeIndexOutlined style={{ marginRight: 6 }} />
-                溯源下钻
-              </h2>
-              <small>方向键在节点之间移动，Esc 逐层返回</small>
-            </div>
-            {breadcrumb}
-          </div>
-        )}
-        <div className="panel-body" style={{ padding: layer === 1 ? 0 : undefined, paddingTop: 0 }}>
+        <div className="panel-body" style={{ padding: 0 }}>
           {loading ? (
             <div style={{ textAlign: "center", padding: 60 }}>
               <Spin />
@@ -1294,7 +1368,7 @@ export default function RoleTrace() {
                   size={size}
                   onSize={setSize}
                   activeId={selectedNodeId}
-                  highlight={layer === 3 ? ["c-1", "c-2", "c-3"] : null}
+                  highlight={layer === 3 && twin ? [twin.center.id, ...twin.left.nodes.map((n) => n.id), ...twin.right.nodes.map((n) => n.id)] : null}
                   network={network}
                   networkFocus={focusCat}
                   networkAlpha={layer === 1 ? (focusCat ? 0.95 : 0.5) : 0.42}
@@ -1313,38 +1387,40 @@ export default function RoleTrace() {
                     else if (layer === 2) goLayer(1);
                   }}
                   tl={
-                    layer === 1 ? (
-                      <div
-                        style={{
-                          display: "inline-flex", alignItems: "center", gap: 8,
-                          background: "#fff", borderRadius: 999, padding: "8px 16px",
-                          boxShadow: "var(--lv-e1)", border: "1px solid var(--lv-line)",
-                          fontSize: 13, fontWeight: 650, color: "var(--lv-ink)",
-                        }}
-                      >
-                        <span style={{ width: 7, height: 7, borderRadius: 999, background: "var(--lv-blue)" }} />
-                        权限全景
-                      </div>
-                    ) : (
-                      <div className="rg-hint">
-                        <AppstoreOutlined />
-                        <span>{layer === 2 ? "点开条目落到实体" : "实体链路：起点 → 中段 → 菜单"}</span>
-                      </div>
-                    )
+                    <nav className="trace-crumbs" aria-label="溯源路径">
+                      {layer !== 1 && (
+                        <button type="button" aria-label="返回上一层" onClick={() => goLayer((layer - 1) as Layer)}
+                          style={{ border: 0, background: "none", cursor: "pointer", color: "var(--lv-soft)", padding: "0 2px", fontSize: 13 }}>‹</button>
+                      )}
+                      <button type="button" className={layer === 1 ? "is-current" : ""} onClick={() => goLayer(1)}>
+                        <SafetyOutlined style={{ fontSize: 12 }} />权限全景
+                      </button>
+                      {layer >= 2 && module && (
+                        <>
+                          <span className="trace-sep" aria-hidden="true">/</span>
+                          <button type="button" className={layer === 2 ? "is-current" : ""} onClick={() => goLayer(2)}>
+                            {CATS.find((c) => c.key === module)?.name}
+                          </button>
+                        </>
+                      )}
+                      {layer === 3 && entity && (
+                        <>
+                          <span className="trace-sep" aria-hidden="true">/</span>
+                          <b className="is-current">{entity.title}</b>
+                        </>
+                      )}
+                    </nav>
                   }
                   tr={
                     layer === 1 ? (
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, auto)", gap: "2px 20px", background: "#fff", borderRadius: 14, border: "1px solid var(--lv-line)", boxShadow: "var(--lv-e1)", padding: "12px 18px" }}>
-                        {[["用户", staff.length], ["角色", roles.length], ["菜单", menuTotal]].map(([label, n]) => (
-                          <div key={label as string} style={{ textAlign: "center" }}>
-                            <div style={{ fontSize: 11, color: "var(--lv-faint)" }}>{label as string}</div>
-                            <div className="tnum" style={{ fontSize: 20, fontWeight: 700, color: "var(--lv-ink)" }}>{n as number}</div>
-                          </div>
-                        ))}
-                        <div className="tnum" style={{ fontSize: 11, color: "#b9770a", textAlign: "center" }}>独立角色 {idleRoles}</div>
-                        <div className="tnum" style={{ fontSize: 11, color: "#b9770a", textAlign: "center" }}>全局菜单 {globalMenus}</div>
-                        <div className="tnum" style={{ fontSize: 11, color: "#b9770a", textAlign: "center" }}>无角色用户 0</div>
-                      </div>
+                      <dl className="trace-legend">
+                        <div className="cat-1"><dt><i />用户</dt><dd className="tnum">{staff.length}</dd></div>
+                        <div className="cat-2"><dt><i />角色</dt><dd className="tnum">{allRoles.length}</dd></div>
+                        <div className="cat-3"><dt><i />菜单</dt><dd className="tnum">{menuPages.length}</dd></div>
+                        <div className="is-warn"><dt>闲置角色</dt><dd className="tnum">{idleRoleCount}</dd></div>
+                        <div className="is-warn"><dt>孤立菜单</dt><dd className="tnum">{orphanPageCount}</dd></div>
+                        <div className="is-warn"><dt>无角色用户</dt><dd className="tnum">{userlessCount}</dd></div>
+                      </dl>
                     ) : null
                   }
                   bl={
@@ -1368,10 +1444,15 @@ export default function RoleTrace() {
                 <InsightPanel
                   title={entity.title}
                   sub={entity.sub}
+                  kind={insight.kind}
+                  kindIcon={entity.type === "user" ? <UserOutlined /> : entity.type === "role" ? <SafetyCertificateOutlined /> : <AppstoreOutlined />}
                   cat={entity.cat}
+                  status={insight.status}
+                  tiles={insight.tiles}
+                  insights={insight.insights}
                   stats={insight.stats}
                   sections={insight.sections}
-                  note="链路来自真实配置：角色决定可进入的分组，分组决定可见菜单；DB 级规则取自数据权限表。"
+                  note="授权链来自真实数据：用户 → 角色（sys_roles）→ 页面（menu_items 授权）；DB 级规则取自数据权限表。"
                   actions={
                     <>
                       <Button size="small" icon={<TeamOutlined />} onClick={() => goLayer(2)}>
@@ -1389,16 +1470,7 @@ export default function RoleTrace() {
                   }
                   onClose={() => goLayer(2)}
                 />
-              ) : (
-                <div className="trace-side-hint">
-                  <UserOutlined />
-                  <span>
-                    {layer === 1
-                      ? "全景：三枚表盘分别是用户、角色、菜单。悬停表盘可看名称与跨类授权线。"
-                      : "点开任一胶囊条目，这里会给出该实体的角色、菜单与数据权限规则。"}
-                  </span>
-                </div>
-              )}
+              ) : null}
             </div>
           )}
         </div>
@@ -1418,7 +1490,7 @@ export default function RoleTrace() {
         onCancel={() => setFormOpen(false)}
         onOk={submitForm}
         confirmLoading={formSaving}
-        okText={editing ? "保存" : "新增"}
+        okText="保存"
         width={620}
         destroyOnHidden
       >

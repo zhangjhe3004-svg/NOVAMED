@@ -373,3 +373,47 @@ class SysRoleMenu(Base, TimestampMixin):
     id = Column(Integer, primary_key=True, index=True)
     role_id = Column(Integer, index=True, nullable=False)
     menu_key = Column(String(80), nullable=False)
+
+
+class MenuItem(Base, TimestampMixin):
+    """菜单（employee.db）—— 菜单管理页 CRUD 实体（对齐 scaffold sys_menu：目录/页面/按钮三级）"""
+    __tablename__ = "menu_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    parent_id = Column(Integer, default=0, index=True)   # 0=顶级
+    type = Column(String(10), default="menu")            # dir 目录 / menu 页面 / btn 按钮
+    name = Column(String(50), nullable=False)
+    icon = Column(String(50), default="")
+    path = Column(String(120), default="")               # 路由路径（dir/menu）
+    component = Column(String(120), default="")          # 组件路径（menu）
+    permission = Column(String(80), default="", index=True)  # 权限标识：页面=导航 key（与角色授权对应），按钮=medicode:<key>:<action>
+    sort = Column(Integer, default=0)
+    visible = Column(Integer, default=1)                 # 1 显示 / 0 隐藏
+    status = Column(Integer, default=1)                  # 1 正常 / 0 停用
+    builtin = Column(Boolean, default=False)             # 与前端导航同步的内置项（可编辑不可删导航主体？预留）
+
+
+class SysDept(Base, TimestampMixin):
+    """部门（employee.db）—— 部门管理页 CRUD 实体（对齐 scaffold sys_dept：组织架构树）"""
+    __tablename__ = "sys_depts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    parent_id = Column(Integer, default=0, index=True)   # 0=顶级
+    name = Column(String(100), nullable=False)
+    leader = Column(String(64), default="")              # 负责人（用户 real_name）
+    phone = Column(String(32), default="")
+    email = Column(String(128), default="")
+    sort = Column(Integer, default=0)
+    status = Column(Integer, default=1)                  # 1 正常 / 0 停用
+
+
+class SysPost(Base, TimestampMixin):
+    """岗位（employee.db）—— 岗位管理页 CRUD 实体（对齐 scaffold sys_post）"""
+    __tablename__ = "sys_posts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    post_code = Column(String(64), nullable=False, index=True)  # 岗位编码
+    post_name = Column(String(100), nullable=False)             # 岗位名称
+    sort = Column(Integer, default=0)
+    status = Column(Integer, default=1)                         # 1 正常 / 0 停用
+    remark = Column(String(500), default="")
