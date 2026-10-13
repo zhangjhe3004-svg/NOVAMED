@@ -375,6 +375,18 @@ class SysRoleMenu(Base, TimestampMixin):
     menu_key = Column(String(80), nullable=False)
 
 
+class SysUserRole(Base):
+    """用户-角色关联（employee.db）—— 对齐 scaffold sys_user_role（user_id, role_id 复合主键）。
+
+    说明：MediCode 用户角色主键仍以 users.role 枚举为准（认证链路强依赖），本表作为
+    与 scaffold SQL 结构对齐的关联表，供权限溯源图聚合时做「用户↔角色」映射。
+    """
+    __tablename__ = "sys_user_role"
+
+    user_id = Column(Integer, primary_key=True, index=True, nullable=False)
+    role_id = Column(Integer, primary_key=True, index=True, nullable=False)
+
+
 class MenuItem(Base, TimestampMixin):
     """菜单（employee.db）—— 菜单管理页 CRUD 实体（对齐 scaffold sys_menu：目录/页面/按钮三级）"""
     __tablename__ = "menu_items"

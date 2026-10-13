@@ -44,3 +44,7 @@ export const updateMenu = (id: number, body: Partial<MenuPayload>) =>
   api.put(`/menus/${id}`, body).then((r) => r.data);
 
 export const removeMenu = (id: number) => api.delete(`/menus/${id}`).then((r) => r.data);
+
+/** 菜单导出 CSV（对齐 scaffold /menus/export） */
+export const exportMenus = (params: { keyword?: string; status?: string } = {}) =>
+  api.get("/menus/export", { params, responseType: "blob" }).then((r) => r.data as Blob);

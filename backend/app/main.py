@@ -46,6 +46,7 @@ from .api.patient_account import router as patient_account_router
 from .api.patient_auth import router as patient_auth_router
 from .api.storage import router as storage_router
 from .api.nearby import router as nearby_router
+from .api.permissions import router as permissions_router
 from .core.dependencies import get_current_user
 from .core.security_headers import SecurityHeadersMiddleware
 from .core.rate_limit import RateLimitMiddleware
@@ -417,6 +418,7 @@ app.include_router(patient_account_router)  # 患者注册（/api/patient-regist
 app.include_router(patient_auth_router)  # 患者端认证（/api/patient-auth）
 app.include_router(storage_router)  # 多租户数据存储服务（/api/storage）
 app.include_router(nearby_router)  # 附近协作与数字权限（/api/nearby）
+app.include_router(permissions_router)  # 权限关系图（/api/permissions/graph）
 
 # 其余功能模块路由由 PluginManager 在 lifespan 启动时按启用状态挂载（见上方第5步）
 

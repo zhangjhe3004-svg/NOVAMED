@@ -24,8 +24,9 @@ import InsightPanel, { type InsightSection } from "../components/InsightPanel";
 import { buildNavGroups } from "../config/nav";
 import { useAuth } from "../stores/auth";
 import { listRoles, type RoleItem } from "../api/roles";
-import { fetchMenuTree, createMenu, updateMenu, removeMenu, type MenuItemRow, type MenuType } from "../api/menus";
+import { fetchMenuTree, createMenu, updateMenu, removeMenu, exportMenus, type MenuItemRow, type MenuType } from "../api/menus";
 import type { NetLink, NetNode } from "../utils/stage";
+import { downloadBlob } from "../utils/download";
 
 const CAT_INK: Record<number, string> = {
   1: "#7a5a16", 2: "#275a96", 3: "#5b4597", 4: "#94384c", 5: "#2d7140",
@@ -144,20 +145,13 @@ export default function MenuStarMap() {
     setExpandedKeys(tree.flatMap((d) => [d.id, ...(d.children ?? []).map((p) => p.id)]));
   }, [tree]);
 
-  const exportCsv = () => {
-    const rows: string[] = [["菜单名称", "类型", "权限标识", "路由路径", "组件路径", "排序", "显示", "状态"].join(",")];
-    const walk = (ns: MenuItemRow[], depth: number) => ns.forEach((m) => {
-      rows.push([`${"　".repeat(depth)}${m.name}`, TYPE_LABEL[m.type], m.permission, m.path, m.component,
-        String(m.sort), m.visible === 1 ? "显示" : "隐藏", m.status === 1 ? "正常" : "停用"].join(","));
-      walk(m.children ?? [], depth + 1);
-    });
-    walk(tree, 0);
-    const blob = new Blob(["\ufeff" + rows.join("\n")], { type: "text/csv;charset=utf-8" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "菜单列表.csv";
-    a.click();
-    URL.revokeObjectURL(a.href);
+  const exportCsv = async () => {
+    try {
+      const blob = await exportMenus({ keyword: kw || undefined, status: statusF || undefined });
+      downloadBlob(blob, "菜单列表.csv");
+    } catch {
+      message.error("导出失败");
+    }
   };
 
   /* ---------- 新增 / 编辑弹窗 ---------- */

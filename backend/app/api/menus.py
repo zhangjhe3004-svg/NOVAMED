@@ -8,6 +8,7 @@
 - 内置页面/目录 builtin=True：可编辑（改名/排序/显隐）但删除按钮级不受限；目录删除需先清空子项。
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
@@ -18,6 +19,16 @@ from ..models.models import MenuItem
 router = APIRouter(prefix="/api/menus", tags=["菜单管理"])
 
 TYPES = ("dir", "menu", "btn")
+
+
+def _csv_cell(value) -> str:
+    """CSV 单元格转义（对齐 scaffold csvCell）。"""
+    text = "" if value is None else str(value)
+    if '"' in text:
+        text = text.replace('"', '""')
+    if "," in text or '"' in text or "\n" in text or "\r" in text:
+        return f'"{text}"'
+    return text
 
 # 内置菜单树种子（与前端 config/nav.tsx 的 buildNavGroups 同源）
 _SEED_DIRS = [
@@ -179,6 +190,31 @@ def menu_tree(keyword: str = None, status: str = None,
         return out
 
     return {"items": build(0), "total": len(rows)}
+
+
+@router.get("/export")
+def export_menus(keyword: str = None, status: str = None,
+                 _=Depends(require_admin), db: Session = Depends(get_employee_db)):
+    """菜单导出 CSV（对齐 scaffold /menus/export：菜单名称/类型/图标/路由地址/组件路径/权限标识/排序/状态）。"""
+    _ensure_seeded(db)
+    q = db.query(MenuItem)
+    if keyword:
+        like = f"%{keyword}%"
+        q = q.filter(or_(MenuItem.name.like(like), MenuItem.permission.like(like)))
+    if status not in (None, ""):
+        q = q.filter(MenuItem.status == int(status))
+    rows = q.order_by(MenuItem.sort.asc(), MenuItem.id.asc()).all()
+    lines = ["菜单名称,类型,图标,路由地址,组件路径,权限标识,排序,状态"]
+    for m in rows:
+        lines.append(",".join(_csv_cell(c) for c in [
+            m.name, m.type, m.icon or "", m.path or "", m.component or "",
+            m.permission or "", m.sort, "正常" if m.status == 1 else "停用",
+        ]))
+    return Response(
+        content="\n".join(lines),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="menus.csv"'},
+    )
 
 
 @router.post("")

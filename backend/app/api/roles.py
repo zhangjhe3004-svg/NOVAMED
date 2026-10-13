@@ -8,6 +8,7 @@
 - builtin 角色（admin）只读：不可编辑/删除/改授权。
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
@@ -20,22 +21,54 @@ router = APIRouter(prefix="/api/roles", tags=["角色管理"])
 SCOPES = {"ALL", "DEPT_AND_CHILD", "DEPT", "SELF", "CUSTOM"}
 
 
+def _csv_cell(value) -> str:
+    """CSV 单元格转义（对齐 scaffold csvCell：含逗号/引号/换行时加引号）。"""
+    text = "" if value is None else str(value)
+    if '"' in text:
+        text = text.replace('"', '""')
+    if "," in text or '"' in text or "\n" in text or "\r" in text:
+        return f'"{text}"'
+    return text
+
+
 def _ensure_seeded(db: Session) -> None:
-    """首次访问时播种内置角色（幂等）。"""
-    if db.query(func.count(SysRole.id)).scalar():
+    """播种内置角色（幂等）：空库写入默认角色；super_admin 恒保证存在并授予全部菜单。"""
+    if db.query(func.count(SysRole.id)).scalar() == 0:
+        seeds = [
+            ("admin", "管理员", "ALL", 1, True),
+            ("doctor", "医生", "DEPT_AND_CHILD", 2, False),
+            ("nurse", "护士", "DEPT", 3, False),
+            ("pharmacist", "药剂师", "DEPT", 4, False),
+            ("senior", "高级职称", "DEPT_AND_CHILD", 5, False),
+            ("maintainer", "运维", "CUSTOM", 6, False),
+            ("staff", "员工", "SELF", 7, False),
+        ]
+        for code, name, scope, sort, builtin in seeds:
+            db.add(SysRole(name=name, code=code, data_scope=scope, sort=sort, status=1,
+                           builtin=builtin, remark=""))
+    # super_admin：对齐 scaffold 内置角色（拥有全部权限，不可删除）
+    if not db.query(SysRole).filter(SysRole.code == "super_admin").first():
+        db.add(SysRole(name="超级管理员", code="super_admin", data_scope="ALL", sort=0,
+                       status=1, builtin=True, remark="系统最高权限，不可删除"))
+    db.commit()
+    _grant_super_admin_all(db)
+
+
+def _grant_super_admin_all(db: Session) -> None:
+    """super_admin 拥有全部菜单授权（对齐 scaffold：超级管理员拥有全部菜单）。幂等。"""
+    from ..models.models import MenuItem
+    from .menus import _ensure_seeded as _ensure_menus_seeded
+    r = db.query(SysRole).filter(SysRole.code == "super_admin").first()
+    if not r:
         return
-    seeds = [
-        ("admin", "管理员", "ALL", 1, True),
-        ("doctor", "医生", "DEPT_AND_CHILD", 2, False),
-        ("nurse", "护士", "DEPT", 3, False),
-        ("pharmacist", "药剂师", "DEPT", 4, False),
-        ("senior", "高级职称", "DEPT_AND_CHILD", 5, False),
-        ("maintainer", "运维", "CUSTOM", 6, False),
-        ("staff", "员工", "SELF", 7, False),
-    ]
-    for code, name, scope, sort, builtin in seeds:
-        db.add(SysRole(name=name, code=code, data_scope=scope, sort=sort, status=1,
-                       builtin=builtin, remark=""))
+    # 已有授权行视为已配置，不再重复
+    if db.query(func.count(SysRoleMenu.id)).filter(SysRoleMenu.role_id == r.id).scalar():
+        return
+    _ensure_menus_seeded(db)
+    keys = [m.permission for m in db.query(MenuItem.permission)
+            .filter(MenuItem.type == "menu", MenuItem.permission != "").all()]
+    for k in dict.fromkeys(keys):
+        db.add(SysRoleMenu(role_id=r.id, menu_key=k))
     db.commit()
 
 
@@ -83,6 +116,33 @@ def list_roles(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=1
         "menu_ids": _menu_ids(db, r.id),
     } for r in rows]
     return {"total": total, "items": items}
+
+
+@router.get("/export")
+def export_roles(keyword: str = None, status: str = None,
+                 _=Depends(require_admin), db: Session = Depends(get_employee_db)):
+    """角色导出 CSV（对齐 scaffold /roles/export：角色名称/权限字符/数据权限/状态/创建时间/备注）。"""
+    _ensure_seeded(db)
+    q = db.query(SysRole)
+    if keyword:
+        like = f"%{keyword}%"
+        q = q.filter(or_(SysRole.name.like(like), SysRole.code.like(like)))
+    if status not in (None, ""):
+        q = q.filter(SysRole.status == int(status))
+    rows = q.order_by(SysRole.sort.asc(), SysRole.id.asc()).all()
+    lines = ["角色名称,权限字符,数据权限,状态,创建时间,备注"]
+    for r in rows:
+        lines.append(",".join(_csv_cell(c) for c in [
+            r.name, r.code, r.data_scope,
+            "正常" if r.status == 1 else "停用",
+            r.created_at.isoformat() if r.created_at else "",
+            r.remark or "",
+        ]))
+    return Response(
+        content="\n".join(lines),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="roles.csv"'},
+    )
 
 
 @router.post("")

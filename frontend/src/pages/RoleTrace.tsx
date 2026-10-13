@@ -39,10 +39,11 @@ import { listRules } from "../api/acl";
 import { buildNavGroups, roleMeta, type NavGroup } from "../config/nav";
 import StageGraph, { type GraphLink, type GraphNode } from "../components/StageGraph";
 import PermissionMatrix, { type MatrixChange } from "../components/PermissionMatrix";
-import { listRoles, createRole, updateRole, removeRole, saveRoleMenus, type RoleItem } from "../api/roles";
+import { listRoles, createRole, updateRole, removeRole, saveRoleMenus, exportRoles as exportRolesCsv, type RoleItem } from "../api/roles";
 import { fetchMenuTree, type MenuItemRow } from "../api/menus";
 import InsightPanel, { type InsightSection } from "../components/InsightPanel";
 import { ask, type AnswerCard } from "../utils/ask";
+import { downloadBlob } from "../utils/download";
 import type { NetLink, NetNode } from "../utils/stage";
 
 type Layer = 1 | 2 | 3;
@@ -162,19 +163,14 @@ export default function RoleTrace() {
   }, [rolePage, roleKw, statusF]);
   useEffect(() => { if (view !== "trace") loadRoles(); }, [view, loadRoles]);
 
-  /** 导出当前页角色为 CSV（对齐 scaffold 列表面板的导出按钮） */
-  const exportRoles = () => {
-    const head = ["角色名称", "角色编码", "数据权限", "用户数", "排序", "状态", "创建时间"];
-    const lines = roleRows.map((r) => [
-      r.name, r.code, SCOPE_LABELS[r.data_scope] || r.data_scope,
-      r.user_count ?? 0, r.sort, r.status === 1 ? "正常" : "停用", r.created_at || "",
-    ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","));
-    const blob = new Blob(["\uFEFF" + [head.join(","), ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `角色列表_${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(a.href);
+  /** 导出角色 CSV（对齐 scaffold：走 /api/roles/export，按关键词/状态过滤导出全量） */
+  const exportRoles = async () => {
+    try {
+      const blob = await exportRolesCsv({ keyword: roleKw || undefined, status: statusF || undefined });
+      downloadBlob(blob, "roles.csv");
+    } catch {
+      message.error("导出失败");
+    }
   };
 
   /* ---------- 溯源数据：DB 菜单树页面 + 全量角色授权（sys_role_menus） ---------- */
