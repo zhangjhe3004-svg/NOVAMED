@@ -8,12 +8,14 @@ export interface RoleItem {
   name: string;
   code: string;
   data_scope: string;
+  data_scope_text?: string;
   sort: number;
   status: number;
   builtin: boolean;
   remark: string;
   user_count: number;
   created_at: string | null;
+  create_time?: string | null;
   menu_ids: string[] | null;
 }
 

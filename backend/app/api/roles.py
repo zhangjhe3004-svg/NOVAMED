@@ -20,6 +20,15 @@ router = APIRouter(prefix="/api/roles", tags=["角色管理"])
 
 SCOPES = {"ALL", "DEPT_AND_CHILD", "DEPT", "SELF", "CUSTOM"}
 
+# 数据权限中文文案（对齐 scaffold SystemManagementMapper 的 dataScope CASE WHEN）
+SCOPE_TEXT = {
+    "ALL": "全部数据权限",
+    "DEPT_AND_CHILD": "本部门及以下",
+    "DEPT": "本部门数据权限",
+    "SELF": "仅本人数据权限",
+    "CUSTOM": "自定义数据权限",
+}
+
 
 def _csv_cell(value) -> str:
     """CSV 单元格转义（对齐 scaffold csvCell：含逗号/引号/换行时加引号）。"""
@@ -111,8 +120,11 @@ def list_roles(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=1
     rows = q.order_by(SysRole.sort.asc(), SysRole.id.asc()).offset((page - 1) * page_size).limit(page_size).all()
     items = [{
         "id": r.id, "name": r.name, "code": r.code, "data_scope": r.data_scope,
+        "data_scope_text": SCOPE_TEXT.get(r.data_scope, r.data_scope),
         "sort": r.sort, "status": r.status, "builtin": bool(r.builtin), "remark": r.remark or "",
-        "user_count": _user_count(db, r.code), "created_at": r.created_at.isoformat() if r.created_at else None,
+        "user_count": _user_count(db, r.code),
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+        "create_time": r.created_at.strftime("%Y-%m-%d %H:%M") if r.created_at else None,
         "menu_ids": _menu_ids(db, r.id),
     } for r in rows]
     return {"total": total, "items": items}

@@ -1299,7 +1299,7 @@ export default function RoleTrace() {
                     </div>
                   ),
                 },
-                { title: "数据权限", dataIndex: "data_scope", width: 160, render: (v: string) => <span style={{ color: "var(--lv-muted)" }}>{SCOPE_LABELS[v] || v}</span> },
+                { title: "数据权限", dataIndex: "data_scope", width: 160, render: (v: string, r: RoleItem) => <span style={{ color: "var(--lv-muted)" }}>{r.data_scope_text || SCOPE_LABELS[v] || v}</span> },
                 { title: "用户数", dataIndex: "user_count", width: 80, align: "right" as const, render: (v: number) => <span className="tnum">{v}</span> },
                 { title: "排序", dataIndex: "sort", width: 70, align: "right" as const, render: (v: number) => <span className="tnum" style={{ color: "var(--lv-soft)" }}>{v}</span> },
                 {
@@ -1308,7 +1308,7 @@ export default function RoleTrace() {
                     <span className={`lv-tag ${v === 1 ? "lv-tag--leaf" : "lv-tag--gray"}`}><span className="lv-tag-dot" />{v === 1 ? "正常" : "停用"}</span>
                   ),
                 },
-                { title: "创建时间", dataIndex: "created_at", width: 150, render: (v: string) => <span className="tnum" style={{ color: "var(--lv-soft)" }}>{v ? new Date(v).toLocaleString("zh-CN", { hour12: false }) : "—"}</span> },
+                { title: "创建时间", dataIndex: "created_at", width: 150, render: (v: string, r: RoleItem) => <span className="tnum" style={{ color: "var(--lv-soft)" }}>{r.create_time || (v ? new Date(v).toLocaleString("zh-CN", { hour12: false }) : "—")}</span> },
                 {
                   title: "操作", width: 130, fixed: "right" as const, className: "col-actions",
                   render: (_: any, r: RoleItem) =>
