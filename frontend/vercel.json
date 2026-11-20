@@ -1,0 +1,18 @@
+{
+  "buildCommand": "npm run build:all",
+  "outputDirectory": "dist",
+  "rewrites": [
+    {
+      "source": "/patient-console",
+      "destination": "/patient/index.html"
+    },
+    {
+      "source": "/patient-console/:path*",
+      "destination": "/patient/index.html"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

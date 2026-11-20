@@ -14,7 +14,9 @@ DATA_DIR = Path(__file__).resolve().parents[2] / "db"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 DEFAULT_URL = f"sqlite:///{(DATA_DIR / 'storage.db')}"
-STORAGE_URL = settings.STORAGE_DATABASE_URL or DEFAULT_URL
+STORAGE_URL = settings.STORAGE_DATABASE_URL or (
+    settings.DATABASE_URL if "sqlite" not in settings.DATABASE_URL.lower() else DEFAULT_URL
+)
 
 
 def _make_storage_engine(url: str):
