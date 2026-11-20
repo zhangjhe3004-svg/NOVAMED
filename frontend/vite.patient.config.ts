@@ -2,10 +2,15 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 // 患者系统前端 —— 独立端口 3005，独立入口 patient/index.html
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   root: "patient",
+  base: mode === "production" ? "/patient/" : "/",
   plugins: [react()],
   cacheDir: "node_modules/.vite-patient",
+  build: {
+    outDir: "../dist/patient",
+    emptyOutDir: false,
+  },
   server: {
     host: "0.0.0.0",
     port: 3005,
@@ -18,4 +23,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));

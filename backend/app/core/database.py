@@ -30,17 +30,27 @@ def _make_engine(url: str, fk: bool = True):
             cursor.close()
 
         return e
-    return create_engine(url, echo=settings.DEBUG, pool_size=10, max_overflow=20)
+    return create_engine(
+        url,
+        echo=settings.DEBUG,
+        pool_size=10,
+        max_overflow=20,
+        pool_pre_ping=True,
+    )
 
 
-# 患者域 / 员工域 独立库（backend/data/ 下一个文件夹，两个库文件并存）
-PATIENT_DB_URL = f"sqlite:///{(DATA_DIR / 'patient.db')}"
-EMPLOYEE_DB_URL = f"sqlite:///{(DATA_DIR / 'employee.db')}"
+# 开发环境仍用两份 SQLite；生产环境将患者域和员工域表放入同一个 PostgreSQL 数据库。
+if "sqlite" in settings.DATABASE_URL.lower():
+    PATIENT_DB_URL = f"sqlite:///{(DATA_DIR / 'patient.db')}"
+    EMPLOYEE_DB_URL = f"sqlite:///{(DATA_DIR / 'employee.db')}"
+else:
+    PATIENT_DB_URL = settings.DATABASE_URL
+    EMPLOYEE_DB_URL = settings.DATABASE_URL
 
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-# 患者库跨库引用员工 users（appointments.doctor_id -> users.id），因此关闭其外键校验；
-# 员工库保留外键校验。
+# 患者域与员工域在开发环境使用独立 SQLite 文件；生产环境使用同一 PostgreSQL 数据库，
+# 因历史模型存在跨域引用，不在患者库引擎上启用 SQLite 外键校验。
 patient_engine = _make_engine(PATIENT_DB_URL, fk=False)
 employee_engine = _make_engine(EMPLOYEE_DB_URL)
 
@@ -105,7 +115,7 @@ def init_db():
 
 def _ensure_columns():
     """轻量迁移：对存在缺列的表执行 ALTER TABLE ADD COLUMN，按域分别处理"""
-    if "sqlite" not in settings.DATABASE_URL and "sqlite" not in PATIENT_DB_URL:
+    if "sqlite" not in PATIENT_DB_URL.lower() or "sqlite" not in EMPLOYEE_DB_URL.lower():
         return
     plan = {
         employee_engine: {

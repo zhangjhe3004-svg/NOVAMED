@@ -14,7 +14,7 @@
     浏览器打开 http://localhost:8000/docs
 
 ============ 默认账号 ============
-管理员: admin / admin123
+开发模式默认管理员: admin / admin
 
 ============ 技术架构 ============
 ├── FastAPI: Web框架，自动生成API文档
@@ -61,22 +61,23 @@ async def lifespan(app: FastAPI):
     print("=" * 50)
 
     # 安全基线提示
-    if settings.SECRET_KEY == "change-this-to-a-random-secret-key-in-production":
-        print("[安全警告] SECRET_KEY 仍为默认值，生产环境必须通过环境变量覆盖")
+    if settings.DEBUG and len(settings.SECRET_KEY) < 32:
+        print("[安全提示] 当前为开发模式；部署时必须配置强随机 SECRET_KEY")
     if not settings.FERNET_KEY:
         print("[安全提示] 未配置 FERNET_KEY，PHI 字段级加密未启用（开发模式可接受）")
 
     # 1. 初始化SQLite数据库
     init_db()
-    print("[启动] SQLite 数据库已初始化")
+    print("[启动] 业务数据库已初始化")
 
     # 1a. 启动定时任务后台调度线程
-    try:
-        from .api.tasks import start_scheduler
-        start_scheduler()
-        print("[启动] 定时任务调度线程已启动")
-    except Exception as e:
-        print(f"[启动] 定时任务调度线程启动失败: {e}")
+    if settings.ENABLE_TASK_SCHEDULER:
+        try:
+            from .api.tasks import start_scheduler
+            start_scheduler()
+            print("[启动] 定时任务调度线程已启动")
+        except Exception as e:
+            print(f"[启动] 定时任务调度线程启动失败: {e}")
 
     # 1b. 初始化多租户数据存储库
     try:
@@ -86,15 +87,18 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"[启动] 数据存储库初始化失败: {e}")
 
-    # 2. 确保默认管理员存在
-    _ensure_default_admin()
-
-    # 2a. 确保演示员工账号存在（责任链层级）
-    _ensure_demo_staff()
-    _ensure_bulk_staff()
-
-    # 2d. 确保演示号源存在（患者端预约挂号）
-    _ensure_demo_schedules()
+    # 2. 演示账号只允许出现在开发环境；生产环境仅按显式配置创建首个管理员。
+    if settings.DEBUG:
+        _ensure_default_admin()
+        _ensure_demo_staff()
+        _ensure_bulk_staff()
+        _ensure_demo_schedules()
+        try:
+            _ensure_default_patient()
+        except Exception as e:
+            print(f"[警告] 默认患者账号初始化失败（不影响启动）: {e}")
+    else:
+        _ensure_bootstrap_admin()
 
     # 2c. 确保默认数字权限级别（1-9）存在
     try:
@@ -102,12 +106,6 @@ async def lifespan(app: FastAPI):
         seed_permission_levels()
     except Exception as e:
         print(f"[警告] 数字权限级别初始化失败（不影响启动）: {e}")
-
-    # 2b. 确保默认患者账号存在（手机号 admin / 密码 admin）
-    try:
-        _ensure_default_patient()
-    except Exception as e:
-        print(f"[警告] 默认患者账号初始化失败（不影响启动）: {e}")
 
     # 3. 尝试初始化MongoDB（失败也不影响系统运行）
     try:
@@ -135,7 +133,7 @@ async def lifespan(app: FastAPI):
     # 6. 员工域低代码引擎播种（幂等：建集合/页面/权限/流程 + 演示数据）
     try:
         from .services.seed_lowcode import seed_lowcode
-        seed_lowcode()
+        seed_lowcode(include_demo_data=settings.DEBUG)
     except Exception as e:
         print(f"[启动] 员工域播种失败（不影响主功能）: {e}")
 
@@ -175,6 +173,36 @@ def _ensure_default_admin():
             print("[初始化] 默认管理员已创建: admin / admin")
         else:
             print("[初始化] 默认管理员已存在 (admin / admin)")
+    finally:
+        db.close()
+
+
+def _ensure_bootstrap_admin():
+    """Create the first production administrator only when explicit credentials are configured."""
+    username = settings.BOOTSTRAP_ADMIN_USERNAME
+    password = settings.BOOTSTRAP_ADMIN_PASSWORD
+    if not username or not password:
+        print("[启动] 未配置首个管理员账号；请在生产环境设置 BOOTSTRAP_ADMIN_USERNAME 和 BOOTSTRAP_ADMIN_PASSWORD")
+        return
+    if len(password) < 12:
+        raise ValueError("BOOTSTRAP_ADMIN_PASSWORD 至少需要 12 个字符")
+
+    from .core.database import employee_session
+    from .models.models import User, UserRole
+    from .core.security import hash_password
+
+    db = employee_session()
+    try:
+        if db.query(User).filter(User.username == username).first():
+            return
+        db.add(User(
+            username=username,
+            hashed_password=hash_password(password),
+            real_name="系统管理员",
+            role=UserRole.ADMIN,
+        ))
+        db.commit()
+        print("[启动] 已按显式配置创建首个管理员账号")
     finally:
         db.close()
 
@@ -382,14 +410,14 @@ app = FastAPI(
 - 📚 **知识库**: 医学知识积累与检索
 
 ### 技术栈
-- FastAPI + SQLAlchemy + SQLite/PostgreSQL
+- FastAPI + SQLAlchemy + PostgreSQL/SQLite
 - MongoDB + FAISS 向量搜索
 - React + TypeScript + Ant Design
 - Docker 容器化部署
     """,
     lifespan=lifespan,
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url="/docs" if settings.DEBUG else None,
+    redoc_url="/redoc" if settings.DEBUG else None,
 )
 
 # CORS 跨域配置（鉴权走 Bearer header，无需 cookie 凭据；多机并发允许任意来源）
@@ -430,7 +458,7 @@ def root():
         "name": settings.APP_NAME,
         "version": settings.APP_VERSION,
         "status": "running",
-        "docs": "/docs",
+        "docs": "/docs" if settings.DEBUG else None,
     }
 
 

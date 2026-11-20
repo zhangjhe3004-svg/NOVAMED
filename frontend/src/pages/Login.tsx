@@ -24,8 +24,9 @@ import NeuralNet from "../components/NeuralNet";
 const INTRO_KEY = "medicode.login-intro";
 
 /** 患者端独立 SPA（不同端口 = 不同源，sessionStorage 不共享，走 SSO 落地） */
+const isDevelopment = import.meta.env.DEV;
 const PATIENT_ORIGIN: string =
-  (import.meta as any).env?.VITE_PATIENT_ORIGIN || "http://localhost:3005";
+  import.meta.env.VITE_PATIENT_ORIGIN || (isDevelopment ? "http://localhost:3005" : window.location.origin);
 
 /* 秒针刻度：60 根，主刻度每 5 根 */
 const TICKS = Array.from({ length: 60 }, (_, i) => {
@@ -66,8 +67,8 @@ export default function LoginPage() {
   const probeHealth = async () => {
     const start = performance.now();
     try {
-      const res = await fetch("/api/health");
-      setHealth({ ok: res.ok, latency: Math.round(performance.now() - start) });
+      await api.get("/health");
+      setHealth({ ok: true, latency: Math.round(performance.now() - start) });
     } catch {
       setHealth({ ok: false, latency: null });
     }
@@ -200,7 +201,7 @@ export default function LoginPage() {
   };
 
   const handleDemoLogin = async () => {
-    // 演示模式登录：患者模式直通患者端（admin/admin），员工模式进工作空间
+    if (!isDevelopment) return;
     setLoading(true);
     try {
       if (mode === "patient") {
@@ -450,7 +451,7 @@ export default function LoginPage() {
               fontSize: 10,
             }}
           >
-            UI 设计原型 · 不连接真实服务
+            {isDevelopment ? "本地开发环境" : "授权账号登录"}
           </span>
         </div>
 
@@ -682,37 +683,39 @@ export default function LoginPage() {
               </div>
             </Form>
 
-            {/* 分隔线 */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                color: "#a6b2c2",
-                fontSize: 10,
-                margin: "20px 0",
-              }}
-            >
-              <span style={{ height: 1, background: "#edf1f6", flex: 1 }}></span>
-              快速预览，无需真实账号
-              <span style={{ height: 1, background: "#edf1f6", flex: 1 }}></span>
-            </div>
-
-            <Button
-              onClick={handleDemoLogin}
-              style={{
-                width: "100%",
-                height: 43,
-                background: "white",
-                border: "1px solid #e4ebf4",
-                borderRadius: 8,
-                fontSize: 12,
-                color: "#5e779a",
-                cursor: "pointer",
-              }}
-            >
-              使用演示身份进入
-            </Button>
+            {isDevelopment && (
+              <>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    color: "#a6b2c2",
+                    fontSize: 10,
+                    margin: "20px 0",
+                  }}
+                >
+                  <span style={{ height: 1, background: "#edf1f6", flex: 1 }}></span>
+                  快速预览，仅限开发环境
+                  <span style={{ height: 1, background: "#edf1f6", flex: 1 }}></span>
+                </div>
+                <Button
+                  onClick={handleDemoLogin}
+                  style={{
+                    width: "100%",
+                    height: 43,
+                    background: "white",
+                    border: "1px solid #e4ebf4",
+                    borderRadius: 8,
+                    fontSize: 12,
+                    color: "#5e779a",
+                    cursor: "pointer",
+                  }}
+                >
+                  使用演示身份进入
+                </Button>
+              </>
+            )}
 
             {mode === "staff" && (
               <Button
@@ -743,7 +746,7 @@ export default function LoginPage() {
                 margin: "16px 0 0",
               }}
             >
-              本页用于设计评审，输入内容不上传、不存储。
+              请使用经授权的账号登录，不要与他人共享账号。
             </p>
           </div>
         </div>

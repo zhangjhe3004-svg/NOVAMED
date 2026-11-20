@@ -16,7 +16,8 @@
 ```bash
 # 后端（端口 18001，热重载）
 cd backend
-uvicorn app.main:app --reload --port 8000   # 实际运行实例监听 18001 时以启动脚本为准
+cp ../.env.example .env  # 首次启动时创建本地开发配置
+uvicorn app.main:app --reload --port 18001
 
 # 前端员工端（端口 3051）
 cd frontend
@@ -43,7 +44,15 @@ npm run dev:patient
   - 员工端（`src/stores/auth.tsx`、`src/api/client.ts`）与患者端（`patient/pages/Login.tsx`、`patient/App.tsx`）均已隔离
   - 认证接口限流按「客户端 IP + 路径」计数（60s 内 20 次），多账户并发登录不会触发
 
-> 生产部署建议：将 `app/core/config.py` 的 `SECRET_KEY` 通过环境变量覆盖为强随机值；数据库从 SQLite 迁移到 PostgreSQL + pgbouncer 以支撑万级并发（配置项已预留 `STORAGE_*`）。
+> 生产部署注意：生产环境必须使用 PostgreSQL、独立强随机 `SECRET_KEY` 和精确的前端 `CORS_ORIGINS`。生产启动不会创建演示账号或演示患者数据；可通过 `BOOTSTRAP_ADMIN_USERNAME` 与 `BOOTSTRAP_ADMIN_PASSWORD` 显式创建首位管理员。
+
+## 生产部署（Vercel + Render + Neon）
+
+- Render 使用仓库根目录的 `render.yaml` 部署 FastAPI；该服务使用单个 Uvicorn worker，避免进程内调度器重复执行。`nearby_files` 使用持久磁盘保存互传附件。
+- Render 环境变量需填写 Neon 的 PostgreSQL `DATABASE_URL`、前端域名 JSON 数组形式的 `CORS_ORIGINS`，以及首位管理员账号和密码。`SECRET_KEY` 由 Render 自动生成。不要在前端或代码库中保存这些值。
+- Vercel 网页项目根目录设为 `frontend`，由 `frontend/vercel.json` 一次构建员工端和患者端；患者端入口为 `/patient-console`。
+- 在 Vercel 为 Production 与 Preview 配置 `VITE_API_BASE_URL=https://<Render 服务域名>/api`，并在 Render 的 `CORS_ORIGINS` 中加入对应 Vercel 域名。配置 Render URL 后重新部署 Vercel。
+- 生产环境启动会创建 SQLAlchemy 定义的业务表；Neon Auth 管理表与本系统 JWT 用户表分开使用。启用真实医疗数据前，还需完成权限、加密、备份、隐私和适用法规的独立安全审查；当前仓库本身不构成合规认证。
 
 ## 目录结构
 

@@ -7,7 +7,7 @@ import PatientConsole from "../src/pages/PatientConsole";
 
 /** 员工端（统一登录入口）地址：患者端不再提供独立登录页，未登录一律回员工端 */
 const STAFF_ORIGIN: string =
-  (import.meta as any).env?.VITE_STAFF_ORIGIN || "http://localhost:3051";
+  import.meta.env.VITE_STAFF_ORIGIN || (import.meta.env.DEV ? "http://localhost:3051" : window.location.origin);
 
 /* ── SSO 落地引导：员工端登录页「患者登录」直通 ──
    跳转形如 /patient-console#/sso=<token>。模块加载即解析（先于任何路由守卫）：
