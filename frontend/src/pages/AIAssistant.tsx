@@ -310,7 +310,7 @@ export default function AIAssistant() {
       {/* 页头 */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "16px 24px", flexWrap: "wrap" }}>
         <div>
-          <div style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>AI 辅助诊断</div>
+          <div className="md-page-title" style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>AI 辅助诊断</div>
           <div style={{ color: "var(--lv-muted)", fontSize: 13, marginTop: 6 }}>基于症状描述、知识库与相似病例给出可核查的候选诊断；最终结论由医生确认。</div>
         </div>
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>

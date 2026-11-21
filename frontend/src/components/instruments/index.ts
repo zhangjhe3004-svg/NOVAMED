@@ -15,6 +15,7 @@ export { default as Ruler } from "./Ruler";
 export { default as SpecPlate } from "./SpecPlate";
 export { default as KpiTile } from "./KpiTile";
 export { default as HeatGrid } from "./HeatGrid";
+export { default as Swimlane } from "./Swimlane";
 
 export type { OdometerProps } from "./Odometer";
 export type { MetricProps } from "./Metric";
@@ -27,3 +28,4 @@ export type { RulerProps } from "./Ruler";
 export type { SpecPlateProps, SpecRow } from "./SpecPlate";
 export type { KpiTileProps } from "./KpiTile";
 export type { HeatCell } from "./HeatGrid";
+export type { SwimlaneProps, SwimLane, SwimEvent } from "./Swimlane";

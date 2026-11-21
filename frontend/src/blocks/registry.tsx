@@ -346,8 +346,8 @@ function TableBlock({ config }: BlockProps) {
       >
         <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 20 }}>
           {rows.map((r: any) => (
-            <div key={r.id} style={{ borderRadius: 24, background: "#e0e0e0", padding: 22, boxShadow: "12px 12px 24px #bebebe, -12px -12px 24px #ffffff" }}>
-              <div style={{ background: "#e8f0fb", borderRadius: 14, padding: "14px 18px", marginBottom: 14, position: "relative" }}>
+            <div key={r.id} style={{ borderRadius: 24, background: "rgba(59, 130, 246, 0.05)", padding: 22, border: "1px solid rgba(21,58,124,0.11)", boxShadow: "0 16px 40px rgba(3,7,18,0.45), inset 0 1px 0 rgba(21,58,124,0.11)" }}>
+              <div style={{ background: "rgba(59, 130, 246, 0.1)", borderRadius: 14, padding: "14px 18px", marginBottom: 14, position: "relative" }}>
                 <div style={{ position: "absolute", top: 12, right: 12, display: "flex", gap: 8 }}>
                   <button className="fab-btn" onClick={() => openEdit(r)}>
                     <span>编辑</span><span>✎</span>
@@ -358,9 +358,9 @@ function TableBlock({ config }: BlockProps) {
                     </button>
                   </Popconfirm>
                 </div>
-                <div style={{ fontSize: 18, fontWeight: 700, color: "#0e418f", marginBottom: 6, paddingRight: 160 }}>{r.name}</div>
-                <div style={{ fontSize: 12, color: "#4a6a9c", marginBottom: 4 }}>负责人：{r.leader || "待任命"}</div>
-                <div style={{ fontSize: 13, color: "#3a5a8c", lineHeight: 1.6 }}>{r.description || "—"}</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: "#eaf1fb", marginBottom: 6, paddingRight: 160 }}>{r.name}</div>
+                <div style={{ fontSize: 12, color: "rgba(232,232,244,0.78)", marginBottom: 4 }}>负责人：{r.leader || "待任命"}</div>
+                <div style={{ fontSize: 13, color: "rgba(232,232,244,0.85)", lineHeight: 1.6 }}>{r.description || "—"}</div>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
                 {Array.from({ length: 10 }, (_, i) => {
@@ -369,10 +369,10 @@ function TableBlock({ config }: BlockProps) {
                     <div key={i} title="点击查看该科室人员名单"
                       onClick={() => setMemberTarget({ dept: r.name, sub })}
                       style={{
-                        fontSize: 13, fontWeight: 600, color: "#2c4a7c", padding: "14px 12px",
-                        background: "#fff", borderRadius: 10, cursor: "pointer",
-                        border: "1px solid #d8e4f5", textAlign: "center",
-                        boxShadow: "4px 4px 10px rgba(150,150,150,0.15), -4px -4px 10px #ffffff",
+                        fontSize: 13, fontWeight: 600, color: "#eaf1fb", padding: "14px 12px",
+                        background: "rgba(59, 130, 246, 0.06)", borderRadius: 10, cursor: "pointer",
+                        border: "1px solid rgba(21,58,124,0.11)", textAlign: "center",
+                        transition: "transform .15s, border-color .15s",
                         transition: "transform .15s, box-shadow .15s",
                       }}>
                       {sub}
@@ -389,7 +389,7 @@ function TableBlock({ config }: BlockProps) {
         title={editing?.id ? "编辑记录" : "新增记录"}
         onCancel={() => setEditing(null)}
         onOk={() => form.submit()}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical" onFinish={save}>
           {fields.map((f) => {
@@ -440,8 +440,8 @@ function TableBlock({ config }: BlockProps) {
             if (collection === "departments") {
               // 每个科室默认展开 10 个子科室
               return (
-                <div style={{ padding: "8px 16px", background: "#faf9f7", borderRadius: 8 }}>
-                  <div style={{ fontSize: 12, color: "#888", marginBottom: 8 }}>{r.name || "科室"} · 下属单位</div>
+                <div style={{ padding: "8px 16px", background: "rgba(59, 130, 246, 0.04)", borderRadius: 8 }}>
+                  <div style={{ fontSize: 12, color: "rgba(232,232,244,0.7)", marginBottom: 8 }}>{r.name || "科室"} · 下属单位</div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
                     {Array.from({ length: 10 }, (_, i) => {
                       const sub = `${r.name || "科室"}${i + 1}`;
@@ -449,10 +449,9 @@ function TableBlock({ config }: BlockProps) {
                         <div key={i} title="点击查看该科室人员名单"
                           onClick={() => setMemberTarget({ dept: r.name, sub })}
                           style={{
-                            padding: "16px 12px", background: "#fff", borderRadius: 10,
-                            border: "1px solid #d8e4f5", fontSize: 14, fontWeight: 600,
-                            color: "#2c4a7c", textAlign: "center", cursor: "pointer",
-                            boxShadow: "3px 3px 8px rgba(150,150,150,0.12)",
+                            padding: "16px 12px", background: "rgba(59, 130, 246, 0.06)", borderRadius: 10,
+                            border: "1px solid rgba(21,58,124,0.11)", fontSize: 14, fontWeight: 600,
+                            color: "#eaf1fb", textAlign: "center", cursor: "pointer",
                           }}>
                           {sub}
                         </div>
@@ -464,22 +463,22 @@ function TableBlock({ config }: BlockProps) {
             }
             if (collection === "staff_announcements") {
               return (
-                <div style={{ padding: "8px 16px", background: "#faf9f7", borderRadius: 8, fontSize: 14, lineHeight: 1.8 }}>
+                <div style={{ padding: "8px 16px", background: "rgba(59, 130, 246, 0.04)", borderRadius: 8, fontSize: 14, lineHeight: 1.8 }}>
                   <b style={{ marginRight: 8 }}>详细内容：</b>{r.content || "（无内容）"}
                 </div>
               );
             }
             // 其他表格：通用字段详情
             return (
-              <div style={{ padding: "8px 16px", background: "#faf9f7", borderRadius: 8 }}>
-                <div style={{ fontSize: 12, color: "#888", marginBottom: 8 }}>详细信息</div>
+              <div style={{ padding: "8px 16px", background: "rgba(59, 130, 246, 0.04)", borderRadius: 8 }}>
+                <div style={{ fontSize: 12, color: "rgba(232,232,244,0.7)", marginBottom: 8 }}>详细信息</div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px 24px" }}>
                   {detailFields.length ? detailFields.map((f) => (
                     <div key={f.name} style={{ fontSize: 13 }}>
-                      <span style={{ color: "#888", marginRight: 6 }}>{f.label || f.name}：</span>
-                      <span style={{ color: "#333" }}>{String(r[f.name])}</span>
+                      <span style={{ color: "rgba(232,232,244,0.7)", marginRight: 6 }}>{f.label || f.name}：</span>
+                      <span style={{ color: "#eaf1fb" }}>{String(r[f.name])}</span>
                     </div>
-                  )) : <span style={{ color: "#aaa" }}>（无更多详情）</span>}
+                  )) : <span style={{ color: "rgba(232,232,244,0.55)" }}>（无更多详情）</span>}
                 </div>
               </div>
             );
@@ -492,7 +491,7 @@ function TableBlock({ config }: BlockProps) {
         title={editing?.id ? "编辑记录" : "新增记录"}
         onCancel={() => setEditing(null)}
         onOk={() => form.submit()}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical" onFinish={save}>
           {fields.map((f) => {
@@ -662,11 +661,11 @@ function WeeklyScheduleBlock(_: BlockProps) {
     <Card title="周排班表（2 小时一格 · 点击格子安排/修改）" loading={loading}>
       <div style={{ overflowX: "auto", maxHeight: "70vh", overflowY: "auto" }}>
         <div style={{ display: "grid", gridTemplateColumns: "70px repeat(7, 1fr)", gap: 4, minWidth: 900 }}>
-          <div style={{ position: "sticky", top: 0, background: "#fff", zIndex: 2 }} />
+          <div style={{ position: "sticky", top: 0, background: "transparent", zIndex: 2 }} />
           {weekDays.map((d, i) => (
             <div key={i} style={{ textAlign: "center", padding: "6px 0", borderRadius: 6, background: i >= 5 ? "#fff7e6" : "#f0f6ff", position: "sticky", top: 0, zIndex: 2 }}>
               <div style={{ fontWeight: 600, fontSize: 13 }}>{WEEK_CN[i]}</div>
-              <div style={{ fontSize: 11, color: "#888" }}>{String(d.getMonth()+1).padStart(2,"0")}-{String(d.getDate()).padStart(2,"0")}</div>
+              <div style={{ fontSize: 11, color: "rgba(232,232,244,0.7)" }}>{String(d.getMonth()+1).padStart(2,"0")}-{String(d.getDate()).padStart(2,"0")}</div>
             </div>
           ))}
           {TIME_SLOTS.map((s) => (
@@ -704,7 +703,7 @@ function WeeklyScheduleBlock(_: BlockProps) {
         open={!!editing}
         title={editing ? WEEK_CN[weekDays.findIndex((d) => fmt(d) === editing.date)] + " " + (curSlot?.label || "") : ""}
         onCancel={() => setEditing(null)}
-        destroyOnClose
+        destroyOnHidden
         footer={[
           editing?.row?.id ? <Button key="del" danger onClick={del}>删除该排班</Button> : null,
           <Button key="cancel" onClick={() => setEditing(null)}>取消</Button>,

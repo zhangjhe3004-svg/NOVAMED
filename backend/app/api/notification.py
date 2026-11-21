@@ -16,6 +16,7 @@ def list_notifications(user: User = Depends(get_current_user), db: Session = Dep
     items = db.query(Notification).filter(Notification.user_id == user.id).order_by(Notification.id.desc()).limit(50).all()
     return {"items": [
         {"id": n.id, "title": n.title, "content": n.content, "is_read": n.is_read, "level": n.level,
+         "link": getattr(n, "link", "") or "",
          "created_at": n.created_at.isoformat() if n.created_at else None}
         for n in items
     ]}

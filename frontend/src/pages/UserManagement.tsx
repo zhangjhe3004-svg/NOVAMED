@@ -17,10 +17,12 @@ import {
 import {
   PlusOutlined, UploadOutlined, SafetyCertificateOutlined, ReloadOutlined,
   EditOutlined, KeyOutlined, DeleteOutlined, RightOutlined, DownOutlined, SearchOutlined,
-  DownloadOutlined, TeamOutlined, AppstoreOutlined, UnorderedListOutlined,
+  DownloadOutlined, TeamOutlined, AppstoreOutlined, UnorderedListOutlined, UpOutlined, FilterOutlined,
 } from "@ant-design/icons";
 import { listUsers, createUser, updateUser, deleteUser, resetUserPassword, type UserItem } from "../api/users";
 import { listRows } from "../api/dyn";
+import { listRoles, type RoleItem } from "../api/roles";
+import PermissionButton from "../components/PermissionButton";
 import DeptMembersModal, { type DeptMemberTarget } from "../components/dyn/DeptMembersModal";
 import HoverCard, { HoverCardHead, HoverCardRows } from "../components/HoverCard";
 
@@ -45,8 +47,8 @@ const LEVEL_NAMES = ["访客", "实习生", "规培生", "住院医师", "主治
 const roleLabel = (r?: string) => roleOptions.find((o) => o.value === r)?.label || r || "";
 
 const ROLE_COLORS: Record<string, string> = {
-  admin: "#236de9", doctor: "#0e9488", nurse: "#7c5cff",
-  pharmacist: "#7c5cff", staff: "#64748b", maintainer: "#d6a451",
+  admin: "#236de9", doctor: "#0e9488", nurse: "#3b82f6",
+  pharmacist: "#3b82f6", staff: "#9a9ab0", maintainer: "#3b82f6",
 };
 
 const STATUS_CLS: Record<string, string> = {
@@ -66,7 +68,7 @@ function statusTag(v?: string) {
 }
 
 function rolePill(v?: string) {
-  const c = ROLE_COLORS[v] || "#64748b";
+  const c = (v && ROLE_COLORS[v]) || "#9a9ab0";
   return (
     <span className="lv-tag" style={{ color: c, background: `${c}14` }}>{roleLabel(v)}</span>
   );
@@ -102,6 +104,17 @@ export default function UserManagement() {
   // ── 分页 ────────────────────────────────────────────────
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+
+  // ── 角色清单（多角色授权用，来自 sys_roles）──────────────
+  const [roleList, setRoleList] = useState<RoleItem[]>([]);
+  useEffect(() => {
+    listRoles({ page: 1, page_size: 100 }).then((r) => setRoleList(r.items || [])).catch(() => {});
+  }, []);
+  const roleIdByCode = useMemo(() => {
+    const m = new Map<string, number>();
+    roleList.forEach((r) => m.set(r.code, r.id));
+    return m;
+  }, [roleList]);
 
   // ── 弹窗 ────────────────────────────────────────────────
   const [addOpen, setAddOpen] = useState(false);
@@ -173,6 +186,20 @@ export default function UserManagement() {
     [depts, deptKw]
   );
 
+  // 搜索命中高亮（lime 软底 mark，跟随 lv 语汇）
+  const hl = (text: string) => {
+    const k = deptKw.trim();
+    if (!k || !text.includes(k)) return text;
+    const i = text.indexOf(k);
+    return (
+      <>
+        {text.slice(0, i)}
+        <mark>{k}</mark>
+        {text.slice(i + k.length)}
+      </>
+    );
+  };
+
   const filtered = useMemo(() => users.filter((u) => {
     if (dept && deptOf(u) !== dept) return false;
     if (statusF && (u.work_status || "在职") !== statusF) return false;
@@ -214,7 +241,7 @@ export default function UserManagement() {
       username: u.username,
       phone: u.phone,
       email: u.email,
-      role: u.role,
+      role_ids: (u.roles && u.roles.length ? u.roles : [u.role]).map((c) => roleIdByCode.get(c)).filter((v): v is number => !!v),
       department: u.department,
       title: u.title,
       auth_level: u.auth_level,
@@ -395,61 +422,80 @@ export default function UserManagement() {
     },
     { title: "科室", dataIndex: "department", key: "department", width: 120, render: (_: any, u: UserItem) => deptOf(u) },
     { title: "岗位", dataIndex: "title", key: "title", width: 130, render: (v: string) => v || "—" },
-    { title: "角色", dataIndex: "role", key: "role", width: 110, render: (v: string) => rolePill(v) },
+    {
+      title: "角色", dataIndex: "role", key: "role", width: 150,
+      render: (_: string, u: UserItem) => {
+        const codes = (u.roles && u.roles.length) ? u.roles : [u.role];
+        return <span style={{ display: "inline-flex", gap: 4, flexWrap: "wrap" }}>{codes.map((c) => <span key={c}>{rolePill(c)}</span>)}</span>;
+      },
+    },
     { title: "手机号", dataIndex: "phone", key: "phone", width: 130, render: (v: string) => <span className="tnum">{v || "—"}</span> },
     { title: "状态", dataIndex: "work_status", key: "status", width: 100, render: (v: string) => statusTag(v) },
     {
       title: "创建时间", dataIndex: "created_at", key: "created_at", width: 150,
-      render: (v: string) => <span className="tnum" style={{ color: "#9aa6b7" }}>{fmtTime(v)}</span>,
+      render: (v: string) => <span className="tnum" style={{ color: "var(--muted)" }}>{fmtTime(v)}</span>,
     },
     {
       title: "操作", key: "action", width: 132, className: "col-actions", fixed: "right" as const,
       render: (_: any, u: UserItem) => (
         <div className="row-actions" onClick={(e) => e.stopPropagation()}>
-          <Tooltip title="编辑">
-            <button type="button" className="icon-btn" data-act="edit" aria-label="编辑" onClick={() => openEdit(u)}>
-              <EditOutlined />
-            </button>
-          </Tooltip>
+          <PermissionButton code="medicode:users:edit">
+            <Tooltip title="编辑">
+              <button type="button" className="icon-btn" data-act="edit" aria-label="编辑" onClick={() => openEdit(u)}>
+                <EditOutlined />
+              </button>
+            </Tooltip>
+          </PermissionButton>
           <Tooltip title="权限溯源">
             <button type="button" className="icon-btn" data-act="trace" aria-label="权限溯源" onClick={() => openTrace(u)}>
               <SafetyCertificateOutlined />
             </button>
           </Tooltip>
-          <Tooltip title="重置密码">
-            <button type="button" className="icon-btn" data-act="reset" aria-label="重置密码" onClick={() => resetPwd(u)}>
-              <KeyOutlined />
-            </button>
-          </Tooltip>
-          <Popconfirm title="确定删除该用户？" placement="topRight" onConfirm={() => handleDelete(u)}>
-            <Tooltip title="删除">
-              <button type="button" className="icon-btn is-danger" data-act="delete" aria-label="删除">
-                <DeleteOutlined />
+          <PermissionButton code="medicode:users:edit">
+            <Tooltip title="重置密码">
+              <button type="button" className="icon-btn" data-act="reset" aria-label="重置密码" onClick={() => resetPwd(u)}>
+                <KeyOutlined />
               </button>
             </Tooltip>
-          </Popconfirm>
+          </PermissionButton>
+          <PermissionButton code="medicode:users:remove">
+            <Popconfirm title="确定删除该用户？" placement="topRight" onConfirm={() => handleDelete(u)}>
+              <Tooltip title="删除">
+                <button type="button" className="icon-btn is-danger" data-act="delete" aria-label="删除">
+                  <DeleteOutlined />
+                </button>
+              </Tooltip>
+            </Popconfirm>
+          </PermissionButton>
         </div>
       ),
     },
   ];
 
-  const panelHead = (title: string, total: number, tools?: React.ReactNode) => (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "13px 18px", borderBottom: "1px solid var(--lv-line)" }}>
+  const panelHead = (title: string, meta: React.ReactNode, tools?: React.ReactNode) => (
+    <div className="lv-panel-head">
       <span className="lv-tag lv-tag--leaf" style={{ width: 8, height: 8, padding: 0, borderRadius: 999 }}>
         <span className="lv-tag-dot" />
       </span>
-      <span style={{ fontSize: 14, fontWeight: 650, color: "var(--lv-ink)" }}>{title}</span>
-      <span style={{ fontSize: 12, color: "var(--lv-faint)", fontVariantNumeric: "tabular-nums" }}>共 {total} 条</span>
-      <div style={{ marginLeft: "auto", display: "flex", gap: 2 }}>{tools}</div>
+      <span className="lv-panel-title">{title}</span>
+      <span className="lv-panel-meta">{meta}</span>
+      <div className="lv-panel-tools">{tools}</div>
     </div>
   );
+
+  // 当前结果集的在岗 / 离岗构成（列表头统计用）
+  const statCounts = useMemo(() => {
+    let on = 0, off = 0;
+    filtered.forEach((u) => { (u.work_status || "在职") === "离岗" ? off++ : on++; });
+    return { on, off };
+  }, [filtered]);
 
   return (
     <div style={{ padding: "8px 0 32px", display: "flex", flexDirection: "column", gap: 16 }}>
       {/* ── 页头：标题/说明 + 视图切换 + 主操作 ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "16px 24px", flexWrap: "wrap" }}>
         <div>
-          <div style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>用户管理</div>
+          <div className="md-page-title" style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>用户管理</div>
           <div style={{ color: "var(--lv-muted)", fontSize: 13, marginTop: 5 }}>
             维护医院员工账号，所属科室、岗位与角色；停用的账号无法登录。
           </div>
@@ -467,24 +513,48 @@ export default function UserManagement() {
             <button className="lv-btn" type="button"><UploadOutlined /> 批量导入</button>
           </Upload>
           <button className="lv-btn" type="button" onClick={() => setPermOpen(true)}><SafetyCertificateOutlined /> 角色权限</button>
-          <button
-            className="lv-btn lv-btn--primary" type="button" data-act="create"
-            onClick={() => { addForm.resetFields(); setAddOpen(true); }}
-          >
-            <PlusOutlined /> 新增用户
-          </button>
+          <PermissionButton code="medicode:users:add">
+            <button
+              className="lv-btn lv-btn--primary" type="button" data-act="create"
+              onClick={() => { addForm.resetFields(); setAddOpen(true); }}
+            >
+              <PlusOutlined /> 新增用户
+            </button>
+          </PermissionButton>
         </div>
       </div>
 
       {/* ── 分栏：科室树 + 查询/列表 ── */}
       <div style={{ display: "flex", gap: 16, alignItems: "stretch" }}>
-        {/* 科室树（对齐案例左栏） */}
+        {/* 科室树（对齐案例左栏）：面板头 + 搜索 + 滚动树区 + 选中态脚注 */}
         <div
           className="lv-panel"
-          style={{ width: 256, flex: "none", alignSelf: "flex-start", position: "sticky", top: 84 }}
+          style={{ width: 256, flex: "none", alignSelf: "flex-start", position: "sticky", top: 84, overflow: "hidden" }}
           data-cell="dept-tree"
         >
-          <div style={{ padding: "13px 14px" }}>
+          {/* 面板头：标题 + 科室数 + 折叠 */}
+          <div className="lv-tree-head">
+            <span className="lv-tag lv-tag--leaf" style={{ width: 8, height: 8, padding: 0, borderRadius: 999 }}>
+              <span className="lv-tag-dot" />
+            </span>
+            <span className="lv-tree-title">科室组织</span>
+            <span className="lv-tree-total">
+              {deptKw.trim() ? `${visibleDepts.length}/${depts.length}` : `${depts.length} 个科室`}
+            </span>
+            <Tooltip title={treeOpen ? "收起科室列表" : "展开科室列表"}>
+              <button
+                className="icon-btn" type="button" data-act="toggle-tree"
+                aria-label={treeOpen ? "收起科室列表" : "展开科室列表"}
+                style={{ marginLeft: "auto" }}
+                onClick={() => setTreeOpen(!treeOpen)}
+              >
+                {treeOpen ? <UpOutlined /> : <DownOutlined />}
+              </button>
+            </Tooltip>
+          </div>
+
+          {/* 搜索 */}
+          <div className="lv-tree-search">
             <Input
               allowClear
               size="small"
@@ -492,104 +562,87 @@ export default function UserManagement() {
               placeholder="搜索科室"
               value={deptKw}
               onChange={(e) => setDeptKw(e.target.value)}
-              style={{ marginBottom: 10 }}
             />
-            {/* 根节点 */}
-            <button
-              type="button"
-              onClick={() => setDept(null)}
-              style={{
-                display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "7px 8px",
-                border: 0, borderRadius: 8, cursor: "pointer", textAlign: "left", fontSize: 13,
-                background: dept === null ? "var(--lv-blue-soft)" : "transparent",
-                color: dept === null ? "var(--lv-blue)" : "var(--lv-ink)", fontWeight: dept === null ? 650 : 500,
-              }}
-            >
-              <TeamOutlined style={{ fontSize: 12, color: dept === null ? "var(--lv-blue)" : "var(--lv-faint)" }} />
-              医院组织
-              <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--lv-faint)" }}>{users.length}</span>
-            </button>
-            {/* 科室子节点 */}
-            {treeOpen && (
-              <div style={{ marginTop: 2 }}>
-                {visibleDepts.length === 0 && (
-                  <div style={{ padding: "6px 8px", fontSize: 12, color: "var(--lv-faint)" }}>无匹配科室</div>
-                )}
-                {visibleDepts.map(([d, count]) => {
-                  const active = dept === d;
-                  const subs = subDepts[d] || [];
-                  const open = !!expanded[d];
-                  return (
-                    <div key={d}>
-                      <button
-                        type="button"
-                        data-act="pick-dept"
-                        onClick={() => setDept(active ? null : d)}
-                        style={{
-                          display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "7px 8px 7px 12px",
-                          border: 0, borderRadius: 8, cursor: "pointer", textAlign: "left", fontSize: 13,
-                          background: active ? "var(--lv-blue-soft)" : "transparent",
-                          color: active ? "var(--lv-blue)" : "#4a5a72", fontWeight: active ? 650 : 400,
-                          transition: "background-color .15s ease",
-                        }}
-                        onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = "#f4f7fb"; }}
-                        onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = "transparent"; }}
-                      >
-                        {subs.length > 0 ? (
-                          <span
-                            role="button"
-                            tabIndex={0}
-                            aria-label={open ? `收起${d}的子科室` : `展开${d}的子科室`}
-                            data-act="toggle-sub"
-                            onClick={(e) => { e.stopPropagation(); setExpanded((p) => ({ ...p, [d]: !open })); }}
-                            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); setExpanded((p) => ({ ...p, [d]: !open })); } }}
-                            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 18, height: 18, borderRadius: 5, color: active ? "var(--lv-blue)" : "var(--lv-faint)", cursor: "pointer", flex: "none", transition: "background-color .15s ease" }}
-                            onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(46,58,62,.07)"; }}
-                            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-                          >
-                            {open ? <DownOutlined style={{ fontSize: 9 }} /> : <RightOutlined style={{ fontSize: 9 }} />}
-                          </span>
-                        ) : (
-                          <span style={{ width: 18, flex: "none" }} />
-                        )}
-                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d}</span>
-                        <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--lv-faint)" }}>{count}</span>
-                      </button>
-                      {/* 子科室：下拉展开（内科1 / 内科2 …），点击查看该子科室人员名单 */}
-                      {open && subs.length > 0 && (
-                        <div style={{ paddingBottom: 4 }}>
-                          {subs.map((s) => (
-                            <button
-                              key={s}
-                              type="button"
-                              data-act="pick-sub"
-                              onClick={() => setMemberTarget({ dept: d, sub: s })}
-                              style={{
-                                display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "5px 8px 5px 44px",
-                                border: 0, borderRadius: 8, cursor: "pointer", textAlign: "left", fontSize: 12.5,
-                                background: "transparent", color: "var(--lv-muted)",
-                                transition: "background-color .15s ease",
-                              }}
-                              onMouseEnter={(e) => { e.currentTarget.style.background = "#f4f7fb"; e.currentTarget.style.color = "var(--lv-blue)"; }}
-                              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--lv-muted)"; }}
-                            >
-                              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s}</span>
-                              <span style={{ marginLeft: "auto", fontSize: 10, color: "var(--lv-faint)", opacity: 0, transition: "opacity .18s ease" }}
-                                onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; }}
-                                onMouseLeave={(e) => { e.currentTarget.style.opacity = "0"; }}
-                              >
-                                名单 ›
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
           </div>
+
+          {/* 树区（限高滚动，窄屏不撑破版面） */}
+          {treeOpen && (
+            <div className="lv-tree-scroll">
+              {/* 根节点 = 查看全部 */}
+              <button
+                type="button"
+                onClick={() => setDept(null)}
+                className={`lv-tree-row lv-tree-row--root${dept === null ? " lv-tree-row--active" : ""}`}
+              >
+                <TeamOutlined style={{ fontSize: 13, flex: "none" }} />
+                <span className="lv-tree-name">全部科室</span>
+                <span className={`lv-tree-count${users.length === 0 ? " lv-tree-count--zero" : ""}`}>{users.length}</span>
+              </button>
+
+              {visibleDepts.length === 0 && (
+                <div className="lv-tree-empty">未找到与「{deptKw.trim()}」匹配的科室</div>
+              )}
+              {visibleDepts.map(([d, count]) => {
+                const active = dept === d;
+                const subs = subDepts[d] || [];
+                const open = !!expanded[d];
+                return (
+                  <div key={d}>
+                    <button
+                      type="button"
+                      data-act="pick-dept"
+                      aria-pressed={active}
+                      onClick={() => setDept(active ? null : d)}
+                      className={`lv-tree-row${active ? " lv-tree-row--active" : ""}`}
+                    >
+                      {subs.length > 0 ? (
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          aria-label={open ? `收起${d}的子科室` : `展开${d}的子科室`}
+                          data-act="toggle-sub"
+                          className="lv-tree-caret"
+                          onClick={(e) => { e.stopPropagation(); setExpanded((p) => ({ ...p, [d]: !open })); }}
+                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); setExpanded((p) => ({ ...p, [d]: !open })); } }}
+                        >
+                          {open ? <DownOutlined style={{ fontSize: 9 }} /> : <RightOutlined style={{ fontSize: 9 }} />}
+                        </span>
+                      ) : (
+                        <span style={{ width: 18, flex: "none" }} />
+                      )}
+                      <span className="lv-tree-name">{hl(d)}</span>
+                      <span className={`lv-tree-count${count === 0 ? " lv-tree-count--zero" : ""}`}>{count}</span>
+                    </button>
+                    {/* 子科室：连接线缩进展开，点击查看该子科室人员名单 */}
+                    {open && subs.length > 0 && (
+                      <div>
+                        {subs.map((s) => (
+                          <button
+                            key={s}
+                            type="button"
+                            data-act="pick-sub"
+                            className="lv-tree-row lv-tree-row--sub"
+                            onClick={() => setMemberTarget({ dept: d, sub: s })}
+                          >
+                            <span className="lv-tree-name">{s}</span>
+                            <span className="lv-tree-more">名单 ›</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* 选中态脚注：当前科室 + 一键清除 */}
+          {dept && (
+            <div className="lv-tree-foot">
+              <span className="lv-tree-name">已选：{dept}</span>
+              <button type="button" className="lv-tree-clear" data-act="clear-dept" onClick={() => setDept(null)}>清除</button>
+            </div>
+          )}
         </div>
         <DeptMembersModal target={memberTarget} onClose={() => { setMemberTarget(null); loadSubDepts(); }} />
 
@@ -597,6 +650,7 @@ export default function UserManagement() {
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
           {/* 查询面板 */}
           <div className="lv-query" style={{ borderRadius: 16 }}>
+            <span className="lv-query-label"><FilterOutlined /> 筛选</span>
             <Input
               allowClear
               prefix={<SearchOutlined style={{ color: "var(--lv-faint)" }} />}
@@ -617,7 +671,8 @@ export default function UserManagement() {
               style={{ width: 150 }}
               data-act="status-filter"
             />
-            <div className="lv-query-actions">
+            <span className="lv-query-count">符合 {filtered.length} 人</span>
+            <div className="lv-query-actions" style={{ marginLeft: 0 }}>
               <button
                 className="lv-btn" type="button" data-act="reset"
                 onClick={() => { setKwInput(""); setStatusInput(undefined); setKw(""); setStatusF(undefined); setDept(null); setPage(1); }}
@@ -636,7 +691,7 @@ export default function UserManagement() {
           {view === "list" ? (
             /* 用户列表面板 */
             <div className="lv-panel">
-              {panelHead("用户列表", filtered.length, (
+              {panelHead("用户列表", `共 ${filtered.length} 条 · 在职 ${statCounts.on} · 离岗 ${statCounts.off}`, (
                 <>
                   <Tooltip title="刷新">
                     <button className="icon-btn" type="button" data-act="refresh" onClick={() => { load(); loadSubDepts(); }}><ReloadOutlined /></button>
@@ -686,8 +741,14 @@ export default function UserManagement() {
             </div>
           ) : (
             /* 看板：按在岗状态分列，可拖拽改状态 */
-            <div className="lv-panel" style={{ padding: 16 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
+            <div className="lv-panel">
+              {panelHead("在岗看板", `共 ${filtered.length} 人 · 拖拽卡片切换状态`, (
+                <Tooltip title="刷新">
+                  <button className="icon-btn" type="button" data-act="refresh" onClick={() => { load(); loadSubDepts(); }}><ReloadOutlined /></button>
+                </Tooltip>
+              ))}
+              <div style={{ padding: 16 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
                 {workStatusOptions.map((col) => {
                   const colUsers = filtered.filter((u) => (u.work_status || "在职") === col.value);
                   return (
@@ -696,7 +757,7 @@ export default function UserManagement() {
                       data-cell={`board-${col.value}`}
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={() => onDropStatus(col.value)}
-                      style={{ background: "#f7fafd", border: "1px solid var(--lv-line)", borderRadius: 14, padding: 12, minHeight: 320 }}
+                      style={{ background: "#101b2e", border: "1px solid var(--lv-line)", borderRadius: 14, padding: 12, minHeight: 320 }}
                     >
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
                         {statusTag(col.value)}
@@ -710,11 +771,11 @@ export default function UserManagement() {
                             onDragStart={(e) => { dragId.current = u.id; e.dataTransfer.effectAllowed = "move"; }}
                             onClick={() => openEdit(u)}
                             style={{
-                              background: "#fff", border: "1px solid var(--lv-line)", borderRadius: 12,
+                              background: "#1a2740", border: "1px solid var(--lv-line)", borderRadius: 12,
                               padding: "10px 12px", cursor: "grab", display: "flex", alignItems: "center", gap: 10,
                               transition: "box-shadow .18s ease, transform .14s ease",
                             }}
-                            onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 6px 16px rgba(20,45,83,.10)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+                            onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 6px 16px rgba(0,0,0,.45)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
                             onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.transform = "none"; }}
                           >
                             <span className="avatar" style={{ width: 28, height: 28, fontSize: 12 }}>{(u.real_name || u.username || "?")[0]}</span>
@@ -736,6 +797,7 @@ export default function UserManagement() {
                     </div>
                   );
                 })}
+                </div>
               </div>
             </div>
           )}
@@ -766,8 +828,8 @@ export default function UserManagement() {
             <Form.Item name="real_name" label="真实姓名">
               <Input placeholder="员工真实姓名" />
             </Form.Item>
-            <Form.Item name="role" label="角色" initialValue="doctor">
-              <Select options={roleOptions} />
+            <Form.Item name="role_ids" label="角色" initialValue={[]}>
+              <Select mode="multiple" placeholder="选择角色（可多选）" options={roleList.map((r) => ({ value: r.id, label: r.name }))} />
             </Form.Item>
             <Form.Item name="department" label="科室">
               <Select placeholder="选择科室" allowClear options={deptOptions} />
@@ -809,8 +871,8 @@ export default function UserManagement() {
             <Form.Item name="username" label="用户名">
               <Input placeholder="登录用户名" />
             </Form.Item>
-            <Form.Item name="role" label="角色">
-              <Select placeholder="选择角色" options={roleOptions} />
+            <Form.Item name="role_ids" label="角色">
+              <Select mode="multiple" placeholder="选择角色（可多选）" options={roleList.map((r) => ({ value: r.id, label: r.name }))} />
             </Form.Item>
             <Form.Item name="department" label="科室">
               <Select placeholder="选择科室" allowClear options={deptOptions} />
@@ -849,10 +911,10 @@ export default function UserManagement() {
           {[
             { role: "admin", label: "管理员", desc: "完全访问：用户管理、系统设置、所有科室数据、审计日志", color: "#236de9" },
             { role: "doctor", label: "医生", desc: "诊疗权限：患者档案、就诊记录、AI诊断、知识库、排班表", color: "#0e9488" },
-            { role: "nurse", label: "护士", desc: "辅助权限：查看患者档案、预约管理、排班表", color: "#7c5cff" },
-            { role: "pharmacist", label: "药剂师", desc: "药房权限：药房管理、处方审核、库存查看", color: "#7c5cff" },
-            { role: "staff", label: "职员", desc: "基础权限：查看公告、个人排班、请假审批", color: "#64748b" },
-            { role: "maintainer", label: "运维", desc: "运维权限：系统监控、数据库维护、日志查看", color: "#d6a451" },
+            { role: "nurse", label: "护士", desc: "辅助权限：查看患者档案、预约管理、排班表", color: "#3b82f6" },
+            { role: "pharmacist", label: "药剂师", desc: "药房权限：药房管理、处方审核、库存查看", color: "#3b82f6" },
+            { role: "staff", label: "职员", desc: "基础权限：查看公告、个人排班、请假审批", color: "#9a9ab0" },
+            { role: "maintainer", label: "运维", desc: "运维权限：系统监控、数据库维护、日志查看", color: "#3b82f6" },
           ].map((r) => (
             <div key={r.role} style={{ padding: "12px 16px", borderRadius: 10, border: "1px solid var(--lv-line)", display: "flex", alignItems: "center", gap: 14 }}>
               <div style={{ width: 42, height: 42, borderRadius: 10, background: `${r.color}15`, color: r.color, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 16 }}>

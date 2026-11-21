@@ -6,7 +6,7 @@
  * 两处刻意的本地化改造：
  *  1. 滑块用「CSS transition + offsetTop」而非补间库 —— 因为滑块永远是列表的直接子元素，
  *     几何差值法在这里是多余的；让 CSS 负责位移，React 只负责写目标值，更不容易错位。
- *  2. 「动作」组换成了 MediCode 真实存在的入口（岗位阶梯 / 角色溯源 / 权限链路 / 患者端），
+ *  2. 「动作」组换成了 NOVAMED 真实存在的入口（岗位阶梯 / 角色溯源 / 权限链路 / 患者端），
  *     并把原来的「切换深色外观」换成「问系统」，因为员工端只有浅色主题。
  *
  * 「问系统」= 以 ? 前缀进入本地规则问答（utils/ask.ts），预设问题用打字机逐字填入，
@@ -306,7 +306,7 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
         key: "a-ask",
         group: "动作",
         label: "问系统",
-        sub: "以 ? 开头，问人和权限",
+        sub: "以 ? 开头，问权限、参数、异常登录",
         icon: <ThunderboltOutlined />,
         run: () => {
           setKeyword("?");
@@ -316,7 +316,7 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
       {
         key: "a-patient",
         group: "动作",
-        label: "打开患者端",
+        label: "打开客户端",
         sub: "独立 SPA · 新标签页",
         icon: <PhoneOutlined />,
         run: () => {
@@ -486,23 +486,25 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
   /* ---------- 问系统 ---------- */
 
-  const runAsk = useCallback((text: string) => {
+  const runAsk = useCallback(async (text: string) => {
     const q = text.trim();
     if (!q) return;
     cancelTypingRef.current();
     setAskedText(q);
     setAskLoading(true);
-    // 让「正在分析…」先落一帧，再算 —— 本地规则是同步的，不给一帧会闪一下就没
-    window.setTimeout(() => {
-      let cards: AnswerCard[];
-      try {
-        cards = ask(q, ctxRef.current);
-      } catch {
-        cards = [];
-      }
-      setAskCards(cards);
-      setAskLoading(false);
-    }, 120);
+    // 让「正在分析…」先落一帧，再算 —— 规则答案是本地推演 + 少量取数，给一帧防闪烁
+    await new Promise((r) => window.setTimeout(r, 120));
+    let cards: AnswerCard[];
+    try {
+      cards = await ask(q, ctxRef.current);
+    } catch {
+      cards = [];
+    }
+    setAskCards(cards);
+    setAskLoading(false);
+    requestAnimationFrame(() =>
+      revealCascade(askResultsRef.current, ".ask-card", 90)
+    );
   }, []);
 
   const typeAsk = useCallback(
@@ -633,7 +635,7 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
                     ))}
                   </div>
                   <p className="cmd-ask-hint">
-                    本地规则问答：答案全部由现有数据算出，不调大模型，可复现、可跳转。
+                    小智能体：能直接用数据算的走本地规则；算不出的交给已接入的大模型回答。
                   </p>
                 </>
               )}
@@ -644,7 +646,7 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
                       <ThunderboltOutlined />
                       {askedText}
                     </span>
-                    <small>本地规则分析</small>
+                    <small>{askCards.some((c) => c.source === "agent") ? "AI 智能体" : "本地规则分析"}</small>
                   </div>
                   {askCards.map((card) => (
                     <article key={card.title} className={`ask-card tone-${card.tone}`}>
@@ -745,7 +747,7 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
             </>
           )}
           <span className="cmd-foot-spacer" />
-          <span className="cmd-foot-tag">{askMode ? "本地规则" : "命令"}</span>
+          <span className="cmd-foot-tag">{askMode ? "智能体" : "命令"}</span>
         </div>
       </div>
     </div>

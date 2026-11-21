@@ -4,11 +4,15 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 
 from ..core.database import get_db, employee_session
 from ..core.security import verify_password, create_access_token, hash_password
 from ..core.dependencies import get_current_patient
-from ..models.models import PatientAccount, Patient, Appointment, MedicalRecord, DoctorSchedule, User, RecordComment
+from ..models.models import (
+    PatientAccount, Patient, Appointment, MedicalRecord, DoctorSchedule, User, RecordComment,
+    LabTest, FamilyHistory, PatientNotification,
+)
 
 router = APIRouter(prefix="/api/patient-auth", tags=["患者端"])
 
@@ -31,6 +35,13 @@ class PatientMeUpdate(BaseModel):
 class ChangePassword(BaseModel):
     old_password: str
     new_password: str
+
+
+class FamilyHistoryPayload(BaseModel):
+    relation: str = ""
+    disease: str = ""
+    onset_age: str = ""
+    note: str = ""
 
 
 def _patient_profile(acct, pat):
@@ -119,9 +130,14 @@ def change_password(payload: ChangePassword, acct=Depends(get_current_patient), 
 
 @router.get("/appointments")
 def patient_appointments(acct=Depends(get_current_patient), db: Session = Depends(get_db)):
-    items = db.query(Appointment).filter(Appointment.phone == acct.phone).order_by(Appointment.id.desc()).all()
+    # 与 Web 患者端下单写入的字段对齐：patient_id（挂号时传入）为主，phone 兜底，
+    # 保证手机端与 Web 客户端看到同一份真实预约数据。
+    items = db.query(Appointment).filter(
+        or_(Appointment.patient_id == acct.patient_id, Appointment.phone == acct.phone)
+    ).order_by(Appointment.id.desc()).all()
     return {"items": [
         {"id": a.id, "doctor_id": a.doctor_id, "doctor_name": _doctor_name(a.doctor_id),
+         "patient_name": a.patient_name,
          "hospital": a.hospital, "department": a.department,
          "date": a.date, "time_slot": a.time_slot, "status": a.status, "symptoms": a.symptoms}
         for a in items
@@ -187,3 +203,149 @@ def delete_my_account(acct=Depends(get_current_patient), db: Session = Depends(g
     db.delete(acct)
     db.commit()
     return {"deleted": acct.id}
+
+
+# ============================================================ 报告查询（患者范围）
+def _lab_patient_dict(t: LabTest) -> dict:
+    return {
+        "id": t.id, "test_no": t.test_no, "item_name": t.item_name,
+        "category": t.category, "status": t.status, "department": t.department,
+        "result": t.result, "reference": t.reference, "doctor_name": t.doctor_name,
+        "created_at": t.created_at.isoformat() if t.created_at else None,
+    }
+
+
+@router.get("/lab-tests")
+def patient_lab_tests(acct=Depends(get_current_patient), db: Session = Depends(get_db)):
+    items = db.query(LabTest).filter(LabTest.patient_id == acct.patient_id) \
+        .order_by(LabTest.id.desc()).all()
+    return {"items": [_lab_patient_dict(t) for t in items]}
+
+
+@router.get("/lab-tests/{tid}")
+def patient_lab_test_detail(tid: int, acct=Depends(get_current_patient), db: Session = Depends(get_db)):
+    t = db.query(LabTest).filter(LabTest.id == tid, LabTest.patient_id == acct.patient_id).first()
+    if not t:
+        raise HTTPException(status_code=404, detail="报告不存在")
+    return _lab_patient_dict(t)
+
+
+# ============================================================ 消息通知中心（患者范围）
+def _pnotif_dict(n: PatientNotification) -> dict:
+    return {
+        "id": n.id, "title": n.title, "content": n.content,
+        "is_read": n.is_read, "level": n.level, "kind": n.kind,
+        "created_at": n.created_at.isoformat() if n.created_at else None,
+    }
+
+
+@router.get("/notifications")
+def patient_notifications(acct=Depends(get_current_patient), db: Session = Depends(get_db)):
+    items = db.query(PatientNotification).filter(PatientNotification.patient_id == acct.patient_id) \
+        .order_by(PatientNotification.id.desc()).limit(50).all()
+    unread = db.query(PatientNotification).filter(
+        PatientNotification.patient_id == acct.patient_id,
+        PatientNotification.is_read == False).count()
+    return {"items": [_pnotif_dict(n) for n in items], "unread": unread}
+
+
+@router.post("/notifications/read-all")
+def patient_notifications_read_all(acct=Depends(get_current_patient), db: Session = Depends(get_db)):
+    db.query(PatientNotification).filter(
+        PatientNotification.patient_id == acct.patient_id,
+        PatientNotification.is_read == False).update({"is_read": True}, synchronize_session=False)
+    db.commit()
+    return {"detail": "ok"}
+
+
+@router.post("/notifications/{nid}/read")
+def patient_notification_read(nid: int, acct=Depends(get_current_patient), db: Session = Depends(get_db)):
+    n = db.query(PatientNotification).filter(
+        PatientNotification.id == nid, PatientNotification.patient_id == acct.patient_id).first()
+    if n:
+        n.is_read = True
+        db.commit()
+    return {"detail": "ok"}
+
+
+# ============================================================ 家族病史 CRUD（患者范围）
+def _family_dict(f: FamilyHistory) -> dict:
+    return {
+        "id": f.id, "relation": f.relation, "disease": f.disease,
+        "onset_age": f.onset_age, "note": f.note,
+        "created_at": f.created_at.isoformat() if f.created_at else None,
+    }
+
+
+@router.get("/family-history")
+def patient_family_history(acct=Depends(get_current_patient), db: Session = Depends(get_db)):
+    items = db.query(FamilyHistory).filter(FamilyHistory.patient_id == acct.patient_id) \
+        .order_by(FamilyHistory.id.asc()).all()
+    return {"items": [_family_dict(f) for f in items]}
+
+
+@router.post("/family-history")
+def create_family_history(payload: FamilyHistoryPayload, acct=Depends(get_current_patient),
+                          db: Session = Depends(get_db)):
+    if not payload.relation.strip() or not payload.disease.strip():
+        raise HTTPException(status_code=400, detail="亲属关系与疾病名称不能为空")
+    f = FamilyHistory(patient_id=acct.patient_id, relation=payload.relation.strip(),
+                      disease=payload.disease.strip(), onset_age=payload.onset_age.strip(),
+                      note=payload.note.strip())
+    db.add(f)
+    db.commit()
+    db.refresh(f)
+    return _family_dict(f)
+
+
+@router.put("/family-history/{fid}")
+def update_family_history(fid: int, payload: FamilyHistoryPayload, acct=Depends(get_current_patient),
+                          db: Session = Depends(get_db)):
+    f = db.query(FamilyHistory).filter(FamilyHistory.id == fid,
+                                       FamilyHistory.patient_id == acct.patient_id).first()
+    if not f:
+        raise HTTPException(status_code=404, detail="记录不存在")
+    f.relation = payload.relation.strip()
+    f.disease = payload.disease.strip()
+    f.onset_age = payload.onset_age.strip()
+    f.note = payload.note.strip()
+    db.commit()
+    db.refresh(f)
+    return _family_dict(f)
+
+
+@router.delete("/family-history/{fid}")
+def delete_family_history(fid: int, acct=Depends(get_current_patient), db: Session = Depends(get_db)):
+    f = db.query(FamilyHistory).filter(FamilyHistory.id == fid,
+                                       FamilyHistory.patient_id == acct.patient_id).first()
+    if not f:
+        raise HTTPException(status_code=404, detail="记录不存在")
+    db.delete(f)
+    db.commit()
+    return {"deleted": fid}
+
+
+# ============================================================ 首页概览（仪器化聚合）
+@router.get("/overview")
+def patient_overview(acct=Depends(get_current_patient), db: Session = Depends(get_db)):
+    pid = acct.patient_id
+    appts = db.query(Appointment).filter(
+        or_(Appointment.patient_id == pid, Appointment.phone == acct.phone)
+    ).all()
+    upcoming = sum(1 for a in appts if a.status in ("待就诊", "已报到"))
+    records = db.query(MedicalRecord).filter(MedicalRecord.patient_id == pid).all()
+    done = sum(1 for r in records if r.review_status in ("已审核", "已完成"))
+    labs = db.query(LabTest).filter(LabTest.patient_id == pid).all()
+    lab_done = sum(1 for t in labs if t.status == "已出报告")
+    lab_pending = sum(1 for t in labs if t.status in ("待检查", "已采样", "检查中"))
+    unread = db.query(PatientNotification).filter(
+        PatientNotification.patient_id == pid, PatientNotification.is_read == False).count()
+    return {
+        "upcoming": upcoming,
+        "record_count": len(records),
+        "done_count": done,
+        "lab_count": len(labs),
+        "lab_done": lab_done,
+        "lab_pending": lab_pending,
+        "unread": unread,
+    }

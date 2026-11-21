@@ -30,7 +30,7 @@ def _csv_cell(value) -> str:
         return f'"{text}"'
     return text
 
-# 内置菜单树种子（与前端 config/nav.tsx 的 buildNavGroups 同源）
+# 内置菜单树种子（与前端 config/nav.tsx 的 buildNavGroups 同源，2026-10-13 按相似功能聚类）
 _SEED_DIRS = [
     ("工作空间", "dashboard-group", "/dashboard", 1, False, [
         ("dashboard", "总览控制台", "/dashboard"),
@@ -39,18 +39,18 @@ _SEED_DIRS = [
         ("hub", "专家·技能·连接器", "/hub"),
     ]),
     ("诊疗", "clinical-group", "/doctor-workbench", 2, False, [
-        ("workbench", "医生工作台", "/doctor-workbench"),
+        ("slots", "号源排班", "/schedule-source"),
         ("patients", "患者档案", "/patients"),
+        ("workbench", "医生工作台", "/doctor-workbench"),
         ("records", "就诊记录", "/records"),
         ("supervise", "下级审阅", "/supervise-records"),
-        ("slots", "号源排班", "/schedule-source"),
-        ("pharmacy", "药房管理", "/pharmacy"),
         ("labTest", "检查检验", "/labtest"),
+        ("pharmacy", "药房管理", "/pharmacy"),
         ("billing", "财务收费", "/billing"),
     ]),
     ("日常办公", "office-group", "/lcp/staff-schedule", 3, False, [
-        ("schedule", "排班表", "/lcp/staff-schedule"),
         ("announcement", "院内公告", "/lcp/staff-announcement"),
+        ("schedule", "排班表", "/lcp/staff-schedule"),
         ("leave", "请假审批", "/lcp/staff-leave"),
         ("departments", "科室组织", "/lcp/staff-departments"),
         ("orgCanvas", "组织画布", "/org-canvas"),
@@ -64,14 +64,23 @@ _SEED_DIRS = [
     ("系统管理", "admin-group", "/users", 5, True, [
         ("adminReview", "管理员审核", "/admin-review"),
         ("users", "用户管理", "/users"),
+        ("patientAccounts", "患者账号", "/patient-accounts"),
         ("trace", "角色管理", "/role-trace"),
         ("menuStar", "菜单管理", "/menu-star"),
-        ("ladder", "岗位阶梯", "/post-ladder"),
         ("chain", "权限链路", "/permission-chain"),
-        ("loginLog", "登录日志", "/login-log"),
-        ("operLog", "操作日志", "/oper-log"),
-        ("patientAccounts", "患者账号", "/patient-accounts"),
+        ("depts", "部门管理", "/depts"),
+        ("posts", "岗位管理", "/posts"),
+        ("ladder", "岗位阶梯", "/post-ladder"),
+        ("dict", "字典管理", "/dicts"),
+        ("config", "参数配置", "/configs"),
         ("settings", "个人设置", "/settings"),
+    ]),
+    ("系统监控", "monitor-group", "/oper-log", 6, True, [
+        ("operLog", "操作日志", "/oper-log"),
+        ("loginLog", "登录日志", "/login-log"),
+    ]),
+    ("系统工具", "tool-group", "/generator", 7, True, [
+        ("gen", "代码生成", "/generator"),
     ]),
 ]
 
@@ -80,26 +89,37 @@ _BTN_TEMPLATES = [("list", "查询"), ("add", "新增"), ("edit", "编辑"), ("r
 
 
 def _ensure_seeded(db: Session) -> None:
-    """首次访问播种内置菜单树（幂等）。"""
-    if db.query(MenuItem.id).count():
-        return
+    """首次访问播种内置菜单树；增量补缺缺失菜单并重排 sort（幂等）。"""
     for dir_name, _key, path, sort, admin_only, pages in _SEED_DIRS:
-        d = MenuItem(parent_id=0, type="dir", name=dir_name, icon="", path=path,
-                     component="", permission="", sort=sort, visible=1, status=1,
-                     builtin=True)
-        db.add(d)
-        db.flush()
-        for pi, (key, name, ppath) in enumerate(pages):
-            m = MenuItem(parent_id=d.id, type="menu", name=name, icon="", path=ppath,
-                         component=f"pages/{key}/index", permission=key,
-                         sort=pi + 1, visible=1, status=1, builtin=True)
-            db.add(m)
+        d = db.query(MenuItem).filter(MenuItem.type == "dir", MenuItem.name == dir_name).first()
+        if not d:
+            d = MenuItem(parent_id=0, type="dir", name=dir_name, icon="", path=path,
+                         component="", permission="", sort=sort, visible=1, status=1,
+                         builtin=True)
+            db.add(d)
             db.flush()
+        elif d.sort != sort:
+            d.sort = sort
+        for pi, (key, name, ppath) in enumerate(pages):
+            m = db.query(MenuItem).filter(MenuItem.type == "menu", MenuItem.permission == key).first()
+            if not m:
+                m = MenuItem(parent_id=d.id, type="menu", name=name, icon="", path=ppath,
+                             component=f"pages/{key}/index", permission=key,
+                             sort=pi + 1, visible=1, status=1, builtin=True)
+                db.add(m)
+                db.flush()
+            else:
+                if m.parent_id != d.id:
+                    m.parent_id = d.id
+                if m.sort != pi + 1:
+                    m.sort = pi + 1
             for act, act_name in _BTN_TEMPLATES:
-                db.add(MenuItem(parent_id=m.id, type="btn", name=act_name, icon="",
-                                path="", component="", permission=f"medicode:{key}:{act}",
-                                sort=_BTN_TEMPLATES.index((act, act_name)) + 1,
-                                visible=1, status=1, builtin=True))
+                perm = f"medicode:{key}:{act}"
+                if not db.query(MenuItem).filter(MenuItem.permission == perm).first():
+                    db.add(MenuItem(parent_id=m.id, type="btn", name=act_name, icon="",
+                                    path="", component="", permission=perm,
+                                    sort=_BTN_TEMPLATES.index((act, act_name)) + 1,
+                                    visible=1, status=1, builtin=True))
     db.commit()
 
 

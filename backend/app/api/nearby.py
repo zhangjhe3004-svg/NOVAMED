@@ -15,7 +15,6 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from ..core.config import settings
 from ..core.database import get_employee_db, get_db
 from ..core.dependencies import get_current_user, require_admin
 from ..models.models import User
@@ -218,8 +217,6 @@ async def transfer_file(
     db: Session = Depends(get_employee_db),
 ):
     """上传任意格式文件并发起互传：文件落盘 + 元数据入库（nearby_files）。"""
-    if not settings.ENABLE_FILE_UPLOADS:
-        raise HTTPException(503, "当前免费 API 配置未启用附件上传")
     if not files:
         raise HTTPException(400, "请至少选择一个文件")
     try:
@@ -264,8 +261,6 @@ def _file_dict(r: NearbyFile) -> dict:
 @router.get("/files/{fid}/download")
 def download_file(fid: int, user: User = Depends(get_current_user), db: Session = Depends(get_employee_db)):
     """下载互传附件（发送方 / 接收方均可）。"""
-    if not settings.ENABLE_FILE_UPLOADS:
-        raise HTTPException(503, "当前免费 API 配置未启用附件存储")
     r = db.query(NearbyFile).filter(NearbyFile.id == fid).first()
     if not r:
         raise HTTPException(404, "文件不存在")

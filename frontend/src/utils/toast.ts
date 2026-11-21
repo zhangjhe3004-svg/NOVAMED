@@ -5,7 +5,7 @@
  * 均静默失效（rc-notification 通知挂载不渲染 DOM，无任何报错）。
  * 全站 40+ 处 message.xxx(...) 的操作反馈因此不可见。
  *
- * 本模块用受控 DOM 自绘提示：样式对齐 MediCode 设计语汇
+ * 本模块用受控 DOM 自绘提示：样式对齐 NOVAMED 设计语汇
  * （白底胶囊、8px 圆角、柔和阴影、顶部居中、淡入淡出），
  * 并由 components/MessageBridge 回填到 antd 静态 message 对象上，
  * 业务代码零改动恢复可见。
@@ -56,13 +56,14 @@ const CSS = `
   gap: 8px;
   max-width: calc(100vw - 48px);
   padding: 9px 16px;
-  border-radius: 8px;
+  border-radius: 10px;
+  /* 纸感白底 + 深字：任何页面上内容都清晰可读 */
   background: #ffffff;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08), 0 3px 6px -4px rgba(0, 0, 0, 0.12), 0 9px 28px 8px rgba(0, 0, 0, 0.05);
-  border: 1px solid rgba(5, 5, 5, 0.06);
+  box-shadow: 0 4px 12px rgba(43, 52, 68, 0.12), 0 1px 3px rgba(43, 52, 68, 0.08);
+  border: 1px solid rgba(43, 52, 68, 0.1);
   font-size: 14px;
   line-height: 1.5;
-  color: rgba(0, 0, 0, 0.88);
+  color: #2b3444;
   pointer-events: auto;
   opacity: 0;
   transform: translateY(-10px);

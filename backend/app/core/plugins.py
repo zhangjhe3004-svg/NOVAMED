@@ -75,6 +75,11 @@ def register_builtin_plugins(mgr: PluginManager) -> None:
     from ..api.menus import router as menus_router
     from ..api.depts import router as depts_router
     from ..api.posts import router as posts_router
+    from ..api.dicts import router as dicts_router
+    from ..api.configs import router as configs_router
+    from ..api.generator import router as generator_router
+    from ..api.agent import router as agent_router
+    from ..api.documents import router as documents_router
 
     definitions = [
         ("auth", "认证", "登录/注册/重置密码/JWT 令牌", auth.router),
@@ -85,6 +90,7 @@ def register_builtin_plugins(mgr: PluginManager) -> None:
         ("memory", "用户记忆", "用户行为记录与个性化推荐", memory.router),
         ("knowledge", "知识库", "医学文档 CRUD/分类检索/混合搜索", knowledge.router),
         ("ai_keys", "AI 服务商", "API Key 配置（OpenAI/DeepSeek/千问/Claude）", ai_keys_router),
+        ("agent", "智能问答", "内置小智能体：规则未命中的问题交由大模型回答（复用 AI 服务商 Key）", agent_router),
         # 员工域低代码引擎（NocoBase 风格）
         ("dyn", "动态数据源", "集合管理：元数据建集合/物理建表/自动CRUD", dyn_router),
         ("pages", "低代码页面", "页面 Schema 构建器：页面由配置驱动渲染", pages_router),
@@ -101,6 +107,10 @@ def register_builtin_plugins(mgr: PluginManager) -> None:
         ("menus", "菜单管理", "菜单树 CRUD：目录/页面/按钮三级 + 权限标识（menu_items）", menus_router),
         ("depts", "部门管理", "组织架构树 CRUD：部门层级/负责人/联系方式（sys_depts）", depts_router),
         ("posts", "岗位管理", "岗位 CRUD：编码/名称/排序/状态（sys_posts）", posts_router),
+        ("dicts", "字典管理", "字典类型与数据 CRUD：下拉选项/标签色调/默认项（sys_dict_types + sys_dict_data）", dicts_router),
+        ("configs", "参数配置", "系统运行参数 CRUD：键值对/内置只读/面板行内编辑（sys_configs）", configs_router),
+        ("generator", "代码生成", "导入数据库表生成开发骨架：表配置/字段映射/代码预览/ZIP 下载（gen_tables）", generator_router),
+        ("documents", "扫描文档", "拍照/上传扫描件归档 + 本地 OCR 识别文本，关联患者/就诊记录/检查检验", documents_router),
     ]
 
     state = _load_state()

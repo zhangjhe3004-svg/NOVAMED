@@ -51,6 +51,7 @@ export default function Settings() {
 
   // ===== AI 模型参数 =====
   const [params, setParams] = useState({ temperature: 0.3, top_p: 0.9, min_p: 0.05 });
+  const [aiInfo, setAiInfo] = useState({ provider_name: "", request_url: "", api_key: "" });
   const [paramSaving, setParamSaving] = useState(false);
   const [paramTesting, setParamTesting] = useState(false);
 
@@ -68,6 +69,11 @@ export default function Settings() {
           temperature: gp.temperature ?? 0.3,
           top_p: gp.top_p ?? 0.9,
           min_p: gp.min_p ?? 0.05,
+        });
+        setAiInfo({
+          provider_name: c?.provider_name ?? "NOVAMED 云端（默认）",
+          request_url: c?.request_url ?? "https://api.medicine.local/v1",
+          api_key: c?.api_key ?? "",
         });
       } catch { /* 忽略 */ } finally { setLoading(false); }
     })();
@@ -92,6 +98,7 @@ export default function Settings() {
       const payload = {
         real_name: values.real_name, department: values.department, title: values.title,
         phone: values.phone, email: values.email,
+        username: values.username, employee_no: values.employee_no,
       };
       await api.put("/auth/me", payload);
       localStorage.setItem("settings_bio", values.bio || "");
@@ -153,7 +160,7 @@ export default function Settings() {
   const handleParamSave = async () => {
     setParamSaving(true);
     try {
-      await api.put("/ai/config", { generation_parameters: params });
+      await api.put("/ai/config", { generation_parameters: params, ...aiInfo });
       message.success("参数已保存，将应用于您发起的分析");
     } catch { message.warning("参数已本地记录（服务端同步暂不可用）"); }
     finally { setParamSaving(false); }
@@ -161,7 +168,7 @@ export default function Settings() {
 
   const handleLogout = () => { logout(); navigate("/login"); };
 
-  const statusColor = user?.work_status === "在职" ? "#52c41a" : user?.work_status === "休息" ? "#d6a451" : "#c4423e";
+  const statusColor = user?.work_status === "在职" ? "#52c41a" : user?.work_status === "休息" ? "#3b82f6" : "#c4423e";
 
   const MENU: { key: SectionKey; label: string; icon: JSX.Element }[] = [
     { key: "profile", label: "个人资料", icon: <UserOutlined /> },
@@ -193,15 +200,15 @@ export default function Settings() {
           <div className="panel-body" style={{ textAlign: "center", paddingTop: 28 }}>
             <div style={{
               width: 72, height: 72, borderRadius: 18, margin: "0 auto",
-              background: "#e8f0fb", color: "#2563eb", fontSize: 30, fontWeight: 700,
+              background: "rgba(59, 130, 246, 0.18)", color: "#93c5fd", fontSize: 30, fontWeight: 700,
               display: "flex", alignItems: "center", justifyContent: "center",
             }}>
               {(user?.real_name || user?.username || "用")[0]}
             </div>
-            <div style={{ fontSize: 17, fontWeight: 650, color: "#1b2b45", marginTop: 12 }}>
+            <div style={{ fontSize: 17, fontWeight: 650, color: "#eaf1fb", marginTop: 12 }}>
               {user?.real_name || user?.username}
             </div>
-            <div style={{ fontSize: 12, color: "#78869b", marginTop: 4 }}>
+            <div style={{ fontSize: 12, color: "#9a9ab0", marginTop: 4 }}>
               {user?.department || "未分配科室"} · {user?.title || "未设置职称"}
             </div>
             <div style={{ fontSize: 12, color: statusColor, marginTop: 6 }}>
@@ -209,7 +216,7 @@ export default function Settings() {
               {user?.work_status || "在职"}
             </div>
           </div>
-          <div style={{ borderTop: "1px solid #eef1f6", padding: "10px 12px 14px", display: "grid", gap: 2 }}>
+          <div style={{ borderTop: "1px solid rgba(59, 130, 246, 0.14)", padding: "10px 12px 14px", display: "grid", gap: 2 }}>
             {MENU.map((m) => (
               <button
                 key={m.key}
@@ -217,11 +224,13 @@ export default function Settings() {
                 style={{
                   display: "flex", alignItems: "center", gap: 10, width: "100%",
                   padding: "10px 14px", border: "none", borderRadius: 9, cursor: "pointer",
-                  background: active === m.key ? "#eaf1ff" : "transparent",
-                  color: active === m.key ? "#2563eb" : "#5b6b82",
+                  background: active === m.key ? "rgba(59, 130, 246, 0.16)" : "transparent",
+                  color: active === m.key ? "#93c5fd" : "#9a9ab0",
                   fontSize: 13, fontWeight: active === m.key ? 600 : 400, textAlign: "left",
                   transition: "all 0.15s",
                 }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(232,232,244,0.09)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = active === m.key ? "rgba(59, 130, 246, 0.16)" : "transparent"; }}
               >
                 {m.icon}{m.label}
               </button>
@@ -247,13 +256,13 @@ export default function Settings() {
                       <Input />
                     </Form.Item>
                     <Form.Item name="username" label="用户名">
-                      <Input disabled style={{ background: "#f7f9fc", color: "#78869b" }} />
+                      <Input />
                     </Form.Item>
                     <Form.Item name="employee_no" label="工号">
-                      <Input disabled style={{ background: "#f7f9fc", color: "#78869b" }} />
+                      <Input />
                     </Form.Item>
                     <Form.Item name="role" label="角色">
-                      <Input disabled style={{ background: "#f7f9fc", color: "#78869b" }} />
+                      <Input disabled style={{ background: "#101b2e", color: "#9a9ab0", borderColor: "rgba(59, 130, 246, 0.2)" }} />
                     </Form.Item>
                     <Form.Item name="department" label="科室">
                       <Input />
@@ -292,7 +301,7 @@ export default function Settings() {
               <div className="panel-body">
                 <Form form={pwdForm} layout="vertical" onFinish={handleChangePassword}>
                   <Form.Item name="old_password" label="当前密码" rules={[{ required: true, message: "请输入当前密码" }]}>
-                    <Input.Password prefix={<LockOutlined style={{ color: "#9aa6b6" }} />} />
+                    <Input.Password prefix={<LockOutlined style={{ color: "var(--muted)" }} />} />
                   </Form.Item>
                   <Form.Item
                     name="new_password" label="新密码"
@@ -300,15 +309,15 @@ export default function Settings() {
                       { required: true, message: "请输入新密码" },
                       { min: 8, message: "至少 8 位，含字母与数字" },
                     ]}
-                    extra={<Text style={{ fontSize: 12, color: "#78869b" }}>密码强度：中 · 建议加入特殊字符</Text>}
+                    extra={<Text style={{ fontSize: 12, color: "#9a9ab0" }}>密码强度：中 · 建议加入特殊字符</Text>}
                   >
-                    <Input.Password prefix={<LockOutlined style={{ color: "#9aa6b6" }} />} placeholder="至少 8 位，含字母与数字" />
+                    <Input.Password prefix={<LockOutlined style={{ color: "var(--muted)" }} />} placeholder="至少 8 位，含字母与数字" />
                   </Form.Item>
                   <div style={{ display: "flex", justifyContent: "flex-end" }}>
                     <Button type="primary" htmlType="submit" loading={pwdLoading}>更新密码</Button>
                   </div>
                 </Form>
-                <div className="note" style={{ marginTop: 16, background: "#fffbe6", color: "#8a6d1a", fontSize: 12 }}>
+                <div className="note" style={{ marginTop: 16, background: "rgba(251,191,36,0.12)", color: "#fbbf24", fontSize: 12 }}>
                   上次修改：2026-08-22 · 建议定期更换密码以保障账号安全。
                 </div>
               </div>
@@ -333,9 +342,9 @@ export default function Settings() {
                         style={{
                           flex: 1, minWidth: 120, textAlign: "center", padding: "12px 0",
                           borderRadius: 10, cursor: "pointer", fontSize: 13, fontWeight: 500,
-                          border: `1px solid ${sel ? "#2563eb" : "#e6ecf3"}`,
-                          background: sel ? "#eaf1ff" : "#fff",
-                          color: sel ? "#2563eb" : "#5b6b82",
+                          border: `1px solid ${sel ? "#3b82f6" : "rgba(59, 130, 246, 0.22)"}`,
+                          background: sel ? "rgba(59, 130, 246, 0.16)" : "#101b2e",
+                          color: sel ? "#93c5fd" : "#9a9ab0",
                         }}>
                         {s}
                       </div>
@@ -344,14 +353,14 @@ export default function Settings() {
                 </div>
                 <div style={{ display: "grid", gap: 12 }}>
                   {[
-                    { key: "bookable", label: "可被患者挂号", desc: "开启后患者端可预约您的号源" },
+                    { key: "bookable", label: "可被患者挂号", desc: "开启后客户端可预约您的号源" },
                     { key: "reviewRemind", label: "接收下级审阅提醒", desc: "下级提交诊断记录时提醒您" },
                     { key: "restMessage", label: "休息期间接收消息", desc: "关闭后休息状态将暂停消息推送" },
                   ].map((t) => (
-                    <div key={t.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "#f9fbfd", borderRadius: 10 }}>
+                    <div key={t.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "#101b2e", borderRadius: 10 }}>
                       <div>
-                        <div style={{ fontSize: 13, fontWeight: 500, color: "#1b2b45" }}>{t.label}</div>
-                        <div style={{ fontSize: 11, color: "#9aa6b6", marginTop: 2 }}>{t.desc}</div>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: "#eaf1fb" }}>{t.label}</div>
+                        <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>{t.desc}</div>
                       </div>
                       <Switch
                         checked={(toggles as any)[t.key]}
@@ -381,21 +390,25 @@ export default function Settings() {
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 32px", marginBottom: 8 }}>
                   <Form layout="vertical">
                     <Form.Item label="供应商名称">
-                      <Input value="MediCode 云端（默认）" disabled style={{ background: "#f7f9fc" }} />
+                      <Input value={aiInfo.provider_name} onChange={(e) => setAiInfo((s) => ({ ...s, provider_name: e.target.value }))}
+                        style={{ background: "#101b2e", color: "#eaf1fb" }} />
                     </Form.Item>
                     <Form.Item label="请求地址">
-                      <Input prefix={<ApiOutlined style={{ color: "#9aa6b6" }} />} value="https://api.medicine.local/v1" disabled style={{ background: "#f7f9fc" }} />
+                      <Input prefix={<ApiOutlined style={{ color: "var(--muted)" }} />} value={aiInfo.request_url}
+                        onChange={(e) => setAiInfo((s) => ({ ...s, request_url: e.target.value }))}
+                        style={{ background: "#101b2e", color: "#eaf1fb" }} />
                     </Form.Item>
                   </Form>
                   <Form layout="vertical">
                     <Form.Item label="接入方式">
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                        <div style={{ padding: "9px 14px", borderRadius: 9, border: "1px solid #2563eb", background: "#eaf1ff", color: "#2563eb", fontSize: 13, textAlign: "center" }}>● 直连</div>
-                        <div style={{ padding: "9px 14px", borderRadius: 9, border: "1px solid #e6ecf3", background: "#fff", color: "#5b6b82", fontSize: 13, textAlign: "center" }}>○ 代理</div>
+                        <div style={{ padding: "9px 14px", borderRadius: 9, border: "1px solid rgba(59, 130, 246, 0.4)", background: "rgba(59, 130, 246, 0.16)", color: "#93c5fd", fontSize: 13, textAlign: "center" }}>● 直连</div>
+                        <div style={{ padding: "9px 14px", borderRadius: 9, border: "1px solid rgba(59, 130, 246, 0.2)", background: "#101b2e", color: "#9a9ab0", fontSize: 13, textAlign: "center" }}>○ 代理</div>
                       </div>
                     </Form.Item>
                     <Form.Item label="API Key">
-                      <Input.Password value="sk-**************3f2a" disabled style={{ background: "#f7f9fc" }} />
+                      <Input.Password value={aiInfo.api_key} onChange={(e) => setAiInfo((s) => ({ ...s, api_key: e.target.value }))}
+                        style={{ background: "#101b2e", color: "#eaf1fb" }} />
                     </Form.Item>
                   </Form>
                 </div>
@@ -403,8 +416,8 @@ export default function Settings() {
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24, marginTop: 8 }}>
                   <div>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
-                      <Text style={{ fontSize: 13, color: "#1b2b45" }}>温度（temperature）</Text>
-                      <Text style={{ fontSize: 13, fontWeight: 700, color: "#2563eb" }}>{params.temperature.toFixed(2)}</Text>
+                      <Text style={{ fontSize: 13, color: "#eaf1fb" }}>温度（temperature）</Text>
+                      <Text style={{ fontSize: 13, fontWeight: 700, color: "#3b82f6" }}>{params.temperature.toFixed(2)}</Text>
                     </div>
                     <Slider min={0} max={1} step={0.01} value={params.temperature}
                       onChange={(v) => setParams((p) => ({ ...p, temperature: v as number }))} />
@@ -412,8 +425,8 @@ export default function Settings() {
                   </div>
                   <div>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
-                      <Text style={{ fontSize: 13, color: "#1b2b45" }}>核采样（top_p）</Text>
-                      <Text style={{ fontSize: 13, fontWeight: 700, color: "#2563eb" }}>{params.top_p.toFixed(2)}</Text>
+                      <Text style={{ fontSize: 13, color: "#eaf1fb" }}>核采样（top_p）</Text>
+                      <Text style={{ fontSize: 13, fontWeight: 700, color: "#3b82f6" }}>{params.top_p.toFixed(2)}</Text>
                     </div>
                     <Slider min={0} max={1} step={0.01} value={params.top_p}
                       onChange={(v) => setParams((p) => ({ ...p, top_p: v as number }))} />
@@ -421,8 +434,8 @@ export default function Settings() {
                   </div>
                   <div>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
-                      <Text style={{ fontSize: 13, color: "#1b2b45" }}>最小概率（min_p）</Text>
-                      <Text style={{ fontSize: 13, fontWeight: 700, color: "#2563eb" }}>{params.min_p.toFixed(2)}</Text>
+                      <Text style={{ fontSize: 13, color: "#eaf1fb" }}>最小概率（min_p）</Text>
+                      <Text style={{ fontSize: 13, fontWeight: 700, color: "#3b82f6" }}>{params.min_p.toFixed(2)}</Text>
                     </div>
                     <Slider min={0} max={1} step={0.01} value={params.min_p}
                       onChange={(v) => setParams((p) => ({ ...p, min_p: v as number }))} />
@@ -459,10 +472,10 @@ export default function Settings() {
                     { key: "message", label: "站内消息", desc: "同事发送的站内消息提醒" },
                     { key: "system", label: "系统公告", desc: "院内公告与系统维护通知" },
                   ].map((t) => (
-                    <div key={t.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "#f9fbfd", borderRadius: 10 }}>
+                    <div key={t.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "#101b2e", borderRadius: 10 }}>
                       <div>
-                        <div style={{ fontSize: 13, fontWeight: 500, color: "#1b2b45" }}>{t.label}</div>
-                        <div style={{ fontSize: 11, color: "#9aa6b6", marginTop: 2 }}>{t.desc}</div>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: "#eaf1fb" }}>{t.label}</div>
+                        <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>{t.desc}</div>
                       </div>
                       <Switch checked={(notify as any)[t.key]} onChange={(v) => setNotify((p) => ({ ...p, [t.key]: v }))} />
                     </div>

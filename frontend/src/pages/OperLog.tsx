@@ -6,12 +6,25 @@ import { useEffect, useMemo, useState } from "react";
 import { Table, Drawer, message, Descriptions } from "antd";
 import { DownloadOutlined, ReloadOutlined, EyeOutlined } from "@ant-design/icons";
 import api from "../api/client";
-import { TrendChart } from "../components/instruments";
+import { TrendChart, Swimlane } from "../components/instruments";
 
 interface LogRow { id: number; user_id: number; username: string; action: string; resource: string; detail: string; ip: string; created_at: string; }
 interface Overview { total: number; active_users: number; today: number; per_day: { date: string; count: number }[]; }
+interface TimelineEvent { id: number; time: string; action: string; resource: string; detail: string; }
+interface TimelineLane { username: string; events: TimelineEvent[]; }
+interface TimelineData { start: string; end: string; lanes: TimelineLane[]; }
 
 const fmtTime = (iso?: string) => (iso ? new Date(iso).toLocaleString("zh-CN", { hour12: false }) : "—");
+
+/** 动作 → 圆点颜色（珍珠玻璃语义色） */
+const ACTION_COLOR = (action: string): string => {
+  if (/登录|登出|认证/.test(action)) return "#236de9";
+  if (/新增|创建|注册|导入|开启|启用/.test(action)) return "#58a021";
+  if (/编辑|修改|更新|配置|授权|调整/.test(action)) return "#a8792a";
+  if (/删除|清空|禁用|停用|移除/.test(action)) return "#e0443b";
+  if (/导出|下载|生成/.test(action)) return "#3b82f6";
+  return "#7e888c";
+};
 
 export default function OperLog() {
   const [rows, setRows] = useState<LogRow[]>([]);
@@ -21,6 +34,7 @@ export default function OperLog() {
   const [loading, setLoading] = useState(false);
   const [ov, setOv] = useState<Overview | null>(null);
   const [detail, setDetail] = useState<LogRow | null>(null);
+  const [timeline, setTimeline] = useState<TimelineData | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -32,11 +46,28 @@ export default function OperLog() {
   };
   useEffect(() => { load(); }, [page, pageSize]);
   useEffect(() => { api.get("/audit-logs/overview").then((r) => setOv(r.data)).catch(() => {}); }, []);
+  useEffect(() => {
+    api.get("/audit-logs/timeline", { params: { hours: 24, lanes: 6 } })
+      .then((r) => setTimeline(r.data))
+      .catch(() => {});
+  }, []);
 
   const trendLabels = useMemo(() => (ov?.per_day || []).map((d) => d.date), [ov]);
   const trendSeries = useMemo(() => [{
     name: "操作次数", values: (ov?.per_day || []).map((d) => d.count), color: "#236de9", area: true,
   }], [ov]);
+
+  const swimStart = useMemo(() => (timeline ? new Date(timeline.start).getTime() : 0), [timeline]);
+  const swimEnd = useMemo(() => (timeline ? new Date(timeline.end).getTime() : 1), [timeline]);
+  const swimLanes = useMemo(() => (timeline?.lanes || []).map((l) => ({
+    label: l.username,
+    events: l.events.map((e) => ({
+      time: new Date(e.time).getTime(),
+      color: ACTION_COLOR(e.action),
+      title: e.action,
+      sub: `${e.resource || "—"} · ${fmtTime(e.time)}`,
+    })),
+  })), [timeline]);
 
   const exportCsv = () => {
     const header = ["时间", "账号", "动作", "资源", "详情", "IP"];
@@ -55,7 +86,7 @@ export default function OperLog() {
       {/* 页头 */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "16px 24px", flexWrap: "wrap" }}>
         <div>
-          <div style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>操作日志</div>
+          <div className="md-page-title" style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>操作日志</div>
           <div style={{ color: "var(--lv-muted)", fontSize: 13, marginTop: 6 }}>记录系统内的关键操作，支持按账号追溯每一步变更。</div>
         </div>
         <div style={{ display: "flex", gap: 12 }}>
@@ -81,6 +112,24 @@ export default function OperLog() {
         </div>
         <div style={{ padding: "8px 20px 20px" }}>
           <TrendChart labels={trendLabels} series={trendSeries} height={220} unit="次" />
+        </div>
+      </div>
+
+      {/* 时间轴泳道 */}
+      <div className="lv-panel">
+        <div className="lv-panel-head">
+          <span className="lv-tag lv-tag--leaf" style={{ width: 8, height: 8, padding: 0 }}><span className="lv-tag-dot" /></span>
+          <span className="lv-panel-title">操作时间轴</span>
+          <span className="lv-panel-meta">近 24 小时 · 活跃账号</span>
+        </div>
+        <div style={{ padding: "8px 20px 20px" }}>
+          {swimLanes.length > 0 ? (
+            <Swimlane lanes={swimLanes} start={swimStart} end={swimEnd} height={44} />
+          ) : (
+            <div style={{ color: "var(--lv-faint)", fontSize: 13, padding: "28px 0", textAlign: "center" }}>
+              近 24 小时暂无操作记录
+            </div>
+          )}
         </div>
       </div>
 

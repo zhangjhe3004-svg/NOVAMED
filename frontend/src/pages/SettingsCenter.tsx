@@ -408,7 +408,7 @@ export default function SettingsCenter() {
         return (
           <Card title="系统设置">
             <Descriptions column={1} bordered size="small">
-              <Descriptions.Item label="系统名称">MediCode 全域智慧医疗系统</Descriptions.Item>
+              <Descriptions.Item label="系统名称">NOVAMED 全域智慧医疗系统</Descriptions.Item>
               <Descriptions.Item label="版本">v1.0.0</Descriptions.Item>
               <Descriptions.Item label="当前登录">{user?.real_name}（{user?.role}）</Descriptions.Item>
               <Descriptions.Item label="说明">本地 / 边缘部署，敏感数据本地处理</Descriptions.Item>
@@ -444,7 +444,7 @@ export default function SettingsCenter() {
         return (
           <Card title="自定义品牌">
             <Descriptions column={1} bordered size="small">
-              <Descriptions.Item label="系统名称">MediCode 全域智慧医疗系统</Descriptions.Item>
+              <Descriptions.Item label="系统名称">NOVAMED 全域智慧医疗系统</Descriptions.Item>
               <Descriptions.Item label="副标题">智慧医疗系统</Descriptions.Item>
               <Descriptions.Item label="品牌色">#1677ff</Descriptions.Item>
             </Descriptions>

@@ -1,12 +1,15 @@
 /**
- * 员工端 —— 患者详情
+ * 员工端 —— 患者详情（Apple Store iOS 版式）
+ * 头像卡 → 分组身份信息
  */
 import React, { useEffect, useState } from "react";
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from "react-native";
-import { colors, spacing, radius, fontSize, request } from "@medicode/shared";
+import { colors, spacing, shadow, request, LargeTitleHeader } from "@medicode/shared";
 
-export default function PatientDetailScreen({ route }: any) {
-  const { id } = route.params;
+const GUTTER = 20;
+
+export default function PatientDetailScreen({ route, navigation }: any) {
+  const { id, name } = route.params;
   const [detail, setDetail] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -28,70 +31,94 @@ export default function PatientDetailScreen({ route }: any) {
   }
   if (!detail) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-        <Text style={{ color: colors.textMuted }}>患者不存在</Text>
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <LargeTitleHeader back title="患者详情" tint={colors.primary} />
+        <View style={{ alignItems: "center", paddingTop: 60 }}>
+          <Text style={{ fontSize: 32, color: colors.textMuted, opacity: 0.4, marginBottom: 10 }}>◉</Text>
+          <Text style={{ color: colors.text, fontSize: 16, fontWeight: "600" }}>患者不存在</Text>
+          <Text style={{ color: colors.textMuted, fontSize: 13, marginTop: 4 }}>该档案可能已被删除</Text>
+        </View>
       </View>
     );
   }
 
-  const rows: [string, string][] = [
+  const basic: [string, string][] = [
     ["姓名", detail.name || "—"],
     ["性别", detail.gender || "—"],
+    ["出生日期", detail.birth_date || "—"],
+  ];
+  const contact: [string, string][] = [
     ["手机号", detail.phone || "—"],
     ["身份证", detail.id_card || detail.id_number || "—"],
-    ["出生日期", detail.birth_date || "—"],
     ["地址", detail.address || "—"],
-    ["过敏史", detail.medical_history || "—"],
   ];
+  const clinical: [string, string][] = [["过敏史", detail.medical_history || "—"]];
+
+  const Group = ({ label, rows }: { label: string; rows: [string, string][] }) => (
+    <>
+      <Text style={styles.groupLabel}>{label}</Text>
+      <View style={styles.groupCard}>
+        {rows.map(([k, v], i) => (
+          <View key={k} style={[styles.infoRow, i < rows.length - 1 && styles.rowDivider]}>
+            <Text style={styles.infoKey}>{k}</Text>
+            <Text style={styles.infoVal}>{v}</Text>
+          </View>
+        ))}
+      </View>
+    </>
+  );
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ padding: spacing.md }}>
-      <View style={styles.header}>
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: spacing.xl + 40 }}>
+      <LargeTitleHeader back title={name || "患者详情"} subtitle="档案详情" tint={colors.primary} />
+
+      {/* 头像卡 */}
+      <View style={styles.heroCard}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{(detail.name || "?")[0]}</Text>
         </View>
         <Text style={styles.name}>{detail.name || "未命名"}</Text>
         <Text style={styles.meta}>
-          {detail.gender ? `${detail.gender} · ` : ""}
+          {detail.gender ? `${detail.gender}` : ""}
+          {detail.gender && detail.phone ? "  ·  " : ""}
           {detail.phone || ""}
         </Text>
       </View>
 
-      <View style={styles.card}>
-        {rows.map(([k, v]) => (
-          <View key={k} style={styles.row}>
-            <Text style={styles.rowKey}>{k}</Text>
-            <Text style={styles.rowVal}>{v}</Text>
-          </View>
-        ))}
-      </View>
+      <Group label="基本信息" rows={basic} />
+      <Group label="联系方式" rows={contact} />
+      <Group label="临床信息" rows={clinical} />
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  header: { alignItems: "center", paddingVertical: spacing.lg },
+
+  heroCard: {
+    alignItems: "center", paddingVertical: 26,
+    marginHorizontal: GUTTER, marginTop: spacing.md,
+    backgroundColor: colors.card, borderRadius: 18, ...shadow.card,
+  },
   avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: colors.primaryLight,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.sm,
+    width: 72, height: 72, borderRadius: 36, backgroundColor: colors.primaryLight,
+    alignItems: "center", justifyContent: "center", marginBottom: 12,
   },
   avatarText: { color: colors.primary, fontSize: 28, fontWeight: "700" },
-  name: { fontSize: fontSize.xl, fontWeight: "700", color: colors.text },
-  meta: { fontSize: fontSize.sm, color: colors.textSecondary, marginTop: 4 },
-  card: { backgroundColor: colors.card, borderRadius: radius.md, padding: spacing.md },
-  row: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingVertical: spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+  name: { fontSize: 22, fontWeight: "700", color: colors.text, letterSpacing: -0.4 },
+  meta: { fontSize: 13, color: colors.textMuted, marginTop: 4 },
+
+  groupLabel: {
+    fontSize: 12, fontWeight: "600", color: colors.textMuted,
+    letterSpacing: 0.4, textTransform: "uppercase",
+    paddingHorizontal: GUTTER, marginTop: 26, marginBottom: 8,
   },
-  rowKey: { fontSize: fontSize.sm, color: colors.textSecondary },
-  rowVal: { fontSize: fontSize.md, color: colors.text, flex: 1, textAlign: "right", marginLeft: spacing.md },
+  groupCard: {
+    marginHorizontal: GUTTER, backgroundColor: colors.card,
+    borderRadius: 18, overflow: "hidden", ...shadow.card,
+  },
+  infoRow: { flexDirection: "row", alignItems: "flex-start", paddingVertical: 12, paddingHorizontal: 16 },
+  rowDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.separator },
+  infoKey: { width: 72, fontSize: 14, color: colors.textSecondary },
+  infoVal: { flex: 1, fontSize: 14, color: colors.text, textAlign: "right" },
 });

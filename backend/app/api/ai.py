@@ -3,6 +3,7 @@ AI 诊断 API —— /api/ai
 规则引擎 / 相似病例 / 知识库 / 防幻觉验证 / 云端 CoT（演示实现）
 """
 import json
+import os
 import re
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
@@ -11,6 +12,7 @@ from sqlalchemy.orm import Session
 from ..core.database import get_db, employee_session
 from ..core.dependencies import get_current_user
 from ..models.models import KnowledgeDoc, MedicalRecord, User
+from ..services import ai_provider as svc
 
 router = APIRouter(prefix="/api/ai", tags=["AI 诊断"])
 
@@ -91,13 +93,47 @@ def update_workflow(payload: WorkflowStageUpdate, _=Depends(get_current_user)):
     return {"detail": "ok", "stage": payload.key, "enabled": payload.enabled}
 
 
+_AI_CFG_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "data", "ai_config.json")
+
+
+def _load_ai_cfg() -> dict:
+    try:
+        with open(_AI_CFG_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _save_ai_cfg(cfg: dict) -> None:
+    os.makedirs(os.path.dirname(_AI_CFG_PATH), exist_ok=True)
+    with open(_AI_CFG_PATH, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, ensure_ascii=False, indent=2)
+
+
 @router.get("/config")
 def get_ai_config(_=Depends(get_current_user)):
+    stored = _load_ai_cfg()
+    gp = {"temperature": 0.3, "top_p": 0.9, "repetition_penalty": 1.1, "min_p": 0.05, "seed": 42}
+    gp.update(stored.get("generation_parameters") or {})
     return {
         "role": "医学辅助诊断助手",
-        "generation_parameters": {"temperature": 0.3, "top_p": 0.9, "repetition_penalty": 1.1, "min_p": 0.05, "seed": 42},
+        "generation_parameters": gp,
+        "provider_name": stored.get("provider_name", "NOVAMED 云端（默认）"),
+        "request_url": stored.get("request_url", "https://api.medicine.local/v1"),
+        "api_key": stored.get("api_key", "sk-**************3f2a"),
         "evidence_tiers": {"A": "随机对照试验/系统综述", "B": "队列/病例对照研究", "C": "专家共识/个案"},
     }
+
+
+@router.put("/config")
+def update_ai_config(payload: dict, _=Depends(get_current_user)):
+    """保存个人 AI 参数（生成参数 + 供应商名称/请求地址/API Key），持久化到 data/ai_config.json"""
+    cfg = _load_ai_cfg()
+    for key in ("generation_parameters", "provider_name", "request_url", "api_key"):
+        if key in payload and payload[key] is not None:
+            cfg[key] = payload[key]
+    _save_ai_cfg(cfg)
+    return {"detail": "ok"}
 
 
 @router.post("/diagnose")
@@ -220,6 +256,71 @@ def vector_stats(_=Depends(get_current_user)):
     return {"indexed": 0, "dimension": 32, "available": False}
 
 
+_ANALYZE_SYSTEM = """你是 NOVAMED 智慧医疗系统的医学辅助分析助手。请基于用户提供的症状/文本，给出简洁、准确、可执行的医学分析，要求：
+- 简体中文，控制在 220 字以内；需要分点时用「-」短横线，不要用 Markdown 标题、加粗、代码块或表格。
+- 内容包含：可能的鉴别诊断方向、建议完善的检查、需要警惕的危险信号。
+- 结尾必须加一句「以上仅为 AI 辅助分析，不构成医疗建议，最终诊断须由执业医师确认。」"""
+
+
 @router.post("/analyze")
-def ai_analyze(payload: dict, _=Depends(get_current_user)):
-    return {"summary": "（演示）已完成医学文本分析。", "tokens": 0}
+def ai_analyze(payload: dict, user=Depends(get_current_user)):
+    """AI 深度分析：离线规则引擎提供结构化候选，云端模型生成自然语言分析。
+
+    - 供应商/模型选择走路由服务（激活供应商 + 个人偏好覆盖 + 故障转移）。
+    - 支持显式注入：payload.provider / payload.model 可覆盖默认。
+    - 无可用服务商或云端调用失败时，回退到离线规则引擎的文本摘要（优雅降级）。
+    """
+    symptoms = (payload.get("symptoms") or payload.get("text") or "").strip()
+    if not symptoms:
+        return {"available": False, "hint": "请输入症状或待分析文本。"}
+
+    # 1) 结构化候选：复用离线规则引擎（可靠、可复现、无需 key）
+    candidates = []
+    for disease, category, base, matched in detect_symptom_hits(symptoms):
+        conf = min(0.95, base + 0.06 * len(matched))
+        candidates.append({
+            "disease": disease, "confidence": round(conf, 2), "source": "rule_based",
+            "rationale": ("命中症状：" + "、".join(matched) + "（" + category + "）") if matched else ("基于" + category + "规则"),
+            "typical_symptoms": matched, "risk_level": "中" if conf >= 0.7 else "低",
+            "confirmation_required": conf < 0.85,
+        })
+    candidates.sort(key=lambda c: c["confidence"], reverse=True)
+    candidates = candidates[:5]
+
+    # 2) 云端 LLM 深度分析（供应商/模型注入 + 故障转移，走 ai_keys.json）
+    summary = ""
+    provider_label = ""
+    model = ""
+    cand_text = "、".join(c["disease"] for c in candidates) or "（未匹配到已知分类）"
+    try:
+        result = svc.chat_with_failover(
+            [{"role": "user", "content": f"症状描述：{symptoms}\n离线规则引擎候选诊断：{cand_text}\n请给出分析。"}],
+            user_id=user.id,
+            requested_provider=payload.get("provider"),
+            requested_model=payload.get("model"),
+            system_prompt=svc.get_system_prompt("analyze", _ANALYZE_SYSTEM),
+        )
+        if result.get("available"):
+            summary = result.get("content") or ""
+            provider_label = result.get("provider") or ""
+            model = result.get("model") or ""
+    except Exception:
+        summary = ""
+
+    if not summary:
+        summary = ("（云端模型暂不可用，已回退离线规则引擎）候选诊断："
+                   + ("、".join(c["disease"] for c in candidates) or "未匹配到已知分类")
+                   + "。建议结合体征与检查进一步明确，最终诊断须由执业医师确认。")
+
+    top = candidates[0] if candidates else None
+    return {
+        "available": True,
+        "diagnoses": candidates,
+        "diagnosis": top["disease"] if top else "",
+        "confidence": top["confidence"] if top else 0.0,
+        "summary": summary,
+        "ai_analysis": summary,
+        "provider": provider_label,
+        "model": model,
+        "disclaimer": "本结果由离线规则引擎与云端模型生成，仅供医生参考，不构成医疗建议；最终诊断须由医生确认。",
+    }

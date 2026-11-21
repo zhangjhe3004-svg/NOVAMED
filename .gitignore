@@ -62,3 +62,36 @@ frontend/.verify-patient/
 
 # --- 错误日志 ---
 *.err
+
+# --- 临时验证文件（Edge profile / 桥接页 / 截图）---
+_edge_*/
+frontend/public/_auth_bridge.html
+
+# --- 截图输出 ---
+.workbuddy/outputs/
+
+# --- 浏览器调试配置目录（含会话数据，体积大）---
+frontend/.cdp-*/
+
+# --- 验证用构建产物 ---
+frontend/dist-verify*/
+frontend/_trash-ocr-unused/
+
+# --- Gradle 缓存 ---
+apk/.gradle-home/
+
+# --- Debug APK（单文件超过 GitHub 100MB 限制；release APK 保留）---
+*-debug.apk
+
+# --- 本地工具元数据 / 临时数据文件 ---
+.wbapp_*.genie
+backend/db/
+
+# --- 调试冒烟脚本 / 渲染与证书验证临时产物 ---
+backend/_dbg_*.mjs
+backend/_smoke_*.mjs
+backend/_grant_smoke.png
+backend/smoke_full_flow.py
+apk/render/
+cert_verify/
+names_white.png

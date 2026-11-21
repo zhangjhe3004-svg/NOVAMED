@@ -11,27 +11,27 @@
      弹窗   24px 圆角 / 头 20-22-6 / 体 14-22-20 / 脚 14-22 带 1px 上边线
      标签   22px 高胶囊 / 12px 600 字重
 
-   颜色沿用 MediCode 既有令牌（--blue/--ink/--line），不换主色，
+   颜色沿用 NOVAMED 既有令牌（--blue/--ink/--line），不换主色，
    只把 scaffold 的「度量与结构」搬过来 —— 这样和系统其余部分不脱节。
    ============================================================ */
 
 :root {
-  --tbl-line: #e6ecf3;            /* 分隔线（MediCode --line） */
-  --tbl-line-strong: #dde5ee;     /* 面板描边 */
-  --tbl-ink-soft: #7e888c;        /* 表头字色（scaffold --ink-soft） */
-  --tbl-hover: #f4f6f8;           /* 行悬停（≈ rgba(46,58,62,.045)） */
-  --tbl-selected: #eaf2fe;        /* 行选中（≈ rgba(35,109,233,.1)） */
-  --tbl-head-bg: #fbfcfd;         /* 表头底（scaffold --surface-solid） */
-  --tbl-radius: 16px;             /* 列表面板圆角 */
+  --tbl-line: rgba(59, 130, 246, .14);        /* 深色紫调分隔线 */
+  --tbl-line-strong: rgba(59, 130, 246, .24); /* 面板描边 */
+  --tbl-ink-soft: #9a9ab0;                    /* 表头字色 */
+  --tbl-hover: #101b2e;                       /* 深色行悬停 */
+  --tbl-selected: rgba(59, 130, 246, 0.14);      /* 行选中 */
+  --tbl-head-bg: #101b2e;                     /* 表头底深面板 */
+  --tbl-radius: 12px;                         /* 面板圆角 */
 }
 
 /* ── 表格容器：一块带描边的圆角面板 ─────────────────────────── */
 .ant-table-wrapper {
   border-radius: var(--tbl-radius);
   overflow: hidden;
-  background: #fff;
+  background: rgba(29, 29, 46, 0.6);
   border: 1px solid var(--tbl-line-strong);
-  box-shadow: 0 1px 2px rgba(27, 43, 69, .03);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .3);
 }
 .ant-table-wrapper .ant-table {
   font-size: 13px;
@@ -78,7 +78,7 @@
 .ant-table-wrapper .ant-table-cell-fix-left,
 .ant-table-wrapper .ant-table-cell-fix-right {
   box-shadow: inset 1px 0 0 var(--tbl-line) !important;
-  background: #fff;
+  background: rgba(59, 130, 246, 0.04);
 }
 .ant-table-wrapper .ant-table-thead .ant-table-cell-fix-right {
   background: var(--tbl-head-bg) !important;

@@ -6,11 +6,8 @@
  */
 import axios from "axios";
 
-const configuredApiBase = import.meta.env.VITE_API_BASE_URL;
 const api = axios.create({
-  baseURL: typeof configuredApiBase === "string" && configuredApiBase.trim()
-    ? configuredApiBase.trim().replace(/\/+$/, "")
-    : "/api",
+  baseURL: "/api",
   timeout: 15000,
   headers: {
     "Content-Type": "application/json",

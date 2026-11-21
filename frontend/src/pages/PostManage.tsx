@@ -271,7 +271,7 @@ export default function PostManage() {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "16px 24px", flexWrap: "wrap" }}>
         <div>
-          <div style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>岗位管理</div>
+          <div className="md-page-title" style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>岗位管理</div>
           <div style={{ color: "var(--lv-muted)", fontSize: 13, marginTop: 6 }}>
             岗位描述员工在组织中的职务，可在用户管理中为用户指定岗位。
           </div>

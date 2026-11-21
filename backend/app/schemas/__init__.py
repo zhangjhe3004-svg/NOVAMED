@@ -17,6 +17,7 @@ class UserInfo(BaseModel):
     username: str
     real_name: str = ""
     role: str = "staff"
+    roles: Optional[List[str]] = None  # 多角色编码（sys_user_role 权威；None 时回退 role）
     phone: Optional[str] = None
     email: Optional[str] = None
     id_number: Optional[str] = None
@@ -46,6 +47,7 @@ class UserCreate(BaseModel):
     password: str
     real_name: Optional[str] = ""
     role: str = "staff"
+    role_ids: Optional[List[int]] = None  # 多角色（sys_user_role）；缺省用 role
     phone: Optional[str] = ""
     email: Optional[str] = ""
     id_number: Optional[str] = ""
@@ -66,6 +68,7 @@ class UserCreate(BaseModel):
 class UserUpdate(BaseModel):
     real_name: Optional[str] = None
     role: Optional[str] = None
+    role_ids: Optional[List[int]] = None  # 多角色（sys_user_role）
     phone: Optional[str] = None
     email: Optional[str] = None
     is_active: Optional[bool] = None

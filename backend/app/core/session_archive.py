@@ -9,7 +9,7 @@
 import datetime
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, event, text
 
 ARCHIVE_DIR = Path(__file__).resolve().parents[2] / "db"
 ARCHIVE_PATH = ARCHIVE_DIR / "employee_sessions.db"
@@ -19,6 +19,23 @@ _engine = create_engine(
     connect_args={"check_same_thread": False},
     echo=False,
 )
+
+
+@event.listens_for(_engine, "connect")
+def _archive_journal_mode(dbapi_conn, _record):
+    """归档库用 MEMORY 日志模式。
+
+    归档库是「只追加」的审计日志，崩溃回滚价值有限；
+    而 DELETE 模式每次事务提交都要创建/删除 journal 文件，
+    在 Windows 沙箱禁止删除操作的环境下会直接 disk I/O error（登录 500）。
+    其余业务库（employee/patient）为 WAL 模式，不受影响。
+    """
+    try:
+        cur = dbapi_conn.cursor()
+        cur.execute("PRAGMA journal_mode=MEMORY")
+        cur.close()
+    except Exception:
+        pass
 
 
 def _now():
@@ -97,7 +114,7 @@ def _build_sql(user, login_at, logout_at, actions, diagnoses=None, appointments=
         return Q + _esc(s) + Q
 
     out = []
-    out.append("-- MediCode 员工会话归档（自动生成）")
+    out.append("-- NOVAMED 员工会话归档（自动生成）")
     out.append("-- 员工: %s (%s)" % (user.real_name or user.username, user.username))
     out.append("-- 登录时间: %s" % _fmt(_parse(login_at)))
     out.append("-- 退出时间: %s" % _fmt(logout_at))

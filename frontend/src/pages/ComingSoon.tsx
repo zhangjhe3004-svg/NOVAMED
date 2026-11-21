@@ -14,7 +14,7 @@ const LABELS: Record<string, string> = {
   patientMobile: "患者移动端",
   displayDensity: "切换显示密度",
   loginPortal: "员工 / 患者登录",
-  patientPreview: "患者端完整预览",
+  patientPreview: "客户端完整预览",
   uiDesign: "功能页 UI 设计",
 };
 
@@ -28,10 +28,13 @@ export default function ComingSoon() {
         maxWidth: 560,
         margin: "80px auto",
         textAlign: "center",
-        background: "#fff",
-        border: "1px solid #e6ecf3",
+        background: "rgba(59, 130, 246, 0.06)",
+        border: "1px solid rgba(21,58,124,0.11)",
         borderRadius: 14,
         padding: "48px 32px",
+        backdropFilter: "blur(40px) saturate(180%)",
+        boxShadow:
+          "0 16px 40px rgba(3,7,18,0.5), inset 0 1px 0 rgba(255,255,255,0.16), inset 0 -1px 0 rgba(2,6,16,0.35)",
       }}
     >
       <div
@@ -40,8 +43,8 @@ export default function ComingSoon() {
           height: 56,
           margin: "0 auto 18px",
           borderRadius: 14,
-          background: "#eaf1ff",
-          color: "#2563eb",
+          background: "rgba(59, 130, 246, 0.16)",
+          color: "#3b82f6",
           display: "grid",
           placeItems: "center",
           fontSize: 26,
@@ -49,10 +52,10 @@ export default function ComingSoon() {
       >
         ⚙
       </div>
-      <h2 style={{ margin: "0 0 8px", fontSize: 18, color: "#1b2b45" }}>
+      <h2 style={{ margin: "0 0 8px", fontSize: 18, color: "#eaf1fb" }}>
         {name} · 建设中
       </h2>
-      <p style={{ margin: 0, color: "#78869b", fontSize: 13, lineHeight: 1.7 }}>
+      <p style={{ margin: 0, color: "rgba(232,232,244,0.78)", fontSize: 13, lineHeight: 1.7 }}>
         该模块已在原型设计中规划，正在对接真实业务与后端接口，
         暂时以占位页呈现。你可以继续浏览其他已上线的功能。
       </p>

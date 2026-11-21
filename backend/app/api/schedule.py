@@ -30,6 +30,18 @@ def _doctor_names(ids):
         s.close()
 
 
+def _doctor_fees(ids):
+    """按 doctor_id 批量取挂号费（分，员工库 reg_fee；0=未设定）"""
+    ids = {i for i in ids if i}
+    if not ids:
+        return {}
+    s = employee_session()
+    try:
+        return {u.id: (u.reg_fee or 0) for u in s.query(User).filter(User.id.in_(ids)).all()}
+    finally:
+        s.close()
+
+
 def _non_admin_ids(ids):
     """返回非管理员员工 id 集合（系统管理员不可被挂号）"""
     ids = {i for i in ids if i}
@@ -38,14 +50,15 @@ def _non_admin_ids(ids):
     s = employee_session()
     try:
         rows = s.query(User.id, User.role).filter(User.id.in_(ids)).all()
-        return {uid for uid, role in rows if role != UserRole.ADMIN}
+        return {uid for uid, role in rows if role == UserRole.DOCTOR}
     finally:
         s.close()
 
 
-def _serialize(x, names):
+def _serialize(x, names, fees=None):
     remaining = x.remaining or 0
     total = x.total or 0
+    fee = (fees or {}).get(x.doctor_id, 0)
     return {
         "id": x.id,
         "doctor_id": x.doctor_id,
@@ -57,16 +70,16 @@ def _serialize(x, names):
         "remaining": remaining,
         "remain": remaining,
         "booked": max(0, total - remaining),
-        "fee": 50,
+        "fee": fee,  # 分；0=未设定
     }
 
 
 @router.get("/doctors")
 def bookable_doctors(_=Depends(require_admin)):
-    """可被挂号的在职员工（排除系统管理员）"""
+    """可被挂号的在职医生（仅 DOCTOR 角色）"""
     s = employee_session()
     try:
-        users = s.query(User).filter(User.role != UserRole.ADMIN, User.is_active == True).all()
+        users = s.query(User).filter(User.role == UserRole.DOCTOR, User.is_active == True).all()
         return {"items": [
             {"id": u.id, "real_name": u.real_name or u.username, "department": u.department or "",
              "title": u.title or "", "role": u.role.value if isinstance(u.role, UserRole) else str(u.role)}
@@ -108,7 +121,7 @@ def public_department_list():
     s = employee_session()
     try:
         rows = s.query(User.department, User.id).filter(
-            User.role != UserRole.ADMIN,
+            User.role == UserRole.DOCTOR,
             User.is_active == True,
             User.department != "",
         ).all()
@@ -129,7 +142,7 @@ def public_doctor_list(department: str = Query(default=None)):
     """
     s = employee_session()
     try:
-        q = s.query(User).filter(User.role != UserRole.ADMIN, User.is_active == True)
+        q = s.query(User).filter(User.role == UserRole.DOCTOR, User.is_active == True)
         if department:
             q = q.filter(User.department == department)
         users = q.order_by(User.id.asc()).all()
@@ -154,7 +167,8 @@ def public_schedules(date: str = None, department: str = None, db: Session = Dep
     valid = _non_admin_ids([x.doctor_id for x in rows])
     rows = [x for x in rows if x.doctor_id in valid]
     names = _doctor_names([x.doctor_id for x in rows])
-    return {"items": [_serialize(x, names) for x in rows]}
+    fees = _doctor_fees([x.doctor_id for x in rows])
+    return {"items": [_serialize(x, names, fees) for x in rows]}
 
 
 @router.get("")
@@ -169,7 +183,8 @@ def list_schedules(date: str = None, doctor_id: int = None, _=Depends(require_ad
     valid = _non_admin_ids([x.doctor_id for x in rows])
     rows = [x for x in rows if x.doctor_id in valid]
     names = _doctor_names([x.doctor_id for x in rows])
-    return {"items": [_serialize(x, names) for x in rows]}
+    fees = _doctor_fees([x.doctor_id for x in rows])
+    return {"items": [_serialize(x, names, fees) for x in rows]}
 
 
 @router.post("")
@@ -177,7 +192,7 @@ def upsert_schedule(payload: dict, _=Depends(require_admin), db: Session = Depen
     doctor_id = payload.get("doctor_id")
     s = employee_session()
     try:
-        doctor = s.query(User).filter(User.id == doctor_id, User.role != UserRole.ADMIN).first()
+        doctor = s.query(User).filter(User.id == doctor_id, User.role == UserRole.DOCTOR).first()
     finally:
         s.close()
     if not doctor:
@@ -218,7 +233,7 @@ def update_schedule(sid: int, payload: dict, _=Depends(require_admin), db: Sessi
         doctor_id = payload.get("doctor_id")
         ss = employee_session()
         try:
-            doctor = ss.query(User).filter(User.id == doctor_id, User.role != UserRole.ADMIN).first()
+            doctor = ss.query(User).filter(User.id == doctor_id, User.role == UserRole.DOCTOR).first()
         finally:
             ss.close()
         if not doctor:
@@ -323,3 +338,42 @@ def sync_from_staff(payload: dict = None, _=Depends(require_admin), db: Session 
         "unmatched": unmatched,
         "total_slots": default_total,
     }
+
+
+@router.get("/reg-fees")
+def list_reg_fees(_=Depends(require_admin)):
+    """管理员：全部在职医生的挂号费设定（分；0=未设定）"""
+    s = employee_session()
+    try:
+        users = s.query(User).filter(User.role == UserRole.DOCTOR, User.is_active == True).order_by(User.id.asc()).all()
+        return {"items": [
+            {"id": u.id, "real_name": u.real_name or u.username, "department": u.department or "",
+             "title": u.title or "", "reg_fee": u.reg_fee or 0}
+            for u in users
+        ]}
+    finally:
+        s.close()
+
+
+@router.put("/reg-fees/{doctor_id}")
+def set_reg_fee(doctor_id: int, payload: dict, _=Depends(require_admin)):
+    """管理员：设定某医生的挂号费（payload.fee 单位为「元」，内部 ×100 存「分」）"""
+    fee_yuan = payload.get("fee")
+    if fee_yuan is None:
+        raise HTTPException(status_code=400, detail="缺少 fee 字段（单位：元）")
+    try:
+        fee_cents = int(round(float(fee_yuan) * 100))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="fee 必须是数字")
+    if fee_cents < 0:
+        raise HTTPException(status_code=400, detail="挂号费不能为负")
+    s = employee_session()
+    try:
+        u = s.query(User).filter(User.id == doctor_id, User.role == UserRole.DOCTOR).first()
+        if not u:
+            raise HTTPException(status_code=404, detail="医生不存在")
+        u.reg_fee = fee_cents
+        s.commit()
+        return {"id": doctor_id, "reg_fee": fee_cents}
+    finally:
+        s.close()

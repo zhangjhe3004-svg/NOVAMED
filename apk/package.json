@@ -11,5 +11,10 @@
     "patient": "npm run start --workspace patient",
     "staff:android": "npm run android --workspace staff",
     "patient:android": "npm run android --workspace patient"
+  },
+  "dependencies": {
+    "expo": "~57.0.27",
+    "react": "19.2.3",
+    "react-native": "0.86.3"
   }
 }

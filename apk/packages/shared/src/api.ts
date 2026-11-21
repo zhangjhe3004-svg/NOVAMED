@@ -13,7 +13,7 @@ export interface ApiConfig {
 export const defaultConfig: ApiConfig = {
   // 真机访问电脑：用电脑局域网 IP（手机和电脑连同一 WiFi）。
   // Android 模拟器可改回 http://10.0.2.2:18001
-  baseUrl: "http://192.168.0.6:18001",
+  baseUrl: "http://10.0.2.2:18001",
   tokenKey: "medicode_token",
   userKey: "medicode_user",
 };

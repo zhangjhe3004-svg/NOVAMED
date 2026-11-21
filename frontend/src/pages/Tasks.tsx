@@ -143,7 +143,7 @@ export default function Tasks() {
       {/* 页头 */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "16px 24px", flexWrap: "wrap" }}>
         <div>
-          <div style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>定时任务</div>
+          <div className="md-page-title" style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>定时任务</div>
           <div style={{ color: "var(--lv-muted)", fontSize: 13, marginTop: 5 }}>到点自动执行提醒，通知发送至消息中心。</div>
         </div>
         <div style={{ display: "flex", gap: 12 }}>
@@ -219,7 +219,7 @@ export default function Tasks() {
           <Form.Item name="payload" label="提醒内容">
             <Input.TextArea rows={3} placeholder="到点后将作为站内通知发送给您" />
           </Form.Item>
-          <div style={{ fontSize: 11, color: "#91a5ae", lineHeight: 1.9, padding: "10px 14px", borderRadius: 8, background: "#f4f7fb" }}>
+          <div style={{ fontSize: 11, color: "#9a9ab0", lineHeight: 1.9, padding: "10px 14px", borderRadius: 8, background: "rgba(59, 130, 246, 0.08)" }}>
             <BellOutlined /> 任务由系统后台调度线程自动执行，到点发送站内通知；也可点击「执行」立即触发一次。
           </div>
         </Form>

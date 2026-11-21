@@ -10,6 +10,7 @@ import { AuthProvider, useAuth } from "./stores/auth";
 import MainLayout from "./layouts/MainLayout";
 import LoginPage from "./pages/Login";
 import MessageBridge from "./components/MessageBridge";
+import GlassEffects from "./components/GlassEffects";
 import Dashboard from "./pages/Dashboard";
 import PatientList from "./pages/PatientList";
 import {
@@ -24,6 +25,9 @@ import UserManagement from "./pages/UserManagement";
 import MenuStarMap from "./pages/MenuStarMap";
 import DeptManage from "./pages/DeptManage";
 import PostManage from "./pages/PostManage";
+import Dict from "./pages/Dict";
+import Configs from "./pages/Configs";
+import Generator from "./pages/Generator";
 import OperLog from "./pages/OperLog";
 import LoginLog from "./pages/LoginLog";
 import AdminReview from "./pages/AdminReview";
@@ -64,6 +68,8 @@ export default function App() {
       <AntApp>
         {/* antd v6 静态 message 失效 → 用 App 上下文回填（见 MessageBridge） */}
         <MessageBridge />
+        {/* 光随鼠标：全局委托 pointermove 写 --gx/--gy，驱动玻璃卡片光斑与 3D 倾斜 */}
+        <GlassEffects />
         <AuthProvider>
           <BrowserRouter>
             <Suspense fallback={<div style={{ padding: 48, textAlign: "center", color: "#999" }}>加载中...</div>}>
@@ -91,6 +97,9 @@ export default function App() {
                 <Route path="/menu-star" element={<MenuStarMap />} />
                 <Route path="/depts" element={<DeptManage />} />
                 <Route path="/posts" element={<PostManage />} />
+                <Route path="/dicts" element={<Dict />} />
+                <Route path="/configs" element={<Configs />} />
+                <Route path="/generator" element={<Generator />} />
                 <Route path="/oper-log" element={<OperLog />} />
                 <Route path="/login-log" element={<LoginLog />} />
                 <Route path="/admin-review" element={<AdminReview />} />

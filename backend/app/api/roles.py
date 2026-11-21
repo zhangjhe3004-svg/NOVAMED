@@ -2,10 +2,10 @@
 角色管理 API —— /api/roles（复刻 scaffold Roles.vue 能力：角色 CRUD + 菜单授权 + 权限矩阵数据源）
 
 约定：
-- sys_roles / sys_role_menus 表在 employee.db；menu_key 对应前端导航项 key（config/nav.ts）。
+- sys_roles / sys_role_menus 表在 employee.db；sys_role_menus.menu_id（整数，含 dir/menu/btn）为权威授权粒度。
 - 角色无任何授权行时，/my-menus 返回 menus=null —— 前端回退到静态分组配置；
   管理员在矩阵/抽屉里保存过一次授权后，DB 授权即生效。
-- builtin 角色（admin）只读：不可编辑/删除/改授权。
+- builtin 角色（admin/super_admin）只读：不可编辑/删除/改授权，自动拥有全部菜单。
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
@@ -14,7 +14,10 @@ from sqlalchemy.orm import Session
 
 from ..core.database import get_employee_db
 from ..core.dependencies import require_admin, get_current_user
-from ..models.models import SysRole, SysRoleMenu, User, UserRole
+from ..core.rbac import (
+    get_user_roles, role_menu_ids, migrate_role_menus, ensure_user_roles_backfill,
+)
+from ..models.models import SysRole, SysRoleMenu, User, MenuItem, SysUserRole
 
 router = APIRouter(prefix="/api/roles", tags=["角色管理"])
 
@@ -41,7 +44,7 @@ def _csv_cell(value) -> str:
 
 
 def _ensure_seeded(db: Session) -> None:
-    """播种内置角色（幂等）：空库写入默认角色；super_admin 恒保证存在并授予全部菜单。"""
+    """播种内置角色 + 菜单授权（幂等）；并执行 RBAC 迁移（menu_key→menu_id + 用户角色回填）。"""
     if db.query(func.count(SysRole.id)).scalar() == 0:
         seeds = [
             ("admin", "管理员", "ALL", 1, True),
@@ -60,37 +63,73 @@ def _ensure_seeded(db: Session) -> None:
         db.add(SysRole(name="超级管理员", code="super_admin", data_scope="ALL", sort=0,
                        status=1, builtin=True, remark="系统最高权限，不可删除"))
     db.commit()
+
+    # 菜单树先就位，再做授权与迁移
+    from .menus import _ensure_seeded as _ensure_menus_seeded
+    _ensure_menus_seeded(db)
+
     _grant_super_admin_all(db)
+    _seed_role_grants(db)
+    migrate_role_menus(db)
+    ensure_user_roles_backfill(db)
 
 
 def _grant_super_admin_all(db: Session) -> None:
-    """super_admin 拥有全部菜单授权（对齐 scaffold：超级管理员拥有全部菜单）。幂等。"""
-    from ..models.models import MenuItem
-    from .menus import _ensure_seeded as _ensure_menus_seeded
+    """super_admin 拥有全部菜单授权（含 dir/menu/btn）。幂等：只补缺失项。"""
     r = db.query(SysRole).filter(SysRole.code == "super_admin").first()
     if not r:
         return
-    # 已有授权行视为已配置，不再重复
-    if db.query(func.count(SysRoleMenu.id)).filter(SysRoleMenu.role_id == r.id).scalar():
-        return
-    _ensure_menus_seeded(db)
-    keys = [m.permission for m in db.query(MenuItem.permission)
-            .filter(MenuItem.type == "menu", MenuItem.permission != "").all()]
-    for k in dict.fromkeys(keys):
-        db.add(SysRoleMenu(role_id=r.id, menu_key=k))
+    all_ids = {m.id for m in db.query(MenuItem.id).all()}
+    have = {m.menu_id for m in db.query(SysRoleMenu).filter(SysRoleMenu.role_id == r.id).all()}
+    missing = all_ids - have
+    for mid in sorted(missing):
+        db.add(SysRoleMenu(role_id=r.id, menu_id=mid, menu_key=""))
+    if missing:
+        db.commit()
+
+
+def _seed_role_grants(db: Session) -> None:
+    """为未配置授权的标准角色播种其静态分组的全部菜单（对齐前端 ROLE_LABELS.groups）。幂等。"""
+    from ..core.rbac import ROLE_GROUPS
+    dirs = {d.name: d for d in db.query(MenuItem).filter(MenuItem.type == "dir").all()}
+
+    def descendants(did: int) -> set:
+        out = set()
+        def walk(pid: int):
+            for m in db.query(MenuItem).filter(MenuItem.parent_id == pid).all():
+                out.add(m.id)
+                walk(m.id)
+        walk(did)
+        return out
+
+    for code, groups in ROLE_GROUPS.items():
+        role = db.query(SysRole).filter(SysRole.code == code).first()
+        if not role:
+            continue
+        if db.query(func.count(SysRoleMenu.id)).filter(
+            SysRoleMenu.role_id == role.id, SysRoleMenu.menu_id.isnot(None)
+        ).scalar():
+            continue
+        ids = set()
+        for gname in groups:
+            d = dirs.get(gname)
+            if d:
+                ids.add(d.id)
+                ids |= descendants(d.id)
+        for mid in sorted(ids):
+            db.add(SysRoleMenu(role_id=role.id, menu_id=mid, menu_key=""))
     db.commit()
 
 
 def _user_count(db: Session, code: str) -> int:
-    try:
-        enum_val = getattr(UserRole, code.upper())
-    except AttributeError:
+    role = db.query(SysRole).filter(SysRole.code == code).first()
+    if not role:
         return 0
-    return db.query(func.count(User.id)).filter(User.role == enum_val).scalar() or 0
+    return db.query(func.count(SysUserRole.user_id)).filter(SysUserRole.role_id == role.id).scalar() or 0
 
 
 def _menu_ids(db: Session, role_id: int) -> list:
-    return [m.menu_key for m in db.query(SysRoleMenu).filter(SysRoleMenu.role_id == role_id).all()]
+    return role_menu_ids(db, role_id)
 
 
 def _get_role_or_404(db: Session, role_id: int) -> SysRole:
@@ -223,20 +262,50 @@ def save_role_menus(role_id: int, payload: dict, _=Depends(require_admin), db: S
     menu_ids = payload.get("menu_ids")
     if not isinstance(menu_ids, list):
         raise HTTPException(status_code=422, detail="menu_ids 必须是数组")
-    keys = [str(k) for k in menu_ids if isinstance(k, (str, int))]
+    # 兼容：整数=menu_items.id；字符串=legacy 导航 key，解析为对应 menu id
+    perm_to_id = {
+        m.permission: m.id
+        for m in db.query(MenuItem).filter(MenuItem.type == "menu", MenuItem.permission != "").all()
+    }
+    ids = set()
+    for k in menu_ids:
+        if isinstance(k, int):
+            ids.add(k)
+        elif isinstance(k, str):
+            mid = perm_to_id.get(k)
+            if mid is not None:
+                ids.add(mid)
     db.query(SysRoleMenu).filter(SysRoleMenu.role_id == role_id).delete()
-    for k in dict.fromkeys(keys):  # 去重保序
-        db.add(SysRoleMenu(role_id=role_id, menu_key=k))
+    for mid in ids:
+        db.add(SysRoleMenu(role_id=role_id, menu_id=mid, menu_key=""))
     db.commit()
-    return {"ok": True, "count": len(dict.fromkeys(keys))}
+    return {"ok": True, "count": len(ids)}
 
 
 @router.get("/my-menus")
 def my_menus(current_user: User = Depends(get_current_user), db: Session = Depends(get_employee_db)):
-    """当前登录账号的菜单授权：未配置（无授权行）返回 null，前端回退静态分组。"""
-    code = current_user.role.value if isinstance(current_user.role, UserRole) else str(current_user.role)
-    r = db.query(SysRole).filter(SysRole.code == code).first()
-    if not r:
-        return {"role": code, "menus": None}
-    ids = _menu_ids(db, r.id)
-    return {"role": code, "menus": ids if ids else None}
+    """当前登录账号的菜单授权（多角色并集，整数 menu_id + 权限码）。
+
+    - 拥有内置角色（admin/super_admin）→ menus=null / permissions=null（前端视为全量）；
+    - 无任何角色或授权 → menus=[] / permissions=[]（前端视为无权限）；
+    - 否则返回各角色授权的 menu_id 并集，并解析为权限码（permission 字符串）并集。
+
+    permissions 为按钮级权限码（如 medicode:users:add），供前端 PermissionButton 显隐控制；
+    menu 页面的 permission 即导航 key，也一并返回（与 menus 同源）。
+    """
+    _ensure_seeded(db)
+    from ..core.rbac import primary_role_code
+    roles = get_user_roles(db, current_user)
+    codes = [r.code for r in roles]
+    if not roles:
+        return {"role": primary_role_code(db, current_user), "roles": [], "menus": [], "permissions": []}
+    if any(r.builtin for r in roles):
+        return {"role": primary_role_code(db, current_user), "roles": codes, "menus": None, "permissions": None}
+    ids: set[int] = set()
+    for r in roles:
+        ids |= set(role_menu_ids(db, r.id))
+    perms: list[str] = []
+    if ids:
+        rows = db.query(MenuItem.id, MenuItem.permission).filter(MenuItem.id.in_(ids)).all()
+        perms = sorted({p for _, p in rows if p})
+    return {"role": primary_role_code(db, current_user), "roles": codes, "menus": sorted(ids), "permissions": perms}

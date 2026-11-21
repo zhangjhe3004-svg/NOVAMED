@@ -168,7 +168,7 @@ export default function PermissionChain() {
           </div>
         </div>
         <div className="actions">
-          <Tag color="navy" style={{ background: "#e4eaf4", color: "#2d4a74", border: "none" }}>
+          <Tag color="navy" style={{ background: "rgba(59, 130, 246, 0.18)", color: "#93c5fd", border: "none" }}>
             <TeamOutlined style={{ marginRight: 4 }} />
             我的下级 {assignedCount} 名 · 可分配 {columns[1].items.length} 名
           </Tag>
@@ -186,7 +186,7 @@ export default function PermissionChain() {
             <small>沿上级关系逐级向上，决定审批与互传的可达范围</small>
           </div>
           <Tooltip title="上级关系由管理员在用户管理中分配，此处为只读展示">
-            <Tag style={{ border: "none", background: "#f0f3f7", color: "#7d8ba0" }}>
+            <Tag style={{ border: "none", background: "rgba(59, 130, 246, 0.12)", color: "#9a9ab0" }}>
               <NodeIndexOutlined style={{ marginRight: 4 }} />只读
             </Tag>
           </Tooltip>
@@ -294,7 +294,7 @@ export default function PermissionChain() {
         </div>
       </section>
 
-      <p className="note" style={{ background: "#f6f8fc", color: "#7d8ba0", marginTop: 14 }}>
+      <p className="note" style={{ background: "rgba(59, 130, 246, 0.08)", color: "#9a9ab0", marginTop: 14 }}>
         提示：分配下级后，对方的就诊记录才会出现在「下级审阅」中；取消分配即退出链路。
         卡片落位成功走弹簧落定（k=72），取消或被拒走较软的弹射归位（k=50）。
       </p>

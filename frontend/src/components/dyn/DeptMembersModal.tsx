@@ -165,7 +165,7 @@ export default function DeptMembersModal({ target, onClose }: {
         onCancel={onClose}
         footer={null}
         width={canEdit ? 780 : 700}
-        destroyOnClose
+        destroyOnHidden
       >
         {canEdit && (
           <div style={{ marginBottom: 10, textAlign: "right" }}>
@@ -189,7 +189,7 @@ export default function DeptMembersModal({ target, onClose }: {
         title={editing?.id ? "编辑人员" : "新增人员"}
         onCancel={() => setEditing(null)}
         onOk={() => form.submit()}
-        destroyOnClose
+        destroyOnHidden
         width={460}
       >
         <Form form={form} layout="vertical" onFinish={save}>

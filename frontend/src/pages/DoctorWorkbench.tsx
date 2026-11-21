@@ -77,7 +77,7 @@ export default function DoctorWorkbench() {
     <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: "8px 0 32px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "16px 24px", flexWrap: "wrap" }}>
         <div>
-          <div style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>医生工作台</div>
+          <div className="md-page-title" style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>医生工作台</div>
           <div style={{ color: "var(--lv-muted)", fontSize: 13, marginTop: 5 }}>我的接诊与下级诊断记录；完成接诊自动生成就诊记录。</div>
         </div>
         <button className="lv-btn" type="button" onClick={tab === "senior" ? exportSenior : exportAppts}><DownloadOutlined /> 导出表格</button>

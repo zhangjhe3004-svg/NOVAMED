@@ -5,13 +5,14 @@ import {
 } from "antd";
 import {
   PlusOutlined, DeleteOutlined, EditOutlined, CalendarOutlined, DownloadOutlined,
-  LeftOutlined, RightOutlined, ScheduleOutlined, SyncOutlined,
+  LeftOutlined, RightOutlined, ScheduleOutlined, SyncOutlined, MoneyCollectOutlined,
 } from "@ant-design/icons";
 import dayjs, { type Dayjs } from "dayjs";
 import * as XLSX from "xlsx";
 import {
   listSchedules, listBookableDoctors, deleteSchedule, updateSchedule, syncFromStaff,
-  type DoctorScheduleItem, type BookableDoctor,
+  listRegFees, setRegFee,
+  type DoctorScheduleItem, type BookableDoctor, type RegFeeItem,
 } from "../api/schedule";
 import api from "../api/client";
 
@@ -32,8 +33,8 @@ const SHIFT_DEFS: { label: string; slot: string; start: number; end: number; shi
   });
 
 const SHIFT_ORDER: ("早班" | "午班" | "晚班")[] = ["早班", "午班", "晚班"];
-const SHIFT_COLOR: Record<string, string> = { 早班: "#eaf1ff", 午班: "#e6f4f1", 晚班: "#f6eefc" };
-const SHIFT_BORDER: Record<string, string> = { 早班: "#2563eb", 午班: "#138d85", 晚班: "#7c3aed" };
+const SHIFT_COLOR: Record<string, string> = { 早班: "rgba(66,125,241,0.16)", 午班: "rgba(39,133,133,0.2)", 晚班: "rgba(124,156,196,0.25)" };
+const SHIFT_BORDER: Record<string, string> = { 早班: "#5B8DEF", 午班: "#7EC850", 晚班: "#93c5fd" };
 
 /** 本地时区的日期字符串 yyyy-mm-dd（避免 toISOString 时区偏移） */
 const fmtDate = (d: Date) =>
@@ -56,6 +57,34 @@ export default function ScheduleManager() {
   // 当日排班表弹窗（学习通式，点击日期弹出）
   const [dayModalOpen, setDayModalOpen] = useState(false);
   const [dayModalDate, setDayModalDate] = useState<string>("");
+
+  // 挂号费设定弹窗
+  const [feeOpen, setFeeOpen] = useState(false);
+  const [fees, setFees] = useState<RegFeeItem[]>([]);
+  const [feeLoading, setFeeLoading] = useState(false);
+
+  const openFeePanel = async () => {
+    setFeeOpen(true);
+    setFeeLoading(true);
+    try {
+      const r = await listRegFees();
+      setFees(r.items);
+    } catch (e: any) {
+      message.error(e?.response?.data?.detail || "加载挂号费失败");
+    } finally {
+      setFeeLoading(false);
+    }
+  };
+
+  const saveFee = async (id: number, yuan: number) => {
+    try {
+      await setRegFee(id, yuan);
+      setFees((prev) => prev.map((f) => (f.id === id ? { ...f, reg_fee: Math.round(yuan * 100) } : f)));
+      message.success("挂号费已保存");
+    } catch (e: any) {
+      message.error(e?.response?.data?.detail || "保存失败");
+    }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -349,9 +378,9 @@ export default function ScheduleManager() {
     const startHour = parseInt(schedule.time_slot.split("-")[0].split(":")[0], 10);
     const shift = startHour >= 6 && startHour < 12 ? "早班" : startHour >= 12 && startHour < 18 ? "午班" : "晚班";
     const isTight = schedule.remaining <= 2;
-    const bgColor = isTight ? "#fff7e9" : SHIFT_COLOR[shift];
-    const borderColor = isTight ? "#d6a451" : SHIFT_BORDER[shift];
-    const textColor = isTight ? "#b88c38" : SHIFT_BORDER[shift];
+    const bgColor = isTight ? "rgba(59, 130, 246, 0.16)" : SHIFT_COLOR[shift];
+    const borderColor = isTight ? "#3b82f6" : SHIFT_BORDER[shift];
+    const textColor = isTight ? "#60a5fa" : SHIFT_BORDER[shift];
     return (
       <div
         key={schedule.time_slot}
@@ -389,12 +418,13 @@ export default function ScheduleManager() {
       {/* 页面标题 */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "16px 24px", flexWrap: "wrap", marginBottom: 16 }}>
         <div>
-          <div style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>号源排班</div>
-          <div style={{ color: "var(--lv-muted)", fontSize: 13, marginTop: 5 }}>按年 / 月 / 日 / 周查看排班，配置医生号源，患者端实时同步剩余号源。</div>
+          <div className="md-page-title" style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>号源排班</div>
+          <div style={{ color: "var(--lv-muted)", fontSize: 13, marginTop: 5 }}>按年 / 月 / 日 / 周查看排班，配置医生号源，客户端实时同步剩余号源。</div>
         </div>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
           <button className="lv-btn" type="button" onClick={handleExport}><DownloadOutlined /> 导出</button>
           <button className="lv-btn" type="button" onClick={handleSync}><SyncOutlined /> 同步排班</button>
+          <button className="lv-btn" type="button" onClick={openFeePanel}><MoneyCollectOutlined /> 挂号费设定</button>
           <button className="lv-btn lv-btn--primary" type="button" onClick={openCreate}><PlusOutlined /> 新增号源</button>
         </div>
       </div>
@@ -419,7 +449,7 @@ export default function ScheduleManager() {
               <Button size="small" onClick={goToday}>今天</Button>
             </Tooltip>
           </div>
-          <div style={{ flex: 1, fontSize: 15, fontWeight: 600, color: "#1b2b45" }}>{viewRange.label}</div>
+          <div style={{ flex: 1, fontSize: 15, fontWeight: 600, color: "#eaf1fb" }}>{viewRange.label}</div>
           <DatePicker
             picker={viewMode === "year" ? "year" : "month"}
             value={anchor}
@@ -440,7 +470,7 @@ export default function ScheduleManager() {
         <div className="stat">
           <div className="stat-top"><span>已预约</span><span className="stat-icon teal"><CalendarOutlined /></span></div>
           <div className="stat-value">{bookedSlots}</div>
-          <div className="stat-bottom"><em>预约率 {totalSlots > 0 ? ((bookedSlots / totalSlots) * 100).toFixed(0) : 0}%</em><span> · 含患者端预约</span></div>
+          <div className="stat-bottom"><em>预约率 {totalSlots > 0 ? ((bookedSlots / totalSlots) * 100).toFixed(0) : 0}%</em><span> · 含客户端预约</span></div>
         </div>
         <div className="stat">
           <div className="stat-top"><span>剩余号源</span><span className="stat-icon gold"><CalendarOutlined /></span></div>
@@ -468,10 +498,10 @@ export default function ScheduleManager() {
                 {viewMode === "week" && "点击时段可查看和编辑号源详情"}
               </small>
             </div>
-            <div style={{ display: "flex", gap: "16px", fontSize: "10px", color: "#8190a4" }}>
-              <span><i style={{ display: "inline-block", width: "10px", height: "10px", borderRadius: "3px", background: "#2563eb", marginRight: "6px", verticalAlign: "-1px" }}></i>上午门诊</span>
-              <span><i style={{ display: "inline-block", width: "10px", height: "10px", borderRadius: "3px", background: "#138d85", marginRight: "6px", verticalAlign: "-1px" }}></i>下午门诊</span>
-              <span><i style={{ display: "inline-block", width: "10px", height: "10px", borderRadius: "3px", background: "#d6a451", marginRight: "6px", verticalAlign: "-1px" }}></i>紧张</span>
+            <div style={{ display: "flex", gap: "16px", fontSize: "10px", color: "rgba(232,232,244,0.78)" }}>
+              <span><i style={{ display: "inline-block", width: "10px", height: "10px", borderRadius: "3px", background: "#5B8DEF", marginRight: "6px", verticalAlign: "-1px" }}></i>上午门诊</span>
+              <span><i style={{ display: "inline-block", width: "10px", height: "10px", borderRadius: "3px", background: "#7EC850", marginRight: "6px", verticalAlign: "-1px" }}></i>下午门诊</span>
+              <span><i style={{ display: "inline-block", width: "10px", height: "10px", borderRadius: "3px", background: "#3b82f6", marginRight: "6px", verticalAlign: "-1px" }}></i>紧张</span>
             </div>
           </div>
 
@@ -486,17 +516,17 @@ export default function ScheduleManager() {
                       key={m.month}
                       onClick={() => { setAnchor(anchor.month(parseInt(m.month, 10) - 1)); setViewMode("month"); }}
                       style={{
-                        border: "1px solid #e6ecf3", borderRadius: 10, padding: 14, cursor: "pointer",
-                        background: m.days > 0 ? "#fff" : "#fafbfd",
+                        border: "1px solid rgba(21,58,124,0.11)", borderRadius: 10, padding: 14, cursor: "pointer",
+                        background: m.days > 0 ? "rgba(59, 130, 246, 0.06)" : "rgba(59, 130, 246, 0.04)",
                         transition: "all 0.15s",
                       }}
-                      onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 4px 12px rgba(37,99,235,.12)"; }}
+                      onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 4px 12px rgba(59, 130, 246, 0.2)"; }}
                       onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; }}
                     >
                       <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>{m.month}</div>
-                      <div style={{ fontSize: 11, color: "#8190a4", display: "grid", gap: 4 }}>
+                      <div style={{ fontSize: 11, color: "rgba(232,232,244,0.78)", display: "grid", gap: 4 }}>
                         <span>排班 {m.days} 天 · 号源 {m.total}</span>
-                        <span style={{ color: m.remaining > 0 ? "#138d85" : "#8190a4" }}>剩余 {m.remaining}</span>
+                        <span style={{ color: m.remaining > 0 ? "#7EC850" : "rgba(232,232,244,0.78)" }}>剩余 {m.remaining}</span>
                       </div>
                     </div>
                   ))}
@@ -507,7 +537,7 @@ export default function ScheduleManager() {
                 <div style={{ padding: 12 }}>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6, marginBottom: 6 }}>
                     {WEEKDAYS.map((w) => (
-                      <div key={w} style={{ textAlign: "center", fontSize: 11, color: "#8b98aa", fontWeight: 600, padding: "6px 0" }}>
+                      <div key={w} style={{ textAlign: "center", fontSize: 11, color: "var(--muted)", fontWeight: 600, padding: "6px 0" }}>
                         周{w}
                       </div>
                     ))}
@@ -524,21 +554,21 @@ export default function ScheduleManager() {
                           key={date}
                           onClick={() => openDayModal(date)}
                           style={{
-                            minHeight: 74, border: "1px solid #eef1f6", borderRadius: 8, padding: 6,
-                            cursor: "pointer", background: isToday ? "#eff5ff" : "#fff",
-                            borderColor: isToday ? "#2563eb" : "#eef1f6",
+                            minHeight: 74, border: "1px solid rgba(59, 130, 246, 0.22)", borderRadius: 8, padding: 6,
+                            cursor: "pointer", background: isToday ? "rgba(59, 130, 246, 0.16)" : "rgba(59, 130, 246, 0.05)",
+                            borderColor: isToday ? "#3b82f6" : "rgba(21,58,124,0.11)",
                           }}
                         >
-                          <div style={{ fontSize: 11, fontWeight: 600, color: isToday ? "#2563eb" : "#1b2b45" }}>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: isToday ? "#93c5fd" : "#eaf1fb" }}>
                             {cell.date()}
                           </div>
                           {s.slots > 0 ? (
-                            <div style={{ fontSize: 10, color: "#8290a4", marginTop: 4, lineHeight: 1.5 }}>
-                              <div style={{ color: "#2f5fc4" }}>{s.doctors} 位医生</div>
-                              <div>号 {s.total} · 余 <b style={{ color: isTight ? "#b88c38" : "#138d85" }}>{s.remaining}</b></div>
+                            <div style={{ fontSize: 10, color: "rgba(232,232,244,0.78)", marginTop: 4, lineHeight: 1.5 }}>
+                              <div style={{ color: "#93c5fd" }}>{s.doctors} 位医生</div>
+                              <div>号 {s.total} · 余 <b style={{ color: isTight ? "#93c5fd" : "#86efac" }}>{s.remaining}</b></div>
                             </div>
                           ) : (
-                            <div style={{ fontSize: 10, color: "#c3ccd8", marginTop: 6 }}>—</div>
+                            <div style={{ fontSize: 10, color: "rgba(232,232,244,0.35)", marginTop: 6 }}>—</div>
                           )}
                         </div>
                       );
@@ -553,15 +583,15 @@ export default function ScheduleManager() {
                 ) : (
                   <table style={{ width: "100%", fontSize: "11px", borderCollapse: "collapse" }}>
                     <thead>
-                      <tr style={{ background: "#f9fbfd", color: "#8b98aa" }}>
-                        <th style={{ padding: "11px 8px", textAlign: "center", border: "1px solid #f4f6fa", minWidth: "120px" }}>医生</th>
+                      <tr style={{ background: "rgba(59, 130, 246, 0.05)", color: "var(--muted)" }}>
+                        <th style={{ padding: "11px 8px", textAlign: "center", border: "1px solid rgba(21,58,124,0.1)", minWidth: "120px" }}>医生</th>
                         {rangeDays.map((date) => {
                           const d = dayjs(date);
                           const isToday = date === todayStr;
                           return (
-                            <th key={date} style={{ padding: "11px 8px", textAlign: "center", border: "1px solid #f4f6fa", color: isToday ? "#2563eb" : "#8b98aa", background: isToday ? "#eff5ff" : "#f9fbfd" }}>
+                            <th key={date} style={{ padding: "11px 8px", textAlign: "center", border: "1px solid rgba(21,58,124,0.1)", color: isToday ? "#5B8DEF" : "var(--muted)", background: isToday ? "rgba(59, 130, 246, 0.16)" : "rgba(59, 130, 246, 0.05)" }}>
                               {viewMode === "week" ? `周${WEEKDAYS[d.day()]}` : ""}
-                              <b style={{ display: "block", color: isToday ? "#2563eb" : "#1b2b45", fontSize: "12px", marginTop: "3px" }}>
+                              <b style={{ display: "block", color: isToday ? "#93c5fd" : "#eaf1fb", fontSize: "12px", marginTop: "3px" }}>
                                 {d.format("MM-DD")}
                               </b>
                             </th>
@@ -572,17 +602,17 @@ export default function ScheduleManager() {
                     <tbody>
                       {rangeDoctors.map((doctorId) => (
                         <tr key={doctorId}>
-                          <td style={{ padding: "10px 8px", border: "1px solid #f0f3f8", verticalAlign: "top" }}>
+                          <td style={{ padding: "10px 8px", border: "1px solid rgba(21,58,124,0.1)", verticalAlign: "top" }}>
                             <div style={{ display: "flex", gap: "9px", alignItems: "center" }}>
                               <span className="avatar sq" style={{ width: "34px", height: "34px", fontSize: "12px" }}>{doctorName(doctorId)[0]}</span>
                               <span>
                                 <div style={{ fontSize: "12px", fontWeight: 500 }}>{doctorName(doctorId)}</div>
-                                <small style={{ display: "block", color: "#9aa6b6", fontSize: "10px", marginTop: "3px" }}>{doctorTitle(doctorId)}</small>
+                                <small style={{ display: "block", color: "var(--muted)", fontSize: "10px", marginTop: "3px" }}>{doctorTitle(doctorId)}</small>
                               </span>
                             </div>
                           </td>
                           {rangeDays.map((date) => (
-                            <td key={date} style={{ padding: "8px", border: "1px solid #f4f6fa", verticalAlign: "top" }}>
+                            <td key={date} style={{ padding: "8px", border: "1px solid rgba(21,58,124,0.1)", verticalAlign: "top" }}>
                               <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                                 {SHIFT_DEFS.map((t) => {
                                   const schedule = getSchedule(doctorId, date, t.slot);
@@ -611,7 +641,7 @@ export default function ScheduleManager() {
                 <div className="mini"><small>门诊班次</small><b>{inRange.length}<span>班</span></b></div>
                 <div className="mini"><small>预约率</small><b>{totalSlots > 0 ? ((bookedSlots / totalSlots) * 100).toFixed(0) : 0}<span>%</span></b></div>
                 <div className="mini"><small>剩余号源</small><b>{remainingSlots}<span>个</span></b></div>
-                <div className="mini"><small>紧张时段</small><b style={{ color: "#c4423e" }}>{tightSlotCount}</b></div>
+                <div className="mini"><small>紧张时段</small><b style={{ color: "#E5746B" }}>{tightSlotCount}</b></div>
               </div>
               {tightSlotCount > 0 && (
                 <div className="note red" style={{ marginTop: 14 }}>
@@ -702,7 +732,51 @@ export default function ScheduleManager() {
         </Form>
       </Modal>
 
-      {/* 当日排班表（学习通式：24 小时每 2 小时一时段，按早/午/晚班分区） */}
+      {/* 挂号费设定弹窗（管理员）：为每个医生设定挂号费（单位：元，0=未设定→患者端显示「待定」） */}
+      <Modal
+        open={feeOpen}
+        title="医生挂号费设定"
+        onCancel={() => setFeeOpen(false)}
+        footer={<Button onClick={() => setFeeOpen(false)}>关闭</Button>}
+        width={620}
+        destroyOnHidden
+      >
+        <div style={{ fontSize: 12, color: "var(--lv-muted)", marginBottom: 12 }}>
+          设定后患者端挂号时按医生显示挂号费；留 0 或清空表示「待定」（由医院定价）。
+        </div>
+        <Spin spinning={feeLoading}>
+          <div style={{ maxHeight: 420, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
+            {fees.map((f) => (
+              <div key={f.id} style={{
+                display: "flex", alignItems: "center", gap: 12, padding: "10px 12px",
+                border: "1px solid rgba(169,216,204,0.12)", borderRadius: 8,
+              }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 550, color: "var(--lv-ink)" }}>{f.real_name}</div>
+                  <div style={{ fontSize: 11, color: "var(--lv-muted)", marginTop: 2 }}>
+                    {f.department || "未分配科室"}{f.title ? ` · ${f.title}` : ""}
+                  </div>
+                </div>
+                <InputNumber
+                  min={0}
+                  precision={2}
+                  defaultValue={f.reg_fee ? f.reg_fee / 100 : 0}
+                  key={`fee-${f.id}-${f.reg_fee}`}
+                  prefix="¥"
+                  style={{ width: 130 }}
+                  onBlur={(e) => {
+                    const v = parseFloat(e.target.value);
+                    if (Number.isFinite(v) && v >= 0) saveFee(f.id, v);
+                  }}
+                />
+              </div>
+            ))}
+            {!feeLoading && fees.length === 0 && (
+              <div style={{ textAlign: "center", padding: 24, color: "var(--lv-muted)", fontSize: 12 }}>暂无可设定挂号费的医生</div>
+            )}
+          </div>
+        </Spin>
+      </Modal>
       <Modal
         open={dayModalOpen}
         title={`${dayModalDate ? dayjs(dayModalDate).format("YYYY年M月D日 dddd") : ""} · 当日排班`}
@@ -713,14 +787,14 @@ export default function ScheduleManager() {
         width={760}
         destroyOnHidden
       >
-        <div style={{ fontSize: 12, color: "#8190a4", marginBottom: 14, display: "flex", gap: 16, flexWrap: "wrap" }}>
+        <div style={{ fontSize: 12, color: "rgba(232,232,244,0.78)", marginBottom: 14, display: "flex", gap: 16, flexWrap: "wrap" }}>
           {SHIFT_ORDER.map((sh) => (
             <span key={sh}>
               <i style={{ display: "inline-block", width: 10, height: 10, borderRadius: 3, background: SHIFT_BORDER[sh], marginRight: 6, verticalAlign: "-1px" }} />
               {sh}
             </span>
           ))}
-          <span style={{ color: "#b88c38" }}>· 点击空格排班</span>
+          <span style={{ color: "#93c5fd" }}>· 点击空格排班</span>
         </div>
 
         {SHIFT_ORDER.map((shift) => {
@@ -741,26 +815,26 @@ export default function ScheduleManager() {
                       key={t.slot}
                       onClick={() => scheduleSlot(dayModalDate, t.slot)}
                       style={{
-                        border: `1px solid ${sch ? SHIFT_BORDER[shift] : "#e6ecf3"}`,
+                        border: `1px solid ${sch ? SHIFT_BORDER[shift] : "rgba(21,58,124,0.11)"}`,
                         borderRadius: 8,
                         padding: "10px 8px",
                         cursor: "pointer",
                         minHeight: 62,
-                        background: sch ? SHIFT_COLOR[shift] : "#fafbfd",
+                        background: sch ? SHIFT_COLOR[shift] : "rgba(59, 130, 246, 0.04)",
                         transition: "all 0.15s",
                         position: "relative",
                       }}
-                      onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 3px 10px rgba(37,99,235,.12)"; }}
+                      onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 3px 10px rgba(59, 130, 246, 0.2)"; }}
                       onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; }}
                     >
-                      <div style={{ fontSize: 11, fontWeight: 600, color: "#1b2b45" }}>{t.label}</div>
-                      <div style={{ fontSize: 10, color: "#9aa6b6", marginTop: 2 }}>{t.slot}</div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: "#f4f4fb" }}>{t.label}</div>
+                      <div style={{ fontSize: 10, color: "rgba(232,232,244,0.65)", marginTop: 2 }}>{t.slot}</div>
                       {sch ? (
                         <div style={{ marginTop: 6 }}>
                           <div style={{ fontSize: 11, fontWeight: 600, color: SHIFT_BORDER[shift] }}>
                             {doctorName(sch.doctor_id)}
                           </div>
-                          <div style={{ fontSize: 10, color: "#8290a4" }}>
+                          <div style={{ fontSize: 10, color: "rgba(232,232,244,0.78)" }}>
                             余 {sch.remaining}/{sch.total}
                           </div>
                           <div
@@ -776,7 +850,7 @@ export default function ScheduleManager() {
                           </div>
                         </div>
                       ) : (
-                        <div style={{ fontSize: 10, color: "#c3ccd8", marginTop: 6 }}>+ 排班</div>
+                        <div style={{ fontSize: 10, color: "rgba(232,232,244,0.45)", marginTop: 6 }}>+ 排班</div>
                       )}
                     </div>
                   );

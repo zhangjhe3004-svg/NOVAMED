@@ -10,16 +10,15 @@ from ..models.workspace import DynCollection, PageSchemaModel, AclRule, Workflow
 from .dyn_engine import create_collection, insert_row
 
 
-def seed_lowcode(include_demo_data: bool = False):
-    """应用启动时初始化低代码元数据；演示记录仅在开发环境写入。"""
+def seed_lowcode():
+    """应用启动时调用：初始化员工域低代码元数据与演示数据（幂等）"""
     db: Session = employee_session()
     try:
         _seed_collections(db)
         _seed_pages(db)
         _seed_acl(db)
         _seed_workflow(db)
-        if include_demo_data:
-            _seed_demo_rows(db)
+        _seed_demo_rows(db)
     finally:
         db.close()
 

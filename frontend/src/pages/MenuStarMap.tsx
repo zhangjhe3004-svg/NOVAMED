@@ -23,13 +23,13 @@ import StageGraph, { type GraphNode, type GraphLink } from "../components/StageG
 import InsightPanel, { type InsightSection } from "../components/InsightPanel";
 import { buildNavGroups } from "../config/nav";
 import { useAuth } from "../stores/auth";
-import { listRoles, type RoleItem } from "../api/roles";
 import { fetchMenuTree, createMenu, updateMenu, removeMenu, exportMenus, type MenuItemRow, type MenuType } from "../api/menus";
+import { listRoles, saveRoleMenus, type RoleItem } from "../api/roles";
 import type { NetLink, NetNode } from "../utils/stage";
 import { downloadBlob } from "../utils/download";
 
 const CAT_INK: Record<number, string> = {
-  1: "#7a5a16", 2: "#275a96", 3: "#5b4597", 4: "#94384c", 5: "#2d7140",
+  1: "#7a5a16", 2: "#275a96", 3: "#1d4ed8", 4: "#94384c", 5: "#2d7140",
 };
 
 const RING = { hub: 0.52, page: 0.77, btn: 0.97 };
@@ -77,7 +77,7 @@ export default function MenuStarMap() {
   }, []);
   useEffect(() => { loadTree(); }, [loadTree]);
 
-  /* ---------- 角色授权（页面 permission=导航 key → menu_ids 匹配） ---------- */
+  /* ---------- 角色授权（menu_id 整数 → sys_role_menus 匹配） ---------- */
   const [roleRows, setRoleRows] = useState<RoleItem[]>([]);
   useEffect(() => {
     if (!isAdmin) return;
@@ -87,14 +87,14 @@ export default function MenuStarMap() {
   }, [isAdmin]);
 
   const grantCount = useCallback(
-    (permission: string) => {
+    (id: number) => {
       if (!roleRows.length) return null;
-      return roleRows.filter((r) => !r.builtin && r.status === 1 && (r.menu_ids || []).includes(permission)).length;
+      return roleRows.filter((r) => !r.builtin && r.status === 1 && (r.menu_ids || []).includes(id)).length;
     },
     [roleRows]
   );
   const holdersOf = useCallback(
-    (permission: string) => roleRows.filter((r) => (r.menu_ids || []).includes(permission)),
+    (id: number) => roleRows.filter((r) => (r.menu_ids || []).includes(id)),
     [roleRows]
   );
 
@@ -117,7 +117,7 @@ export default function MenuStarMap() {
   const isLeafTop = (m: MenuItemRow) => !pagesOf(m).length;
   const isDanger = (m: MenuItemRow) => m.type === "btn" && !m.permission;
   const isOrphan = (m: MenuItemRow) =>
-    m.type !== "btn" && m.status === 1 && m.type === "menu" && (grantCount(m.permission) ?? 0) === 0 && roleRows.length > 0;
+    m.type !== "btn" && m.status === 1 && m.type === "menu" && (grantCount(m.id) ?? 0) === 0 && roleRows.length > 0;
   const catOf = (m: MenuItemRow) => {
     if (m.type === "dir") return 5;
     const e = flat.get(m.id);
@@ -133,7 +133,7 @@ export default function MenuStarMap() {
       const walkList = (list: MenuItemRow[]) => list.forEach((c) => { if (c.type === "menu") pages.push(c); walkList(c.children ?? []); });
       walkList(m.type === "menu" ? [m] : m.children ?? []);
       if (!pages.length || !roleRows.length) return 0;
-      return pages.filter((p) => (grantCount(p.permission) ?? 0) > 0).length / pages.length;
+      return pages.filter((p) => (grantCount(p.id) ?? 0) > 0).length / pages.length;
     },
     [grantCount, roleRows.length]
   );
@@ -476,7 +476,7 @@ export default function MenuStarMap() {
       nodes.push({ id: `m:${b.id}`, x: leftPad + W * 0.72, y: by0 + i * bgap, kind: "item", align: "left", label: b.name, sub: b.permission || "缺少权限标识", cat, tone: toneOf(b), from: pid, delay: stagger(i, btns.length, 0.2) });
       links.push({ a: pid, b: `m:${b.id}`, flow: "forward", shape: "h", cat, tone: isDanger(b) ? "danger" : undefined });
     });
-    const roles = holdersOf(page.permission);
+    const roles = holdersOf(page.id);
     const rgap = roles.length > 1 ? Math.min(52, span / (roles.length - 1)) : 0;
     const ry0 = COL_TOP + span / 2 - (rgap * (roles.length - 1)) / 2;
     roles.forEach((r, i) => {
@@ -494,7 +494,8 @@ export default function MenuStarMap() {
 
   function onSelect(node: GraphNode) {
     if (node.id.startsWith("role:")) {
-      navigate(`/role-trace?trace=role:${node.id.slice(5)}`);
+      const r = roleRows.find((x) => x.id === Number(node.id.slice(5)));
+      navigate(`/role-trace?trace=role:${r?.code ?? node.id.slice(5)}`);
       return;
     }
     if (node.id === "root") return;
@@ -532,6 +533,48 @@ export default function MenuStarMap() {
     setBranchId(top?.menu.id ?? null);
     setFocusId(e.depth === 0 && !isLeafTop(e.menu) ? null : id);
   }
+
+  /* ── 详情卡内直接授权 / 取消（sys_role_menus.menu_id）── */
+  const refreshRoles = useCallback(() => {
+    if (!isAdmin) return;
+    listRoles({ page: 1, page_size: 100 })
+      .then((r) => setRoleRows(r.items || []))
+      .catch(() => {});
+  }, [isAdmin]);
+
+  const toggleGrant = async (roleId: number, granted: boolean) => {
+    const role = roleRows.find((r) => r.id === roleId);
+    if (!role || !panel) return;
+    if (role.builtin) {
+      message.info("内置角色拥有全部权限，授权不可修改");
+      return;
+    }
+    const ids = new Set(role.menu_ids || []);
+    if (granted) ids.add(panel.menu.id);
+    else ids.delete(panel.menu.id);
+    try {
+      await saveRoleMenus(roleId, [...ids]);
+      message.success(granted ? `已授予「${role.name}」` : `已取消「${role.name}」的授权`);
+      refreshRoles();
+    } catch (e: any) {
+      message.error(e?.response?.data?.detail || "授权保存失败");
+      throw e;
+    }
+  };
+
+  const doRemove = async () => {
+    if (!panel) return;
+    try {
+      await removeMenu(panel.menu.id);
+      message.success("菜单已删除");
+      setFocusId(null);
+      setBranchId(null);
+      await loadTree();
+      refreshRoles();
+    } catch (e: any) {
+      message.error(e?.response?.data?.detail || "菜单删除失败");
+    }
+  };
 
   /* 图例发现 */
   const findings = useMemo(() => {
@@ -573,7 +616,7 @@ export default function MenuStarMap() {
     const path: string[] = [];
     let cur: Entry | undefined = entry;
     while (cur) { path.unshift(cur.menu.name); cur = cur.parent ? flat.get(cur.parent.id) : undefined; }
-    const holders = holdersOf(m.permission);
+    const holders = holdersOf(m.id);
     const covered = holders.reduce((n, r) => n + (r.user_count || 0), 0);
     const sections: InsightSection[] = [];
     if ((m.children ?? []).length) {
@@ -591,7 +634,7 @@ export default function MenuStarMap() {
       sections.push({
         title: "授予角色",
         chips: true,
-        rows: holders.map((r) => ({ key: r.id, name: r.name, meta: r.code, cat: 3, onClick: () => navigate(`/role-trace?trace=role:${r.id}`) })),
+        rows: holders.map((r) => ({ key: r.id, name: r.name, meta: r.code, cat: 3, onClick: () => navigate(`/role-trace?trace=role:${r.code}`) })),
       });
     }
     return {
@@ -625,7 +668,7 @@ export default function MenuStarMap() {
       {/* 页头 */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "16px 24px", flexWrap: "wrap" }}>
         <div>
-          <div style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>菜单管理</div>
+          <div className="md-page-title" style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>菜单管理</div>
           <div style={{ color: "var(--lv-muted)", fontSize: 13, marginTop: 6 }}>
             维护导航目录、页面与按钮权限，配置菜单层级、显示状态和角色授权标识。
           </div>
@@ -699,6 +742,8 @@ export default function MenuStarMap() {
           </section>
         </>
       ) : (
+        <div className="trace-wrap">
+          <div className="stage-scroll">
         <div className="lv-panel md-no-lift" style={{ overflow: "hidden", position: "relative" }}>
           <StageGraph
             className="trace-stage starmap"
@@ -778,7 +823,7 @@ export default function MenuStarMap() {
                 position: "absolute", zIndex: 5, left: 16, top: 68,
                 maxHeight: "calc(100% - 84px)", width: 210, overflowY: "auto",
                 padding: "10px 8px", borderRadius: 20,
-                background: "rgba(255,255,255,.94)", border: "1px solid var(--lv-line)",
+                background: "rgba(29,29,46,0.94)", border: "1px solid rgba(59, 130, 246, 0.25)",
                 boxShadow: "var(--lv-e1)", backdropFilter: "blur(16px)",
               }}
             >
@@ -836,35 +881,59 @@ export default function MenuStarMap() {
             {layer === "hub" ? "点击表盘展开分支 · 刻度为已授权页面占比" : layer === "branch" ? "点击页面查看它的按钮与授权角色" : "角色 → 页面 → 按钮 授权链路"}
           </p>
 
-          {/* 分析栏 */}
+        </div>
+          </div>
+          {/* 分析栏：实体详情卡固定在舞台侧边（trace-wrap 直接子级，命中 .trace-wrap > .insight 侧栏样式） */}
           {panel && (
-            <div className="trace-panel">
-              <InsightPanel
-                key={panel.key}
-                title={panel.title}
-                sub={panel.subtitle}
-                kind={panel.kind}
-                kindIcon={panel.kindIcon}
-                cat={panel.cat}
-                status={panel.status}
-                tiles={panel.tiles}
-                insights={panel.insights}
-                sections={panel.sections}
-                onClose={back}
-                actions={
-                  <div style={{ display: "flex", gap: 8 }}>
-                    {panel.menu.type !== "btn" && (
-                      <button className="lv-btn" type="button" onClick={() => openCreate(panel.menu)}>
-                        <PlusOutlined /> {panel.menu.type === "dir" ? "新增菜单" : "新增按钮"}
-                      </button>
-                    )}
-                    <button className="lv-btn lv-btn--primary" type="button" onClick={() => openEdit(panel.menu)}>
-                      <EditOutlined /> 编辑
+            <InsightPanel
+              key={panel.key}
+              title={panel.title}
+              sub={panel.subtitle}
+              kind={panel.kind}
+              kindIcon={panel.kindIcon}
+              cat={panel.cat}
+              status={panel.status}
+              tiles={panel.tiles}
+              insights={panel.insights}
+              sections={panel.sections}
+              onClose={back}
+              grant={{
+                roles: roleRows.map((r) => ({
+                  id: r.id,
+                  name: r.name,
+                  code: r.code,
+                  granted: (r.menu_ids || []).includes(panel.menu.id),
+                  builtin: r.builtin,
+                  userCount: r.user_count,
+                })),
+                onToggle: toggleGrant,
+                disabled: !isAdmin,
+              }}
+              actions={
+                <div style={{ display: "flex", gap: 8 }}>
+                  {panel.menu.type !== "btn" && (
+                    <button className="lv-btn" type="button" onClick={() => openCreate(panel.menu)}>
+                      <PlusOutlined /> {panel.menu.type === "dir" ? "新增菜单" : "新增按钮"}
                     </button>
-                  </div>
-                }
-              />
-            </div>
+                  )}
+                  <Popconfirm
+                    title={`确认删除「${panel.menu.name}」吗？`}
+                    description="有下级菜单/按钮时会被拒绝删除。"
+                    onConfirm={doRemove}
+                    okText="删除"
+                    cancelText="取消"
+                    disabled={!isAdmin}
+                  >
+                    <button className="lv-btn" type="button" disabled={!isAdmin} style={{ color: "var(--lv-red-text)" }}>
+                      <DeleteOutlined /> 删除
+                    </button>
+                  </Popconfirm>
+                  <button className="lv-btn lv-btn--primary" type="button" onClick={() => openEdit(panel.menu)}>
+                    <EditOutlined /> 编辑
+                  </button>
+                </div>
+              }
+            />
           )}
         </div>
       )}

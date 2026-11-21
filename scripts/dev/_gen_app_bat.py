@@ -6,7 +6,7 @@ BAT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.a
 
 # 员工端
 STAFF = r'''@echo off
-title MediCode 员工端 App（Expo）
+title NOVAMED 员工端 App（Expo）
 cd /d "%~dp0..\apk"
 
 REM 绕过 WorkBuddy 本地代理（127.0.0.1:6377），否则 Expo 会报 unable to verify the first certificate
@@ -14,7 +14,7 @@ set NO_PROXY=localhost,127.0.0.1,192.168.0.6,10.0.2.2,*.expo.dev,*.exp.host,*.ex
 set NODE_OPTIONS=--use-system-ca
 
 echo ============================================
-echo   MediCode 员工端（Expo Metro）
+echo   NOVAMED 员工端（Expo Metro）
 echo ============================================
 echo.
 echo 启动后请用手机 Expo Go 扫码，或按 a 键在安卓设备打开。
@@ -26,7 +26,7 @@ pause
 
 # 患者端
 PATIENT = r'''@echo off
-title MediCode 患者端 App（Expo）
+title NOVAMED 患者端 App（Expo）
 cd /d "%~dp0..\apk"
 
 REM 绕过 WorkBuddy 本地代理（127.0.0.1:6377），否则 Expo 会报 unable to verify the first certificate
@@ -34,7 +34,7 @@ set NO_PROXY=localhost,127.0.0.1,192.168.0.6,10.0.2.2,*.expo.dev,*.exp.host,*.ex
 set NODE_OPTIONS=--use-system-ca
 
 echo ============================================
-echo   MediCode 患者端（Expo Metro）
+echo   NOVAMED 患者端（Expo Metro）
 echo ============================================
 echo.
 echo 启动后请用手机 Expo Go 扫码，或按 a 键在安卓设备打开。

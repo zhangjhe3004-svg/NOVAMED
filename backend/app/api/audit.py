@@ -1,6 +1,7 @@
 """
 审计日志 API —— /api/audit-logs
 """
+from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, Query
@@ -29,6 +30,37 @@ def audit_overview(_=Depends(require_admin), db: Session = Depends(get_employee_
         ).scalar() or 0
         per_day.append({"date": d.strftime("%m-%d"), "count": cnt})
     return {"total": total, "active_users": active_users, "today": today_count, "per_day": per_day}
+
+
+@router.get("/timeline")
+def audit_timeline(hours: int = Query(24, ge=1, le=168), lanes: int = Query(6, ge=1, le=12),
+                   _=Depends(require_admin), db: Session = Depends(get_employee_db)):
+    """时间轴泳道：近 N 小时，按操作活跃度取前 lanes 个账号，返回各自的操作事件。"""
+    end = datetime.now()
+    start = end - timedelta(hours=hours)
+    logs = db.query(AuditLog).filter(
+        AuditLog.created_at >= start, AuditLog.created_at <= end
+    ).order_by(AuditLog.created_at.asc()).all()
+
+    counter = Counter(a.username or "—" for a in logs)
+    top_users = [u for u, _ in counter.most_common(lanes)]
+
+    grouped = defaultdict(list)
+    for a in logs:
+        if a.username in top_users:
+            grouped[a.username].append({
+                "id": a.id,
+                "time": a.created_at.isoformat() if a.created_at else None,
+                "action": a.action,
+                "resource": a.resource,
+                "detail": a.detail,
+            })
+
+    return {
+        "start": start.isoformat(),
+        "end": end.isoformat(),
+        "lanes": [{"username": u, "events": grouped.get(u, [])} for u in top_users],
+    }
 
 
 @router.get("")

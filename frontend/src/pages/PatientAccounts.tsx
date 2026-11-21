@@ -52,8 +52,8 @@ export default function PatientAccounts() {
       {/* 页头 */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "16px 24px", flexWrap: "wrap" }}>
         <div>
-          <div style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>患者注册档案</div>
-          <div style={{ color: "var(--lv-muted)", fontSize: 13, marginTop: 5 }}>患者端自助注册后入库，员工可检索、核对与维护账号信息。</div>
+          <div className="md-page-title" style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>患者注册档案</div>
+          <div style={{ color: "var(--lv-muted)", fontSize: 13, marginTop: 5 }}>客户端自助注册后入库，员工可检索、核对与维护账号信息。</div>
         </div>
       </div>
 

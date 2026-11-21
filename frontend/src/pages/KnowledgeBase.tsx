@@ -284,7 +284,7 @@ export default function KnowledgeBase() {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "16px 24px", flexWrap: "wrap", marginBottom: 16 }}>
         <div>
-          <div style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}><BookOutlined /> 知识库</div>
+          <div className="md-page-title" style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}><BookOutlined /> 知识库</div>
           <div style={{ color: "var(--lv-muted)", fontSize: 13, marginTop: 5 }}>医学知识沉淀与分级审批入库。</div>
         </div>
         {canWrite && (

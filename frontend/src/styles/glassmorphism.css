@@ -1,0 +1,839 @@
+/* ============================================================================
+   NOVAMED · 液态玻璃（Glassmorphism）全局皮肤  —  glassmorphism.css
+   ----------------------------------------------------------------------------
+   原则：
+     1. 不换主色 —— 继续沿用系统既有 --blue（员工端）/ --teal（患者端）等令牌，
+        只叠加「玻璃」材质：半透明白 + backdrop 磨砂 + 顶部细高光 + 柔和深影。
+     2. 全站一处生效 —— 覆盖 antd 卡片 / 弹窗 / 下拉 / 表格容器，以及自定义
+        .stat / .panel / .mini / .hovercard / .side-list / .chain-node / .cb-card 等。
+     3. 渐进增强 —— 光随鼠标通过 CSS 变量 --gx/--gy 驱动（由 GlassEffects 组件写入），
+        3D 倾斜为可选 .glass-tilt，不影响既有 apple-motion 的悬浮抬升。
+     4. 尊重「减弱动态效果」。
+   本文件必须在 main.tsx / patient/main.tsx 中最后引入，确保覆盖既有皮肤。
+
+   注意：
+     - antd 表面（.ant-card 等）用 !important 覆盖运行时 CSS-in-JS；
+     - 自定义表面（.stat/.panel/...）不用 !important，靠加载顺序生效，以保留
+       .btn.primary / .side-list button.selected 等变体状态的既有语义。
+   ============================================================================ */
+
+:root {
+  /* —— 深色沉浸式霓虹令牌（深面板 + 紫青霓虹，motionpedia 3d.html）—— */
+  --glass-bg:          rgba(29, 29, 46, 0.72);
+  --glass-bg-strong:   #1a2740;
+  --glass-bg-soft:     rgba(29, 29, 46, 0.5);
+  --glass-stroke:      rgba(59, 130, 246, 0.16);
+  --glass-stroke-soft: rgba(59, 130, 246, 0.1);
+  --glass-highlight:   rgba(96, 165, 250, 0.35);
+  --glass-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.4),
+    0 1px 3px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(96, 165, 250, 0.12);
+  --glass-shadow-pop:
+    0 4px 12px rgba(0, 0, 0, 0.5),
+    0 2px 4px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(96, 165, 250, 0.16);
+  --glass-radius: 14px;
+  --glass-blur: blur(12px) saturate(140%);
+  --glass-blur-strong: blur(20px) saturate(140%);
+  /* 深色沉浸式场景色 */
+  --night-bg: #0a0a12;
+  --night-ink: #eaf1fb;
+  --champagne: #3b82f6;
+  --champagne-bright: #60a5fa;
+  --moonlight: #38bdf8;
+}
+
+/* ---------------------------------------------------------------------------
+   1. 深色沉浸式背景 —— 深宇宙底 + 电光紫青霓虹光斑（粒子星云氛围）
+   --------------------------------------------------------------------------- */
+body {
+  font-family: "Inter", "Noto Sans SC", "PingFang SC", "Source Han Sans SC",
+    system-ui, -apple-system, sans-serif;
+  color: var(--night-ink);
+  background:
+    radial-gradient(120% 90% at 82% 8%,  rgba(59, 130, 246, 0.28) 0%, rgba(59, 130, 246, 0) 58%),
+    radial-gradient(120% 90% at 8% 92%,  rgba(34, 211, 238, 0.18) 0%, rgba(34, 211, 238, 0) 58%),
+    radial-gradient(100% 70% at 50% 50%, rgba(244, 114, 182, 0.08) 0%, rgba(244, 114, 182, 0) 55%),
+    var(--night-bg) !important;
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+/* 颗粒噪点：全屏 2.5% SVG feTurbulence，消除玻璃塑料感 */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  opacity: 0.025;
+}
+
+/* 根布局与内容层要盖在噪点之上 */
+#root { position: relative; z-index: 1; }
+
+/* ---------------------------------------------------------------------------
+   2. 玻璃表面
+   --------------------------------------------------------------------------- */
+
+/* antd 表面 —— 用 !important 覆盖运行时 CSS-in-JS */
+.ant-card,
+.ant-card-bordered {
+  position: relative;
+  background: var(--glass-bg) !important;
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-stroke) !important;
+  border-radius: var(--glass-radius);
+  box-shadow: var(--glass-shadow);
+}
+
+/* 自定义表面 —— 不用 !important，保留 .btn.primary / .selected 等变体状态 */
+.stat,
+.panel,
+.mini,
+.kpi,
+.hovercard,
+.side-list button,
+.chain-node,
+.cb-card,
+.cb-menu,
+.input {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-stroke);
+  border-radius: var(--glass-radius);
+  box-shadow: var(--glass-shadow);
+}
+
+/* 需要成为 ::before/::after 定位基准的（已是 fixed/absolute 的 .hovercard/.cb-menu 除外） */
+.ant-card,
+.stat,
+.panel,
+.mini,
+.side-list button,
+.chain-node,
+.cb-card,
+.input {
+  position: relative;
+}
+
+/* 顶部内侧一道细高光 —— 玻璃卡片的「厚度」来源 */
+.ant-card::before,
+.stat::before,
+.panel::before,
+.mini::before,
+.side-list button::before,
+.chain-node::before,
+.cb-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    linear-gradient(180deg, rgba(21, 58, 124, 0.11) 0%, rgba(59, 130, 246, 0.02) 18%, rgba(255, 255, 255, 0) 46%);
+  opacity: 0.85;
+}
+
+/* 卡片内容必须压在顶部高光与光斑之上 */
+.ant-card .ant-card-head,
+.ant-card .ant-card-body,
+.ant-card .ant-card-cover,
+.ant-card .ant-card-actions,
+.stat > *,
+.panel > *,
+.mini > *,
+.side-list button > *,
+.chain-node > *,
+.cb-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* 实底 / 高不透明度变体（榜单类信息用更实的玻璃底，保证可读性） */
+.ant-table-wrapper {
+  background: rgba(59, 130, 246, 0.04) !important;
+}
+
+/* 悬停提亮：白玻璃更透，描边随主色 */
+.ant-card:hover,
+.stat:hover,
+.panel:hover,
+.side-list button:hover,
+.chain-node:hover,
+.cb-card:hover {
+  border-color: rgba(59, 130, 246, 0.22);
+}
+.patient-app .ant-card:hover,
+.patient-app .stat:hover,
+.patient-app .panel:hover,
+.md-theme-patient .ant-card:hover {
+  border-color: rgba(59, 130, 246, 0.24);
+}
+
+/* ---------------------------------------------------------------------------
+   3. 光随鼠标（Light Follow）—— 卡内光斑（::before 第二层）+ 边框局部提亮（::after 环）
+      由 GlassEffects 组件在 pointermove 时写入 --gx/--gy。
+      --md-glow 通过 @property 注册为可动画数值，让光斑随悬停平滑淡入淡出。
+   --------------------------------------------------------------------------- */
+@property --md-glow {
+  syntax: "<number>";
+  initial-value: 0;
+  inherits: true;
+}
+
+/* 卡内光斑：叠在顶部细高光之上的第二层径向渐变，alpha 由 --md-glow 门控 */
+.ant-card::before,
+.stat::before,
+.panel::before {
+  background:
+    radial-gradient(260px circle at var(--gx, 50%) var(--gy, 50%),
+      rgba(255, 255, 255, calc(0.55 * var(--md-glow))) 0%,
+      rgba(59, 130, 246, calc(0.10 * var(--md-glow))) 42%,
+      rgba(255, 255, 255, 0) 72%),
+    linear-gradient(180deg, rgba(21, 58, 124, 0.11) 0%, rgba(59, 130, 246, 0.02) 18%, rgba(255, 255, 255, 0) 46%);
+}
+
+/* --md-glow 过渡与 apple-motion 的悬浮抬升共用一条 transition 声明
+   （本文件加载在 apple-motion 之后，需把 transform/box-shadow/border-color 一并带上） */
+.ant-card,
+.stat,
+.panel {
+  transition:
+    transform var(--md-dur-base, 280ms) var(--md-ease-smooth, ease),
+    box-shadow var(--md-dur-base, 280ms) var(--md-ease-smooth, ease),
+    border-color var(--md-dur-base, 280ms) var(--md-ease-smooth, ease),
+    --md-glow 0.35s ease;
+}
+.ant-card:hover,
+.stat:hover,
+.panel:hover {
+  --md-glow: 1;
+}
+
+/* 靠近光标的边框局部提亮 —— content-box/content-box 双层 mask 异或，只留 1.5px 描边环 */
+.ant-card::after,
+.stat::after,
+.panel::after,
+.glass-follow::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1.5px;
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(240px circle at var(--gx, 50%) var(--gy, 50%),
+    rgba(199, 201, 224, 0.4) 0%,
+    rgba(255, 255, 255, 0.10) 45%,
+    rgba(255, 255, 255, 0) 72%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+.ant-card:hover::after,
+.stat:hover::after,
+.panel:hover::after,
+.glass-follow:hover::after {
+  opacity: 1;
+}
+
+/* 患者端：光斑主色换成青色 */
+.patient-app .ant-card::before,
+.md-theme-patient .ant-card::before,
+.patient-app .stat::before,
+.patient-app .panel::before {
+  background:
+    radial-gradient(260px circle at var(--gx, 50%) var(--gy, 50%),
+      rgba(255, 255, 255, calc(0.55 * var(--md-glow))) 0%,
+      rgba(59, 130, 246, calc(0.10 * var(--md-glow))) 42%,
+      rgba(255, 255, 255, 0) 72%),
+    linear-gradient(180deg, rgba(21, 58, 124, 0.11) 0%, rgba(59, 130, 246, 0.02) 18%, rgba(255, 255, 255, 0) 46%);
+}
+
+/* 可选：3D 倾斜（≤4°），作为工具类手动挂到需要的卡片上 */
+.glass-tilt {
+  --rx: 0deg; --ry: 0deg;
+  transition:
+    transform 0.5s var(--md-ease-out, cubic-bezier(0.22, 1, 0.36, 1)),
+    box-shadow 0.28s var(--md-ease-smooth, ease),
+    border-color 0.28s ease !important;
+  will-change: transform;
+}
+.glass-tilt:hover {
+  transform: perspective(900px) rotateX(var(--rx)) rotateY(var(--ry))
+    translateY(var(--md-lift, -3px));
+}
+
+/* ---------------------------------------------------------------------------
+   4. 弹窗 / 气泡 / 下拉 —— 磨砂玻璃
+   --------------------------------------------------------------------------- */
+.ant-modal .ant-modal-content,
+.ant-modal .ant-modal-container,
+.ant-popover .ant-popover-inner,
+.ant-dropdown .ant-dropdown-menu,
+.ant-select-dropdown,
+.ant-picker-panel-container,
+.ant-message .ant-message-notice-content,
+.ant-notification .ant-notification-notice {
+  background: var(--glass-bg-strong) !important;
+  -webkit-backdrop-filter: var(--glass-blur-strong);
+  backdrop-filter: var(--glass-blur-strong);
+  border: 1px solid var(--glass-stroke);
+  box-shadow: var(--glass-shadow-pop);
+}
+
+/* ---------------------------------------------------------------------------
+   5. 液态胶囊（Liquid Pill）—— 分段选择器 / 页签的当前项玻璃胶囊
+   --------------------------------------------------------------------------- */
+.segmented,
+.ant-segmented {
+  background: rgba(59, 130, 246, 0.06);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-stroke);
+  border-radius: 999px;
+  padding: 4px;
+  box-shadow: inset 0 1px 0 rgba(21, 58, 124, 0.11);
+}
+.segmented button,
+.ant-segmented .ant-segmented-item {
+  border-radius: 999px;
+  transition: background-color 0.28s var(--md-ease-smooth, ease), color 0.28s ease, box-shadow 0.28s ease;
+}
+.segmented button.selected {
+  background: rgba(59, 130, 246, 0.35);
+  color: var(--ink, #eaf1fb);
+  box-shadow:
+    0 4px 14px -4px rgba(3, 7, 18, 0.45),
+    inset 0 1px 0 rgba(21, 58, 124, 0.18);
+  font-weight: 600;
+}
+.ant-segmented .ant-segmented-item-selected {
+  background: rgba(59, 130, 246, 0.35) !important;
+  color: var(--ink, #eaf1fb) !important;
+}
+.ant-segmented .ant-segmented-thumb {
+  background: rgba(59, 130, 246, 0.35);
+  box-shadow: 0 4px 14px -4px rgba(3, 7, 18, 0.45);
+}
+
+/* 页签：激活文字带轻微玻璃辉光（保留 antd 指示条） */
+.ant-tabs-tab { border-radius: 10px; }
+.ant-tabs-tab-active .ant-tabs-tab-btn {
+  text-shadow: 0 1px 8px rgba(59, 130, 246, 0.18);
+}
+
+/* ---------------------------------------------------------------------------
+   6. 侧边导航 —— 液态高亮胶囊（滑动 + 弹性回弹）+ 可折叠分组（多级侧边栏）
+   --------------------------------------------------------------------------- */
+.md-nav-item { position: relative; }
+
+/* 旧的内联高亮 / 左侧指示条让位给浮动胶囊 */
+.md-nav-item[data-active="true"] {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.md-nav-item[data-active="true"]::before { display: none; }
+
+/* 浮动液态胶囊：滑到当前项下方，过渡曲线带轻微过冲（回弹感） */
+.md-nav-pill {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.10);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  backdrop-filter: blur(14px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.20);
+  box-shadow:
+    0 8px 22px -10px rgba(3, 7, 18, 0.45),
+    inset 0 1px 0 rgba(21, 58, 124, 0.18);
+  pointer-events: none;
+  z-index: 0;
+  transition:
+    top 0.45s cubic-bezier(0.34, 1.45, 0.5, 1),
+    height 0.45s cubic-bezier(0.34, 1.45, 0.5, 1),
+    opacity 0.3s ease;
+  will-change: top, height;
+}
+
+/* 分组标题：可点击折叠，悬停提亮 */
+.md-nav-group-head { transition: color 0.2s ease; }
+.md-nav-group-head:hover,
+.md-nav-group-head:focus-visible { color: var(--ink, #eaf1fb) !important; }
+
+/* 分组主体：grid-rows 0fr/1fr 平滑高度过渡 */
+.md-nav-group-body {
+  display: grid;
+  transition: grid-template-rows 0.35s var(--md-ease-smooth, ease);
+}
+.md-nav-group-body > div {
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ---------------------------------------------------------------------------
+   6.1 空状态 —— 小图 + 一句引导，别留白板
+   --------------------------------------------------------------------------- */
+.ant-empty { padding: 10px 0; }
+.ant-empty .ant-empty-image {
+  display: flex;
+  justify-content: center;
+}
+.ant-empty .ant-empty-image svg,
+.ant-empty .ant-empty-img-simple {
+  width: 58px;
+  height: 58px;
+  opacity: 0.9;
+}
+.ant-empty .ant-empty-description {
+  color: #8b98aa;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+/* ---------------------------------------------------------------------------
+   6.2 表格 —— 行间不用分割线，用留白分隔（保留表头底线）
+   --------------------------------------------------------------------------- */
+.ant-table-wrapper .ant-table-tbody > tr > td {
+  border-bottom: none !important;
+}
+.ant-table-wrapper .ant-table-tbody > tr:hover > td {
+  background: rgba(59, 130, 246, 0.05) !important;
+}
+
+/* ---------------------------------------------------------------------------
+   7. 输入 / 按钮 —— 玻璃质感（默认按钮轻玻璃，主按钮保留主色）
+   --------------------------------------------------------------------------- */
+.ant-input:not(.ant-input-disabled),
+.ant-input-affix-wrapper:not(.ant-input-affix-wrapper-disabled),
+.ant-picker:not(.ant-picker-disabled),
+.ant-input-number:not(.ant-input-number-disabled),
+.ant-select:not(.ant-select-disabled) .ant-select-selector {
+  background: rgba(59, 130, 246, 0.05) !important;
+  border-color: rgba(21, 58, 124, 0.13) !important;
+}
+.ant-input:focus,
+.ant-input-affix-wrapper-focused,
+.ant-select-focused .ant-select-selector,
+.ant-picker-focused {
+  background: rgba(21, 58, 124, 0.11) !important;
+}
+
+.ant-btn-default,
+.btn {
+  background: rgba(255, 255, 255, 0.10);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  backdrop-filter: blur(10px) saturate(140%);
+  border: 1px solid rgba(21, 58, 124, 0.13);
+  box-shadow: 0 2px 10px -3px rgba(3, 7, 18, 0.4);
+}
+.ant-btn-default:hover,
+.btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(59, 130, 246, 0.24);
+}
+
+/* ---------------------------------------------------------------------------
+   8. 减弱动态效果
+   --------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .glass-tilt,
+  .glass-tilt:hover {
+    transform: none !important;
+    transition: none !important;
+  }
+  .ant-card,
+  .stat,
+  .panel {
+    --md-glow: 0 !important;
+  }
+  .ant-card::after,
+  .stat::after,
+  .panel::after,
+  .glass-follow::after {
+    display: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   9. 字体质感 —— 对齐参考稿：几何无衬线 + 大数字等宽（tabular-nums）+ 紧字距重字重
+   --------------------------------------------------------------------------- */
+.stat-value,
+.metric-figure,
+.ant-statistic-content-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.dash-num,
+.ant-table-wrapper .ant-table-tbody > tr > td {
+  font-variant-numeric: tabular-nums;
+}
+h1,
+h2,
+h3,
+.panel-head h2,
+.ant-card .ant-card-head-title {
+  letter-spacing: -0.02em;
+}
+
+/* ---------------------------------------------------------------------------
+   10. 就地放大（Expand In Place）—— 模块放大为玻璃详情面板 + 底部缩略条切换
+   --------------------------------------------------------------------------- */
+.md-zoom-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.45s var(--md-ease-smooth, ease);
+}
+.md-zoom-overlay.md-zoom-open {
+  pointer-events: auto;
+  opacity: 1;
+}
+.md-zoom-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(3, 7, 18, 0.55);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+.md-zoom-close {
+  position: absolute;
+  top: 22px;
+  right: 30px;
+  z-index: 3;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--glass-stroke, rgba(199, 201, 224, 0.58));
+  background: var(--glass-bg-strong, rgba(255, 255, 255, 0.64));
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  color: #eaf1fb;
+  font-size: 18px;
+  cursor: pointer;
+  box-shadow: var(--glass-shadow);
+  transition: transform 0.3s cubic-bezier(0.34, 1.45, 0.5, 1);
+}
+.md-zoom-close:hover { transform: rotate(90deg) scale(1.08); }
+.md-zoom-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: 28px 40px 8px;
+}
+.md-zoom-panel {
+  width: min(920px, 92vw);
+  max-height: 100%;
+  overflow: auto;
+  background: var(--glass-bg-strong, rgba(255, 255, 255, 0.64));
+  -webkit-backdrop-filter: var(--glass-blur-strong, blur(26px) saturate(160%));
+  backdrop-filter: var(--glass-blur-strong, blur(26px) saturate(160%));
+  border: 1px solid var(--glass-stroke, rgba(199, 201, 224, 0.58));
+  border-radius: 28px;
+  box-shadow: var(--glass-shadow-pop, 0 40px 80px -20px rgba(3, 7, 18, 0.45));
+}
+.md-zoom-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 22px 26px 14px;
+  border-bottom: 1px solid rgba(21, 58, 124, 0.11);
+}
+.md-zoom-head h2 {
+  margin: 0;
+  font-size: 19px;
+  color: #eaf1fb;
+  letter-spacing: -0.02em;
+}
+.md-zoom-head small {
+  display: block;
+  margin-top: 3px;
+  color: rgba(232,232,244,0.78);
+  font-size: 12px;
+}
+.md-zoom-body {
+  padding: 18px 26px 24px;
+  animation: md-zoom-swap 0.32s var(--md-ease-out, cubic-bezier(0.22, 1, 0.36, 1));
+}
+@keyframes md-zoom-swap {
+  from { opacity: 0.35; transform: translateY(12px); }
+}
+.md-zoom-thumbs {
+  position: relative;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  padding: 12px 20px 24px;
+}
+.md-zoom-thumb {
+  width: 84px;
+  height: 58px;
+  border-radius: 14px;
+  border: 1px solid var(--glass-stroke, rgba(199, 201, 224, 0.58));
+  background: var(--glass-bg, rgba(199, 201, 224, 0.55));
+  -webkit-backdrop-filter: var(--glass-blur, blur(20px) saturate(140%));
+  backdrop-filter: var(--glass-blur, blur(20px) saturate(140%));
+  box-shadow: var(--glass-shadow);
+  color: rgba(232,232,244,0.8);
+  font-size: 18px;
+  cursor: pointer;
+  opacity: 0.72;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.35s cubic-bezier(0.34, 1.45, 0.5, 1), opacity 0.3s, border-color 0.3s, color 0.3s;
+}
+.md-zoom-thumb:hover { opacity: 1; transform: translateY(-4px); }
+.md-zoom-thumb.active {
+  opacity: 1;
+  border-color: rgba(59, 130, 246, 0.55);
+  color: #3b82f6;
+  transform: translateY(-4px);
+}
+
+/* 面板头工具位：放大按钮 + 水滴分裂筛选并排 */
+.panel-tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.md-expand-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: 1px solid rgba(21, 58, 124, 0.13);
+  background: rgba(255, 255, 255, 0.10);
+  color: rgba(232,232,244,0.85);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px -3px rgba(3, 7, 18, 0.4);
+  transition: color 0.25s ease, border-color 0.25s ease, transform 0.25s var(--md-ease-smooth, ease);
+}
+.md-expand-btn:hover {
+  color: #3b82f6;
+  border-color: rgba(59, 130, 246, 0.35);
+  transform: translateY(-1px);
+}
+
+/* ---------------------------------------------------------------------------
+   11. 水滴分裂筛选（Gooey Split）—— 收起融为一滴水，展开分裂成多颗
+        配合 #md-goo SVG 滤镜（feGaussianBlur + feColorMatrix 阈值化）使用
+   --------------------------------------------------------------------------- */
+.md-split {
+  position: relative;
+  height: 34px;
+}
+.md-split-pills {
+  position: relative;
+  height: 34px;
+  filter: url(#md-goo);
+  transition: width 0.5s cubic-bezier(0.34, 1.3, 0.4, 1);
+}
+.md-split-pill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 34px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(21, 58, 124, 0.13);
+  background: rgba(21, 58, 124, 0.11);
+  color: rgba(232,232,244,0.85);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 6px 18px -8px rgba(3, 7, 18, 0.5);
+  transition:
+    transform 0.6s cubic-bezier(0.34, 1.3, 0.4, 1),
+    color 0.3s ease,
+    background 0.3s ease;
+  will-change: transform;
+}
+.md-split-pill:hover { color: #eaf1fb; }
+.md-split-pill[data-active="true"] {
+  color: #eef3fb;
+  background: #3b82f6;
+  border-color: rgba(59, 130, 246, 0.5);
+  box-shadow: 0 4px 20px rgba(59, 130, 246, 0.25), inset 0 1px 0 rgba(243, 220, 168, 0.35);
+}
+.md-split:not(.md-split-open) .md-split-pill[data-active="true"]::after {
+  content: "▾";
+  font-size: 9px;
+  margin-left: 6px;
+  opacity: 0.8;
+}
+@media (prefers-reduced-motion: reduce) {
+  .md-split-pill,
+  .md-split-pills {
+    transition: none;
+  }
+}
+
+/* ===========================================================================
+   12. 品味精修（Taste polish）
+   —— 对齐 design-taste-frontend 的可迁移原则（保留液态玻璃风）：
+      一个墨色 + 一个柔墨色，不再撒灰；主次字号拉开对比；小字设下限；
+      次要文字用柔墨色分层，而非更小字号 + 更轻字重；去掉微型大写标签感。
+   =========================================================================== */
+
+/* 次要文字统一到柔墨色（消解 #8b98aa/#91a0b2/#8d9aae/#75839a/#8795aa 等散灰） */
+.stat-top,
+.stat-bottom,
+.panel-head small,
+.dash-todo-txt p,
+.eyebrow,
+.page-heading .eyebrow,
+.page-heading .sub {
+  color: var(--muted, rgba(232,232,244,0.8));
+}
+
+/* 小字下限：10/11px 的辅助文字抬到 12px（信息密度与可读性的平衡） */
+.stat-bottom,
+.panel-head small,
+.eyebrow,
+.page-heading .eyebrow,
+.dash-todo-txt p {
+  font-size: 12px;
+}
+
+/* 去掉微型大写标签的「标签感」：轻微字距、保持可读 */
+.eyebrow,
+.page-heading .eyebrow {
+  letter-spacing: 0.02em;
+  text-transform: none;
+  font-weight: 500;
+}
+
+/* 主次字号统一（消除 pages-theme 与 index.css 的 27/32px、14/15px 冲突） */
+.stat-value { font-size: 30px; }
+.panel-head h2 { font-size: 15px; }
+
+/* 浏览器原生状态也属于设计 */
+::selection {
+  background: rgba(59, 130, 246, 0.16);
+  color: #eaf1fb;
+}
+
+/* —— 功能页增色：给页面与面板加入明确的主色层次（保留蓝白玻璃风）—— */
+/* 页头标题主色竖条 */
+.page-heading h1 {
+  position: relative;
+  padding-left: 14px;
+}
+.page-heading h1::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 7px;
+  bottom: 7px;
+  width: 5px;
+  border-radius: 3px;
+  background: var(--blue, #3b82f6);
+}
+/* 面板标题主色竖条：每个功能面板一个色彩锚点 */
+.panel-head h2 {
+  position: relative;
+  padding-left: 12px;
+}
+.panel-head h2::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 4px;
+  height: 13px;
+  border-radius: 2px;
+  transform: translateY(-50%);
+  background: var(--blue, #3b82f6);
+}
+/* eyebrow 分类标签转主色 —— 页面的色彩点缀（替代之前的纯灰） */
+.eyebrow,
+.page-heading .eyebrow {
+  color: var(--blue, #3b82f6);
+}
+/* 表头：微主色底 + 加深的表头文字（替代灰白表头） */
+.ant-table-wrapper .ant-table-thead > tr > th {
+  background: rgba(59, 130, 246, 0.04) !important;
+  color: rgba(232,232,244,0.8) !important;
+  font-weight: 600;
+}
+
+/* ===========================================================================
+   13. 全站页面统一 —— Dashboard 高级设计
+   列表页的 lv-* 体系与 Dashboard 的 panel 体系对齐：
+   同一玻璃材质、同一主色竖条、同一墨色层级。
+   =========================================================================== */
+
+/* 页面大标题主色竖条（内联页头已统一挂 .md-page-title） */
+.md-page-title {
+  position: relative;
+  padding-left: 16px;
+}
+.md-page-title::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 5px;
+  border-radius: 3px;
+  background: var(--blue, #3b82f6);
+}
+
+/* lv 体系墨色 —— 深色主题正文浅紫白（勿再覆盖回深色，深底上不可读） */
+:root { --lv-ink: #eaf1fb; }
+
+/* lv 体系表面玻璃化 —— 列表面板 / 搜索栏与 Dashboard 同材质 */
+.lv-panel,
+.lv-query {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-stroke);
+  border-radius: var(--glass-radius);
+  box-shadow: var(--glass-shadow);
+}
+/* lv-card 保留语义左边框（--amber/--leaf/--red），仅统一材质 */
+.lv-card {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-shadow);
+}
+
+/* 面板头装饰点统一为主色竖条（与 .panel-head h2 一致） */
+.lv-panel-head > .lv-tag--leaf {
+  width: 4px !important;
+  height: 14px !important;
+  padding: 0 !important;
+  border-radius: 2px !important;
+  background: var(--blue, #3b82f6) !important;
+  border: none !important;
+  flex: none;
+}
+.lv-panel-head > .lv-tag--leaf .lv-tag-dot {
+  display: none !important;
+}

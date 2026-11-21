@@ -1,5 +1,5 @@
 /* ============================================================================
-   MediCode · 命令面板 (command.css)
+   NOVAMED · 命令面板 (command.css)
    ----------------------------------------------------------------------------
    与 apple-motion.css / stage.css 共享同一套设计令牌：
    结果列表里那块「玻璃滑块」是唯一的动效主体 —— 它只做垂直位移与高度变化，
@@ -17,7 +17,7 @@
   align-items: flex-start;
   justify-content: center;
   padding: clamp(48px, 12vh, 140px) 20px 40px;
-  background: rgba(27, 43, 69, 0.26);
+  background: rgba(59, 130, 246, 0.26);
   backdrop-filter: blur(6px) saturate(1.1);
   -webkit-backdrop-filter: blur(6px) saturate(1.1);
   animation: cmd-overlay-in 200ms linear both;
@@ -52,10 +52,10 @@
 .cmd-panel {
   width: 100%;
   max-width: 580px;
-  background: #fff;
+  background: rgba(59, 130, 246, 0.06);
   border: 1px solid rgba(230, 236, 243, 0.9);
   border-radius: var(--md-r-xl, 20px);
-  box-shadow: var(--md-shadow-pop, 0 8px 20px rgba(27, 43, 69, 0.08), 0 24px 48px -12px rgba(27, 43, 69, 0.16));
+  box-shadow: var(--md-shadow-pop, 0 8px 20px rgba(59, 130, 246, 0.08), 0 24px 48px -12px rgba(59, 130, 246, 0.16));
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -92,12 +92,12 @@
   align-items: center;
   gap: 12px;
   padding: 16px 18px;
-  border-bottom: 1px solid var(--line, #e6ecf3);
+  border-bottom: 1px solid var(--line, rgba(21,58,124,0.11));
 }
 
 .cmd-input-ico {
   font-size: 17px;
-  color: #9aa6b6;
+  color: var(--muted);
   flex: none;
 }
 
@@ -109,12 +109,12 @@
   background: transparent;
   font-size: 15px;
   font-family: inherit;
-  color: var(--ink, #1b2b45);
+  color: var(--ink, #eaf1fb);
   padding: 0;
 }
 
 .cmd-input input::placeholder {
-  color: #a9b4c3;
+  color: var(--muted);
 }
 
 .kbd {
@@ -156,8 +156,8 @@
   z-index: 0;
   opacity: 0;
   background: linear-gradient(180deg, #eef4ff 0%, #e7effd 100%);
-  border: 1px solid rgba(37, 99, 235, 0.14);
-  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.06) inset;
+  border: 1px solid rgba(59, 130, 246, 0.14);
+  box-shadow: 0 1px 2px rgba(59, 130, 246, 0.06) inset;
   transition: transform var(--md-dur-page, 520ms) var(--md-ease-smooth, cubic-bezier(0.32, 0.72, 0, 1)),
     height var(--md-dur-page, 520ms) var(--md-ease-smooth, cubic-bezier(0.32, 0.72, 0, 1)),
     opacity 140ms linear;
@@ -173,7 +173,7 @@
   font-size: 10px;
   letter-spacing: 1.6px;
   text-transform: uppercase;
-  color: #9aa6b5;
+  color: var(--muted);
 }
 
 .cmd-item {
@@ -190,12 +190,12 @@
   background: transparent;
   text-align: left;
   cursor: pointer;
-  color: var(--ink, #1b2b45);
+  color: var(--ink, #eaf1fb);
   transition: color 140ms linear;
 }
 
 .cmd-item.is-active {
-  color: var(--blue, #2563eb);
+  color: var(--blue, #3b82f6);
 }
 
 .cmd-item.is-active .cmd-label {
@@ -203,7 +203,7 @@
 }
 
 .cmd-item.is-danger.is-active {
-  color: var(--red, #d9534f);
+  color: var(--red, #E5746B);
 }
 
 .cmd-ico {
@@ -221,8 +221,8 @@
 }
 
 .cmd-item.is-active .cmd-ico {
-  color: var(--blue, #2563eb);
-  border-color: rgba(37, 99, 235, 0.2);
+  color: var(--blue, #3b82f6);
+  border-color: rgba(59, 130, 246, 0.2);
 }
 
 .cmd-avatar {
@@ -254,7 +254,7 @@
   flex: 1;
   min-width: 0;
   font-size: 11.5px;
-  color: #93a0b2;
+  color: var(--muted);
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -271,7 +271,7 @@
 
 .cmd-item.is-active .cmd-go {
   opacity: 1;
-  color: var(--blue, #2563eb);
+  color: var(--blue, #3b82f6);
 }
 
 .cmd-empty {
@@ -280,7 +280,7 @@
   align-items: center;
   gap: 6px;
   padding: 34px 20px 38px;
-  color: #a9b4c3;
+  color: var(--muted);
   text-align: center;
 }
 
@@ -299,7 +299,7 @@
 }
 
 .cmd-empty b {
-  color: var(--blue, #2563eb);
+  color: var(--blue, #3b82f6);
   font-family: ui-monospace, Menlo, Consolas, monospace;
 }
 
@@ -311,7 +311,7 @@
   align-items: center;
   gap: 14px;
   padding: 10px 16px;
-  border-top: 1px solid var(--line, #e6ecf3);
+  border-top: 1px solid var(--line, rgba(21,58,124,0.11));
   background: #fafcfe;
   font-size: 11.5px;
   color: #7d8ba0;
@@ -324,7 +324,7 @@
 }
 
 .cmd-foot-faint {
-  color: #a9b4c3;
+  color: var(--muted);
 }
 
 .cmd-foot-spacer {
@@ -335,7 +335,7 @@
   font-size: 10px;
   letter-spacing: 1.6px;
   text-transform: uppercase;
-  color: #9aa6b5;
+  color: var(--muted);
 }
 
 /* ---------------------------------------------------------------------------
@@ -368,7 +368,7 @@
   border-radius: 999px;
   border: 1px solid #e4ebf4;
   background: #f6f9fd;
-  color: #63718a;
+  color: rgba(232,232,244,0.8);
   font-size: 11.5px;
   font-family: inherit;
   cursor: pointer;
@@ -376,7 +376,7 @@
 }
 
 .ask-presets button:hover {
-  color: var(--blue, #2563eb);
+  color: var(--blue, #3b82f6);
   border-color: #bcd3f8;
   background: #eef5ff;
 }
@@ -386,11 +386,11 @@
   padding: 0 4px;
   font-size: 11.5px;
   line-height: 1.7;
-  color: #93a0b2;
+  color: var(--muted);
 }
 
 .cmd-ask-hint.is-loading {
-  color: var(--blue, #2563eb);
+  color: var(--blue, #3b82f6);
 }
 
 .cmd-ask-results {
@@ -413,7 +413,7 @@
   min-width: 0;
   font-size: 12.5px;
   font-weight: 650;
-  color: var(--ink, #1b2b45);
+  color: var(--ink, #eaf1fb);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -424,7 +424,7 @@
   flex: none;
   font-size: 10px;
   letter-spacing: 1.2px;
-  color: #a9b4c3;
+  color: var(--muted);
 }
 
 .ask-card {
@@ -434,9 +434,9 @@
   gap: 6px;
   padding: 11px 13px 12px 17px;
   border-radius: 12px;
-  background: #fff;
+  background: rgba(59, 130, 246, 0.06);
   border: 1px solid #e9eff7;
-  box-shadow: 0 1px 2px rgba(27, 43, 69, 0.03);
+  box-shadow: 0 1px 2px rgba(59, 130, 246, 0.03);
 }
 
 /* 左侧语气色条：info=蓝 / warn=琥珀 / ok=青 / danger=红 */
@@ -448,7 +448,7 @@
   bottom: 11px;
   width: 3px;
   border-radius: 3px;
-  background: var(--blue, #2563eb);
+  background: var(--blue, #3b82f6);
 }
 
 .ask-card.tone-warn::before {
@@ -456,18 +456,18 @@
 }
 
 .ask-card.tone-ok::before {
-  background: var(--teal, #138d85);
+  background: var(--teal, #3b82f6);
 }
 
 .ask-card.tone-danger::before {
-  background: var(--red, #d9534f);
+  background: var(--red, #E5746B);
 }
 
 .ask-card h4 {
   margin: 0;
   font-size: 13px;
   font-weight: 680;
-  color: var(--ink, #1b2b45);
+  color: var(--ink, #eaf1fb);
 }
 
 .ask-card p {
@@ -480,7 +480,7 @@
 
 /* 芯片的语气变体（基础样式复用 stage.css 的 .insight-chip） */
 .insight-chip.tone-off {
-  color: #9aa6b5;
+  color: var(--muted);
   background: #f6f8fc;
   border-color: #e9eff6;
 }
@@ -512,10 +512,11 @@
   width: 255px;
   height: 38px;
   padding: 0 10px 0 12px;
-  border: 1px solid #edf1f7;
+  /* 白玻璃顶栏上的浅胶囊：浅底深字 */
+  border: 1px solid rgba(21,58,124,0.14);
   border-radius: 9px;
-  background: #f6f8fc;
-  color: #9aa6b6;
+  background: rgba(255, 255, 255, 0.75);
+  color: #9a9ab0;
   font-family: inherit;
   font-size: 12.5px;
   text-align: left;
@@ -526,10 +527,10 @@
 }
 
 .cmd-trigger:hover {
-  border-color: #d8e3f2;
-  background: #fff;
-  box-shadow: var(--md-shadow-hover, 0 4px 10px rgba(27, 43, 69, 0.06));
-  color: #7d8ba0;
+  border-color: rgba(59, 130, 246, 0.4);
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(21, 58, 124, 0.10);
+  color: #2563eb;
 }
 
 .cmd-trigger-label {
@@ -542,7 +543,8 @@
 
 .cmd-trigger .kbd {
   border-bottom-width: 1px;
-  background: #fff;
+  background: rgba(59, 130, 246, 0.08);
+  color: #b0b2cc;
 }
 
 @media (max-width: 900px) {
@@ -596,3 +598,5 @@
     transition: none !important;
   }
 }
+
+/* trigger-fix */

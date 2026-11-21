@@ -55,8 +55,10 @@ async def init_mongodb(url: str = None, db_name: str = None):
     _db_name = db_name or MONGODB_DB_NAME
 
     try:
-        _mongo_client = AsyncIOMotorClient(_url, serverSelectionTimeoutMS=2000)
-        _sync_client = MongoClient(_url, serverSelectionTimeoutMS=2000)
+        # 超时从 2000ms 降到 500ms：本地未部署 MongoDB 时快速失败，
+        # 避免每次启动白等 2 秒（这是「一键启动」变慢的主要因素之一）。
+        _mongo_client = AsyncIOMotorClient(_url, serverSelectionTimeoutMS=500)
+        _sync_client = MongoClient(_url, serverSelectionTimeoutMS=500)
         _db = _mongo_client[_db_name]
 
         # 测试连接

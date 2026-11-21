@@ -8,9 +8,10 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
-from ..models.models import User, UserRole
+from ..models.models import User, UserRole, SysRole, SysUserRole
 from ..core.security import hash_password, verify_password, create_access_token
 from ..core import session_archive
+from ..core.rbac import get_user_role_codes, set_user_roles, ensure_user_roles_backfill, sync_user_primary_role
 from ..schemas import UserCreate, Token, UserInfo
 
 
@@ -36,9 +37,11 @@ def login(db: Session, username: str, password: str) -> Token:
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    ensure_user_roles_backfill(db)
+    roles = get_user_role_codes(db, user)
     sid = session_archive.start_session(user)
     access_token = create_access_token(
-        data={"sub": str(user.id), "username": user.username, "role": user.role.value, "sid": sid}
+        data={"sub": str(user.id), "username": user.username, "role": user.role.value, "roles": roles, "sid": sid}
     )
 
     return Token(
@@ -49,6 +52,7 @@ def login(db: Session, username: str, password: str) -> Token:
             username=user.username,
             real_name=user.real_name,
             role=user.role.value,
+            roles=roles,
             phone=user.phone,
             email=user.email,
             id_number=user.id_number,
@@ -103,6 +107,14 @@ def create_user(db: Session, user_data: UserCreate) -> User:
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    # 多角色：role_ids 优先，否则按单角色 role 建立 sys_user_role 关联
+    ensure_user_roles_backfill(db)
+    role_ids = getattr(user_data, "role_ids", None)
+    if role_ids:
+        roles = db.query(SysRole).filter(SysRole.id.in_(role_ids)).all()
+        set_user_roles(db, user, [r.code for r in roles])
+    db.commit()
     return user
 
 
@@ -129,12 +141,14 @@ def get_current_user(db: Session, token_payload: dict) -> User:
     return user
 
 
-def _user_dict(u: User) -> dict:
+def _user_dict(u: User, db: Optional[Session] = None) -> dict:
+    roles = get_user_role_codes(db, u) if db is not None else None
     return {
         "id": u.id,
         "username": u.username,
         "real_name": u.real_name,
         "role": u.role.value,
+        "roles": roles,
         "phone": u.phone,
         "email": u.email,
         "id_number": u.id_number,
@@ -176,6 +190,7 @@ def list_users(db: Session, page: int = 1, page_size: int = 20,
             User.employee_no.like(f"%{keyword}%"),
         ))
 
+    ensure_user_roles_backfill(db)
     total = query.count()
     items = (
         query.order_by(desc(User.id))
@@ -183,7 +198,7 @@ def list_users(db: Session, page: int = 1, page_size: int = 20,
         .limit(page_size)
         .all()
     )
-    return {"total": total, "items": [_user_dict(u) for u in items]}
+    return {"total": total, "items": [_user_dict(u, db) for u in items]}
 
 
 def update_user(db: Session, user_id: int, payload: dict) -> User:
@@ -194,6 +209,13 @@ def update_user(db: Session, user_id: int, payload: dict) -> User:
 
     if "role" in payload and payload["role"] is not None:
         user.role = UserRole(payload["role"])
+    # 多角色：role_ids 显式给定时重写 sys_user_role；否则按 role 单角色回填
+    role_ids = payload.get("role_ids")
+    if isinstance(role_ids, list):
+        roles = db.query(SysRole).filter(SysRole.id.in_([rid for rid in role_ids if isinstance(rid, int)])).all()
+        set_user_roles(db, user, [r.code for r in roles])
+    else:
+        ensure_user_roles_backfill(db)
     if "auth_level" in payload and payload["auth_level"] is not None:
         user.auth_level = int(payload["auth_level"])
     if "superior_id" in payload:

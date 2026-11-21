@@ -115,8 +115,8 @@ export default function DynPage({ collection: propCollection }: DynPageProps) {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 20 }}>
           {rows.map((r: any) => (
             <div key={r.id} style={{
-              borderRadius: 24, background: "#e0e0e0", padding: 22, minHeight: 200,
-              boxShadow: "12px 12px 24px #bebebe, -12px -12px 24px #ffffff",
+              borderRadius: 24, background: "#101b2e", padding: 22, minHeight: 200,
+              boxShadow: "12px 12px 24px rgba(0,0,0,0.4)",
               transition: "transform .2s",
             }}>
               <div style={{ fontSize: 18, fontWeight: 700, color: "#2c3e50", marginBottom: 8 }}>{r.name}</div>
@@ -129,10 +129,10 @@ export default function DynPage({ collection: propCollection }: DynPageProps) {
                     <div key={i} title="点击查看该科室人员名单"
                       onClick={() => setMemberTarget({ dept: r.name, sub })}
                       style={{
-                        fontSize: 13, fontWeight: 600, color: "#2c4a7c", padding: "14px 10px",
-                        background: "#fff", borderRadius: 10, cursor: "pointer",
-                        border: "1px solid #d8e4f5", textAlign: "center",
-                        boxShadow: "4px 4px 10px rgba(150,150,150,0.15), -4px -4px 10px #ffffff",
+                        fontSize: 13, fontWeight: 600, color: "#93c5fd", padding: "14px 10px",
+                        background: "#1a2740", borderRadius: 10, cursor: "pointer",
+                        border: "1px solid rgba(59, 130, 246, 0.25)", textAlign: "center",
+                        boxShadow: "4px 4px 10px rgba(0,0,0,0.35)",
                       }}>
                       {sub}
                     </div>
@@ -173,14 +173,14 @@ export default function DynPage({ collection: propCollection }: DynPageProps) {
             const detailFields = fields.filter(f => r[f.name] !== undefined && r[f.name] !== null && r[f.name] !== "");
             if (collection === "staff_announcements") {
               return (
-                <div style={{ padding: "8px 16px", background: "#faf9f7", borderRadius: 8, fontSize: 14, lineHeight: 1.8 }}>
+                <div style={{ padding: "8px 16px", background: "#101b2e", borderRadius: 8, fontSize: 14, lineHeight: 1.8 }}>
                   <b style={{ marginRight: 8 }}>详细内容：</b>{r.content || "（无内容）"}
                 </div>
               );
             }
             if (collection === "departments") {
               return (
-                <div style={{ padding: "8px 16px", background: "#faf9f7", borderRadius: 8 }}>
+                <div style={{ padding: "8px 16px", background: "#101b2e", borderRadius: 8 }}>
                   <div style={{ fontSize: 12, color: "#888", marginBottom: 8 }}>{r.name || "科室"} · 下属单位</div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
                     {Array.from({ length: 10 }, (_, i) => {
@@ -189,9 +189,9 @@ export default function DynPage({ collection: propCollection }: DynPageProps) {
                         <div key={i} title="点击查看该科室人员名单"
                           onClick={() => setMemberTarget({ dept: r.name, sub })}
                           style={{
-                            padding: "16px 12px", background: "#fff", borderRadius: 10,
-                            border: "1px solid #d8e4f5", fontSize: 14, fontWeight: 600,
-                            color: "#2c4a7c", textAlign: "center", cursor: "pointer",
+                            padding: "16px 12px", background: "#1a2740", borderRadius: 10,
+                            border: "1px solid rgba(59, 130, 246, 0.25)", fontSize: 14, fontWeight: 600,
+                            color: "#93c5fd", textAlign: "center", cursor: "pointer",
                             boxShadow: "3px 3px 8px rgba(150,150,150,0.12)",
                           }}>
                           {sub}
@@ -203,7 +203,7 @@ export default function DynPage({ collection: propCollection }: DynPageProps) {
               );
             }
             return (
-              <div style={{ padding: "8px 16px", background: "#faf9f7", borderRadius: 8 }}>
+              <div style={{ padding: "8px 16px", background: "#101b2e", borderRadius: 8 }}>
                 <div style={{ fontSize: 12, color: "#888", marginBottom: 8 }}>详细信息</div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px 24px" }}>
                   {detailFields.length ? detailFields.map((f) => (
@@ -224,7 +224,7 @@ export default function DynPage({ collection: propCollection }: DynPageProps) {
         title={editing?.id ? "编辑记录" : "新增记录"}
         onCancel={() => setEditing(null)}
         onOk={() => form.submit()}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical" onFinish={save}>
           {fields.map((f) => {

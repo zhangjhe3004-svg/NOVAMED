@@ -304,8 +304,28 @@ export default function StageGraph({
     const dx = x2 - x1;
     const dy = y2 - y1;
     if (l.shape === "h") {
-      const sway = live ? Math.sin(t * 1.1 + x2 * 0.013 + y2 * 0.017) * 6 : 0;
-      return { x1, y1, c1x: x1 + dx * 0.5, c1y: y1 + sway, c2x: x2 - dx * 0.45, c2y: y2 - sway * 0.5, x2, y2 };
+      // 起点贴源节点右缘（表盘/珍珠球的线从边缘引出，不再穿过盘面）；
+      // 引出段自适应：目标越远（|dy| 大）水平段越长，形成「先横出、再平滑弯入」的
+      // 组织树形态——同一源点的扇出按目标 y 单调，天然互不交叉。
+      const srcSize = lastNodesRef.current.get(l.a)?.size;
+      const dstSize = lastNodesRef.current.get(l.b)?.size;
+      const sx = x1 + (srcSize ? srcSize / 2 + 6 : 14);
+      const ex = x2 - (dstSize ? dstSize / 2 + 6 : 14);
+      const sdx = ex - sx;
+      const sway = live ? Math.sin(t * 1.1 + y2 * 0.017) * 3 : 0;
+      // lead：水平引出段长度——随 |dy| 增长让曲线「先横后弯」；但不越过两点半程（防反绕）
+      const maxLead = Math.max(sdx / 2 - 6, 12);
+      const lead = Math.min(Math.max(Math.abs(dy) * 0.55, sdx * 0.35), maxLead, 150);
+      return {
+        x1: sx,
+        y1,
+        c1x: sx + lead,
+        c1y: y1 + sway,
+        c2x: ex - lead,
+        c2y: y2 - sway * 0.5,
+        x2: ex,
+        y2,
+      };
     }
     if (l.shape === "v") return { x1, y1, c1x: x1, c1y: y1 + dy * 0.5, c2x: x2, c2y: y2 - dy * 0.5, x2, y2 };
     const d = Math.hypot(dx, dy) || 1;

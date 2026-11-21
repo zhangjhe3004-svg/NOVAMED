@@ -34,8 +34,8 @@ import HolographicScene3D, { type SceneNode } from "../components/HolographicSce
 const { Title, Text } = Typography;
 
 const LEVEL_COLORS: Record<number, string> = {
-  1: "#94a3b8", 2: "#5eead4", 3: "#60a5fa", 4: "#818cf8",
-  5: "#a78bfa", 6: "#f59e0b", 7: "#fb923c", 8: "#ef4444", 9: "#7f1d1d",
+  1: "#7c7c96", 2: "#5eead4", 3: "#60a5fa", 4: "#93c5fd",
+  5: "#93c5fd", 6: "#f59e0b", 7: "#fb923c", 8: "#f87171", 9: "#7f1d1d",
 };
 
 const CANVAS_H = 620;
@@ -410,7 +410,7 @@ export default function NearbyShare() {
   };
 
   const levelColumns = [
-    { title: "级别", dataIndex: "level", width: 80, render: (v: number) => <Tag color={LEVEL_COLORS[v] || "#94a3b8"}>L{v}</Tag> },
+    { title: "级别", dataIndex: "level", width: 80, render: (v: number) => <Tag color={LEVEL_COLORS[v] || "#7c7c96"}>L{v}</Tag> },
     { title: "名称", dataIndex: "name" },
     { title: "说明", dataIndex: "description" },
     { title: "状态", dataIndex: "enabled", width: 80, render: (v: boolean) => v ? <Tag color="green">启用</Tag> : <Tag color="red">停用</Tag> },
@@ -559,7 +559,7 @@ export default function NearbyShare() {
                           renderItem={(t) => (
                             <List.Item>
                               <List.Item.Meta
-                                avatar={<FileOutlined style={{ fontSize: 18, color: "#2563eb" }} />}
+                                avatar={<FileOutlined style={{ fontSize: 18, color: "#3b82f6" }} />}
                                 title={
                                   <span style={{ fontSize: 12.5 }}>
                                     {t.item_title}
@@ -729,7 +729,7 @@ export default function NearbyShare() {
                                   animation: "qs-card-pop .22s ease",
                                 }}>
                                   <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                                    <Avatar size={34} style={{ background: LEVEL_COLORS[peer.auth_level] || "#94a3b8", fontSize: 15, fontWeight: 600 }}>
+                                    <Avatar size={34} style={{ background: LEVEL_COLORS[peer.auth_level] || "#7c7c96", fontSize: 15, fontWeight: 600 }}>
                                       {peer.real_name?.[0]}
                                     </Avatar>
                                     <div>
@@ -842,9 +842,9 @@ export default function NearbyShare() {
               {[nodeInfo(selectedNodeId), nodeInfo(pairTargetId)].map((n, i) => (
                 n && (
                   <Fragment key={n.id}>
-                    {i === 1 && <LinkOutlined style={{ fontSize: 22, color: "#2563eb" }} />}
+                    {i === 1 && <LinkOutlined style={{ fontSize: 22, color: "#3b82f6" }} />}
                 <div style={{ textAlign: "center", minWidth: 120 }}>
-                  <Avatar size={52} style={{ background: LEVEL_COLORS[n.level] || "#94a3b8", fontSize: 21, fontWeight: 600 }}>
+                  <Avatar size={52} style={{ background: LEVEL_COLORS[n.level] || "#7c7c96", fontSize: 21, fontWeight: 600 }}>
                     {n.name?.[0]}
                   </Avatar>
                   <div style={{ fontWeight: 600, marginTop: 8 }}>{n.name}{n.id === -1 && "（本机）"}</div>
@@ -854,7 +854,7 @@ export default function NearbyShare() {
                 )
               ))}
             </div>
-            <div style={{ background: "#f6f9fe", borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "#63718a", marginBottom: 14 }}>
+            <div style={{ background: "rgba(59, 130, 246, 0.08)", borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "#9a9ab0", marginBottom: 14 }}>
               低权限一方将作为申请方：低 → 高需对方审批；同级或高 → 低自动通过。
               {selectedNodeId !== -1 && pairTargetId !== -1 && " 两名同事之间的连接将由你代为发起。"}
             </div>
@@ -919,7 +919,7 @@ export default function NearbyShare() {
           <>
             {teamUser && (
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14, paddingBottom: 12, borderBottom: "1px solid #f0f2f7" }}>
-                <Avatar size={46} style={{ background: LEVEL_COLORS[teamUser.auth_level] || "#94a3b8", fontSize: 19 }}>{teamUser.real_name?.[0]}</Avatar>
+                <Avatar size={46} style={{ background: LEVEL_COLORS[teamUser.auth_level] || "#7c7c96", fontSize: 19 }}>{teamUser.real_name?.[0]}</Avatar>
                 <div>
                   <div style={{ fontWeight: 600 }}>{teamUser.real_name} <Tag color="blue">L{teamUser.auth_level}</Tag></div>
                   <Text type="secondary" style={{ fontSize: 12 }}>{teamUser.department || "-"} · {teamUser.title || "-"}</Text>
@@ -934,7 +934,7 @@ export default function NearbyShare() {
                 renderItem={(m) => (
                   <List.Item>
                     <List.Item.Meta
-                      avatar={<Avatar size={38} style={{ background: LEVEL_COLORS[m.auth_level] || "#94a3b8", fontSize: 16 }}>{m.real_name?.[0]}</Avatar>}
+                      avatar={<Avatar size={38} style={{ background: LEVEL_COLORS[m.auth_level] || "#7c7c96", fontSize: 16 }}>{m.real_name?.[0]}</Avatar>}
                       title={<span>{m.real_name} <Tag style={{ fontSize: 10 }}>L{m.auth_level}</Tag></span>}
                       description={<span style={{ fontSize: 11 }}>{m.department || "-"} · {m.title || "-"}</span>}
                     />

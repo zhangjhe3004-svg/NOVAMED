@@ -49,7 +49,7 @@ export default function PatientList() {
       {/* 页头 */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "16px 24px", flexWrap: "wrap" }}>
         <div>
-          <div style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>患者档案</div>
+          <div className="md-page-title" style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>患者档案</div>
           <div style={{ color: "var(--lv-muted)", fontSize: 13, marginTop: 5 }}>维护患者基本档案，点击行进入详情，支持新增与编辑。</div>
         </div>
         <button className="lv-btn lv-btn--primary" type="button" data-act="create" onClick={() => { setEditing("new"); setFormOpen(true); }}>

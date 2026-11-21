@@ -14,7 +14,7 @@
  * 数据：/users（管理员，全量）或 /nearby/peers（其余账号，责任链内）；
  *       /acl 数据权限规则（仅管理员，非管理员退化为纯菜单级授权展示）。
  */
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button, Empty, Spin, Segmented, Table, Modal, Form, Input, InputNumber, Switch, Popconfirm, Drawer, Tree, Select, message } from "antd";
 import {
@@ -22,6 +22,7 @@ import {
   DeleteOutlined,
   DownloadOutlined,
   EditOutlined,
+  LoadingOutlined,
   PartitionOutlined,
   PlusOutlined,
   ReloadOutlined,
@@ -30,6 +31,7 @@ import {
   SendOutlined,
   SafetyOutlined,
   TeamOutlined,
+  ThunderboltOutlined,
   UserOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "../stores/auth";
@@ -42,7 +44,8 @@ import PermissionMatrix, { type MatrixChange } from "../components/PermissionMat
 import { listRoles, createRole, updateRole, removeRole, saveRoleMenus, exportRoles as exportRolesCsv, type RoleItem } from "../api/roles";
 import { fetchMenuTree, type MenuItemRow } from "../api/menus";
 import InsightPanel, { type InsightSection } from "../components/InsightPanel";
-import { ask, type AnswerCard } from "../utils/ask";
+import { ask, presetQuestions, type AnswerCard } from "../utils/ask";
+import { revealCascade, typeOut } from "../utils/motion";
 import { downloadBlob } from "../utils/download";
 import type { NetLink, NetNode } from "../utils/stage";
 
@@ -173,36 +176,69 @@ export default function RoleTrace() {
     }
   };
 
-  /* ---------- 溯源数据：DB 菜单树页面 + 全量角色授权（sys_role_menus） ---------- */
-  // 溯源的真实授权链：用户 --(role code)--> sys_roles --(menu_ids)--> 页面（menu_items.permission = 导航 key）
+  /* ---------- 溯源数据：DB 菜单树 + 全量角色授权（sys_role_menus.menu_id 整数） ---------- */
+  // 溯源的真实授权链：用户 --(role code)--> sys_roles --(menu_id)--> 页面（menu_items.id）
+  const [menuTree, setMenuTree] = useState<MenuItemRow[]>([]);
   const [menuPages, setMenuPages] = useState<MenuItemRow[]>([]);
   const [allRoles, setAllRoles] = useState<RoleItem[]>([]);
+  // 菜单树始终加载（抽屉/矩阵/溯源共用）
   useEffect(() => {
-    if (view !== "trace") return;
     fetchMenuTree().then((r) => {
+      const items = r.items || [];
+      setMenuTree(items);
       const pages: MenuItemRow[] = [];
       const walk = (ns: MenuItemRow[]) => ns.forEach((n) => { if (n.type === "menu") pages.push(n); walk(n.children ?? []); });
-      walk(r.items || []);
+      walk(items);
       setMenuPages(pages);
     }).catch(() => {});
+  }, []);
+  // 全量角色授权（溯源视图用）
+  const refreshAllRoles = useCallback(() => {
     listRoles({ page: 1, page_size: 100 }).then((r) => setAllRoles(r.items || [])).catch(() => {});
-  }, [view, staff.length]);
+  }, []);
+  useEffect(() => {
+    if (view !== "trace") return;
+    refreshAllRoles();
+  }, [view, staff.length, refreshAllRoles]);
 
-  /** 角色 → 可访问页面（DB 授权；内置 admin 拥有全部） */
+  /** 详情卡内直接授权 / 取消（sys_role_menus.menu_id；授权后全景读数与扇出即时更新） */
+  const toggleGrant = async (roleId: number, granted: boolean) => {
+    const role = allRoles.find((r) => r.id === roleId);
+    if (!role) return;
+    if (role.builtin) {
+      message.info("内置角色拥有全部权限，授权不可修改");
+      return;
+    }
+    const target = entity?.type === "group" ? entity.menu : null;
+    if (!target) return;
+    const ids = new Set(role.menu_ids || []);
+    if (granted) ids.add(target.id);
+    else ids.delete(target.id);
+    try {
+      await saveRoleMenus(roleId, [...ids]);
+      message.success(granted ? `已授予「${role.name}」` : `已取消「${role.name}」的授权`);
+      refreshAllRoles();
+    } catch (e: any) {
+      message.error(e?.response?.data?.detail || "授权保存失败");
+      throw e;
+    }
+  };
+
+  /** 角色 → 可访问页面（DB 授权整数 menu_id；内置 admin 拥有全部） */
   const menusOfRole = useCallback(
     (roleCode: string): MenuItemRow[] => {
       const r = allRoles.find((x) => x.code === roleCode);
       if (!r) return [];
       if (r.builtin) return menuPages;
       const ids = new Set(r.menu_ids || []);
-      return menuPages.filter((m) => ids.has(m.permission));
+      return menuPages.filter((m) => ids.has(m.id));
     },
     [allRoles, menuPages]
   );
-  /** 页面 → 授予它的启用普通角色 */
+  /** 页面（menu_id）→ 授予它的启用普通角色 */
   const holdersOfPage = useCallback(
-    (permission: string) =>
-      allRoles.filter((r) => !r.builtin && r.status === 1 && (r.menu_ids || []).includes(permission)),
+    (id: number) =>
+      allRoles.filter((r) => !r.builtin && r.status === 1 && (r.menu_ids || []).includes(id)),
     [allRoles]
   );
   /** 用户持有的启用角色（单角色模型，最多 1 个） */
@@ -273,17 +309,21 @@ export default function RoleTrace() {
   const [permOpen, setPermOpen] = useState(false);
   const [permRole, setPermRole] = useState<RoleItem | null>(null);
   const [permTab, setPermTab] = useState<"menu" | "data">("menu");
-  const [permChecked, setPermChecked] = useState<string[]>([]);
+  const [permChecked, setPermChecked] = useState<number[]>([]);
   const [permScope, setPermScope] = useState("SELF");
   const [permSaving, setPermSaving] = useState(false);
 
+  /** DB 菜单树 → antd Tree data（key 为整数 menu_id） */
   const menuTreeData = useMemo(
-    () => buildNavGroups().map((g) => ({
-      key: `g:${g.short}`,
-      title: `${g.label}（${g.items.length}）`,
-      children: g.items.map((i) => ({ key: i.key, title: i.name })),
+    () => menuTree.map((n) => ({
+      key: n.id,
+      title: n.name,
+      children: (n.children && n.children.length) ? n.children.map((c) => ({
+        key: c.id, title: c.name,
+        children: (c.children && c.children.length) ? c.children.map((b) => ({ key: b.id, title: b.name })) : undefined,
+      })) : undefined,
     })),
-    []
+    [menuTree]
   );
   const openPerm = (r: RoleItem) => {
     setPermRole(r);
@@ -297,7 +337,7 @@ export default function RoleTrace() {
     setPermSaving(true);
     try {
       await updateRole(permRole.id, { data_scope: permScope });
-      await saveRoleMenus(permRole.id, permChecked.filter((k) => !k.startsWith("g:")));
+      await saveRoleMenus(permRole.id, permChecked);
       message.success("权限已保存，相关用户重新登录后生效");
       setPermOpen(false);
       loadRoles();
@@ -307,7 +347,7 @@ export default function RoleTrace() {
       setPermSaving(false);
     }
   };
-  const permPageCount = permChecked.filter((k) => !k.startsWith("g:")).length;
+  const permPageCount = permChecked.length;
 
   // 权限矩阵数据（全量角色 + 授权）
   const [matrixRoles, setMatrixRoles] = useState<RoleItem[]>([]);
@@ -327,7 +367,7 @@ export default function RoleTrace() {
   useEffect(() => { if (view === "matrix") loadMatrix(); }, [view, loadMatrix]);
 
   const matrixGrants = useMemo(() => {
-    const g: Record<number, string[]> = {};
+    const g: Record<number, number[]> = {};
     matrixRoles.forEach((x) => { g[x.id] = x.menu_ids || []; });
     return g;
   }, [matrixRoles]);
@@ -353,6 +393,7 @@ export default function RoleTrace() {
   // 「问问权限」问答条（全景层底部）：本地规则引擎，与命令面板「问系统」同源
   const [askQ, setAskQ] = useState("");
   const [askCards, setAskCards] = useState<AnswerCard[]>([]);
+  const [askedQ, setAskedQ] = useState("");
 
   /* ---------- 深链：/role-trace?trace=user:12 ----------
      从用户管理页的「权限溯源」图标跳进来时，省掉「全景 → 用户」两层下钻，
@@ -430,18 +471,40 @@ export default function RoleTrace() {
   /* ---------- 配置与聚合 ---------- */
   const navGroups = useMemo(() => buildNavGroups(), []);
 
-  const runAsk = (q?: string) => {
+  const askResultsRef = useRef<HTMLDivElement | null>(null);
+  const askLoadingRef = useRef(false);
+  const [askLoading, setAskLoading] = useState(false);
+  const cancelTypeRef = useRef<() => void>(() => {});
+
+  const runAsk = async (q?: string) => {
     const question = (q ?? askQ).trim();
-    if (!question) return;
-    setAskCards(
-      ask(question, {
+    if (!question || askLoadingRef.current) return;
+    askLoadingRef.current = true;
+    setAskLoading(true);
+    setAskedQ(question);
+    try {
+      const cards = await ask(question, {
         navGroups,
         people: staff as any,
         aclRules: aclRules as any,
         scope,
         isAdmin,
-      })
-    );
+      });
+      setAskCards(cards);
+      requestAnimationFrame(() =>
+        revealCascade(askResultsRef.current, ".ask-card", 90)
+      );
+    } finally {
+      askLoadingRef.current = false;
+      setAskLoading(false);
+    }
+  };
+
+  /** 预设芯片：打字机逐字填入（蓄）→ 自动提交（发），对齐 scaffold AskDock */
+  const typeAsk = (q: string) => {
+    cancelTypeRef.current();
+    setAskCards([]);
+    cancelTypeRef.current = typeOut(q, setAskQ, () => runAsk(q));
   };
 
   const roles = useMemo<RoleRow[]>(() => {
@@ -463,7 +526,7 @@ export default function RoleTrace() {
   );
   const heldRoles = useMemo(() => allRoles.filter((r) => (r.user_count || 0) > 0).length, [allRoles]);
   const grantedPages = useMemo(
-    () => menuPages.filter((m) => holdersOfPage(m.permission).length > 0).length,
+    () => menuPages.filter((m) => holdersOfPage(m.id).length > 0).length,
     [menuPages, holdersOfPage]
   );
   const idleRoleCount = useMemo(() => allRoles.length - heldRoles, [allRoles, heldRoles]);
@@ -575,7 +638,7 @@ export default function RoleTrace() {
         });
       }
       return menuPages.map((m) => {
-        const grants = holdersOfPage(m.permission).length;
+        const grants = holdersOfPage(m.id).length;
         return {
           id: `e-menu-${m.permission}`,
           name: m.name,
@@ -626,7 +689,7 @@ export default function RoleTrace() {
       const permission = entityId.replace("e-menu-", "");
       const page = menuPages.find((m) => m.permission === permission);
       if (!page) return null;
-      const holders = holdersOfPage(permission);
+      const holders = holdersOfPage(page.id);
       return {
         type: "group",
         key: entityId,
@@ -727,7 +790,7 @@ export default function RoleTrace() {
     // menu 实体：用户 → 角色 → 页面（中心靠右，对齐 scaffold）
     if (entity.type === "group" && entity.menu) {
       const permission = entity.menu.permission;
-      const holders = holdersOfPage(permission);
+      const holders = holdersOfPage(entity.menu.id);
       const users = staff.filter((s) => holders.some((r) => r.code === s.role));
       const xs: [number, number, number] = [W * 0.2, W * 0.48, W * 0.76];
       const orphan = !holders.some((r) => !r.builtin);
@@ -936,9 +999,10 @@ export default function RoleTrace() {
       });
       allRoles.forEach((r) => {
         if (r.builtin) return;
-        (r.menu_ids || []).forEach((key) => {
-          if (menuPages.some((m) => m.permission === key)) {
-            netLinks.push({ a: `e-role-${r.code}`, b: `e-menu-${key}`, cross: true });
+        (r.menu_ids || []).forEach((mid) => {
+          const page = menuPages.find((m) => m.id === mid);
+          if (page) {
+            netLinks.push({ a: `e-role-${r.code}`, b: `e-menu-${page.permission}`, cross: true });
           }
         });
       });
@@ -1075,7 +1139,7 @@ export default function RoleTrace() {
       if (r?.builtin) insights.push({ tone: "info", title: "超级管理员", text: "内置角色，自动拥有全部菜单与按钮，不受授权勾选影响。" });
       if (r && r.status !== 1) insights.push({ tone: "warn", title: "角色已停用", text: "持有该角色的用户不会获得其中任何权限。" });
       if (!userIds.length) insights.push({ tone: "warn", title: "闲置角色", text: "没有分配给任何用户，可考虑停用或与相近角色合并。" });
-      const lonely = pages.filter((m) => holdersOfPage(m.permission).length === 1);
+      const lonely = pages.filter((m) => holdersOfPage(m.id).length === 1);
       if (lonely.length && !r?.builtin) {
         insights.push({ tone: "info", title: "独占授权", text: `${lonely.slice(0, 4).map((m) => m.name).join("、")}${lonely.length > 4 ? " 等" : ""} 仅由该角色授予，删除角色将导致无人可访问。` });
       }
@@ -1104,7 +1168,7 @@ export default function RoleTrace() {
     // menu 实体
     if (entity.type === "group" && entity.menu) {
       const m = entity.menu;
-      const holders = holdersOfPage(m.permission);
+      const holders = holdersOfPage(m.id);
       const users = staff.filter((s) => holders.some((r) => r.code === s.role));
       const insights: Array<{ tone: "info" | "warn" | "danger" | "ok"; title: string; text: string }> = [];
       if (!holders.some((r) => !r.builtin)) insights.push({ tone: "warn", title: "孤立菜单", text: "除超级管理员外没有任何角色授予，普通用户无法访问。" });
@@ -1130,63 +1194,73 @@ export default function RoleTrace() {
     return { kind: undefined, status: undefined, tiles: [], insights: [], stats, sections };
   }, [layer, entity, aclRules, roles, isAdmin, allRoles, staff, menusOfRole, holdersOfPage, rolesOfUser]);
 
-  /* 「问问权限」问答条：全景层底部；空数据（无责任链成员）时也保留入口 */
-  const askBar =
-    layer === 1 ? (
-      <div style={{ width: "min(600px, 94%)", margin: "0 auto" }}>
-        {askCards.length > 0 && (
-          <div style={{ marginBottom: 10, display: "flex", flexDirection: "column", gap: 8 }}>
-            {askCards.map((c, i) => (
-              <div key={i} style={{ background: "#fff", borderRadius: 14, border: "1px solid var(--lv-line)", boxShadow: "var(--lv-e2)", padding: "12px 16px" }}>
-                <div style={{ fontSize: 13, fontWeight: 650, color: "var(--lv-ink)" }}>{c.title}</div>
-                <div style={{ fontSize: 12.5, color: "var(--lv-muted)", marginTop: 4, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{c.text}</div>
-                {c.chips && c.chips.length > 0 && (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
-                    {c.chips.map((ch) => (
-                      <button key={ch.key} type="button" onClick={() => { if (ch.to) navigate(ch.to); }}
-                        style={{ border: "1px solid var(--lv-line)", background: "#fff", borderRadius: 999, padding: "3px 10px", fontSize: 12, cursor: "pointer", color: "var(--lv-blue)" }}>
-                        {ch.label}{ch.sub ? ` · ${ch.sub}` : ""}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#fff", borderRadius: 999, padding: "6px 6px 6px 16px", boxShadow: "var(--lv-e2)", border: "1px solid var(--lv-line)" }}>
-          <span style={{ color: "var(--lv-faint)", fontSize: 13, flex: "none" }}>问</span>
+  /* 「问问权限」问答坞（对齐 scaffold AskDock：m-float 玻璃面板 + 输入条 + 预设横向滚动条）：
+     结果区（问句回顾 + 答案卡级联）→ 输入条（发送 loading）→ 预设芯片（打字机蓄入）。
+     位置由 .trace-dock 决定（全景层舞台底部居中），见 stage.css。 */
+  const askBar = (
+    <div className="ask-dock">
+      {(askCards.length > 0 || askedQ) && (
+        <section ref={askResultsRef} className="ask-results" aria-live="polite">
+          <header className="ask-results-head">
+            <span>
+              <ThunderboltOutlined style={{ fontSize: 13 }} />
+              {askedQ}
+            </span>
+            <small>{askCards.some((c) => c.source === "agent") ? "AI 智能体" : "本地规则分析"}</small>
+            <button type="button" className="ask-close" aria-label="关闭分析结果"
+              onClick={() => { setAskCards([]); setAskedQ(""); }}>×</button>
+          </header>
+          {askCards.map((c, i) => (
+            <article key={`${c.title}-${i}`} className={`ask-card tone-${c.tone}`}>
+              <h4>{c.title}</h4>
+              <p>{c.text}</p>
+              {c.chips && c.chips.length > 0 && (
+                <div className="insight-chips">
+                  {c.chips.slice(0, 18).map((ch) => (
+                    <button key={ch.key} type="button" className="insight-chip is-clickable"
+                      style={ch.tone === "danger"
+                        ? { color: "var(--lv-red-text)", borderColor: "var(--lv-red-soft)" }
+                        : ch.tone === "off" ? { color: "var(--lv-faint)" } : { color: "var(--lv-blue)" }}
+                      onClick={() => { if (ch.to) navigate(ch.to); }}>
+                      {ch.label}{ch.sub ? <small style={{ color: "var(--lv-faint)", marginLeft: 4 }}>{ch.sub}</small> : ""}
+                    </button>
+                  ))}
+                  {c.chips.length > 18 && (
+                    <span className="insight-chip is-empty">+{c.chips.length - 18}</span>
+                  )}
+                </div>
+              )}
+            </article>
+          ))}
+        </section>
+      )}
+      <div className="ask-panel">
+        <form className="ask-form" onSubmit={(e) => { e.preventDefault(); runAsk(); }}>
+          <ThunderboltOutlined className="ask-form-icon" style={{ fontSize: 15 }} />
           <input
             value={askQ}
-            onChange={(e) => setAskQ(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") runAsk(); }}
+            onChange={(e) => { cancelTypeRef.current(); setAskQ(e.target.value); }}
             placeholder="问问权限…例如「谁能删除用户」"
-            style={{ flex: 1, border: 0, outline: "none", fontSize: 13, background: "transparent", color: "var(--lv-ink)", minWidth: 0 }}
+            aria-label="向系统提问"
           />
-          <button type="button" aria-label="发送" onClick={() => runAsk()}
-            style={{ width: 32, height: 32, borderRadius: 999, border: 0, background: "var(--lv-blue)", color: "#fff", cursor: "pointer", flex: "none", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-            <SendOutlined style={{ fontSize: 13 }} />
+          <button type="submit" className="ask-send" disabled={askLoading || !askQ.trim()} aria-label="提交问题">
+            {askLoading ? <LoadingOutlined style={{ fontSize: 15 }} /> : <SendOutlined style={{ fontSize: 15 }} />}
           </button>
-        </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", marginTop: 10 }}>
-          {["谁能删除用户?", "哪些角色没人用?", "哪些用户没分配角色?"].map((q) => (
-            <button key={q} type="button" onClick={() => { setAskQ(q); runAsk(q); }}
-              style={{ border: "1px solid var(--lv-line)", background: "#fff", borderRadius: 999, padding: "5px 12px", fontSize: 12, cursor: "pointer", color: "var(--lv-muted)", transition: "color .15s ease" }}
-              onMouseEnter={(e) => { e.currentTarget.style.color = "var(--lv-blue)"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = "var(--lv-muted)"; }}
-            >
-              {q}
-            </button>
+        </form>
+        <div className="ask-presets">
+          {presetQuestions().slice(0, 6).map((q) => (
+            <button key={q} type="button" onClick={() => typeAsk(q)}>{q}</button>
           ))}
         </div>
       </div>
-    ) : null;
+    </div>
+  );
 
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "16px 24px", flexWrap: "wrap" }}>
         <div>
-          <div style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>角色管理</div>
+          <div className="md-page-title" style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>角色管理</div>
           <div style={{ color: "var(--lv-muted)", fontSize: 13, marginTop: 6 }}>
             角色决定用户可见的菜单、可用的按钮以及可查看的数据范围。
           </div>
@@ -1208,7 +1282,7 @@ export default function RoleTrace() {
       </div>
 
       {view === "trace" && scope === "chain" && (
-        <p className="note" style={{ background: "#fdf7ea", color: "#8a6a22", marginBottom: 14 }}>
+        <p className="note" style={{ background: "rgba(251,191,36,0.12)", color: "#fbbf24", marginBottom: 14 }}>
           当前账号不是管理员，溯源范围收窄为你的责任链；数据权限规则需要管理员账号才能读取。
         </p>
       )}
@@ -1228,7 +1302,7 @@ export default function RoleTrace() {
             <div style={{ textAlign: "center", padding: 60 }}><Spin /></div>
           ) : (
             <PermissionMatrix
-              menus={buildNavGroups()}
+              menus={menuTree}
               roles={matrixRoles.map((r) => ({ id: r.id, name: r.name, code: r.code, builtin: r.builtin, status: r.status }))}
               grants={matrixGrants}
               editable={isAdmin}
@@ -1349,10 +1423,11 @@ export default function RoleTrace() {
           ) : staff.length === 0 ? (
             <div>
               <Empty description="没有可溯源的数据" />
-              <div style={{ marginTop: 20, paddingBottom: 12 }}>{askBar}</div>
+              <div style={{ marginTop: 20, paddingBottom: 12, display: "flex", justifyContent: "center" }}>{askBar}</div>
             </div>
           ) : (
             <div className="trace-wrap">
+              <div className="trace-stage-area">
               <div className="stage-scroll">
                 <StageGraph
                   className="trace-stage"
@@ -1420,9 +1495,7 @@ export default function RoleTrace() {
                     ) : null
                   }
                   bl={
-                    layer === 1 ? (
-                      askBar
-                    ) : (
+                    layer === 1 ? null : (
                       <div className="rg-legend">
                         {CATS.map((c) => (
                           <span key={c.key} className={`rg-legend-item cat-${c.cat}`}>
@@ -1434,6 +1507,10 @@ export default function RoleTrace() {
                     )
                   }
                 />
+                </div>
+                {layer === 1 && (
+                  <div className="trace-dock is-center">{askBar}</div>
+                )}
               </div>
 
               {insight && entity ? (
@@ -1448,18 +1525,44 @@ export default function RoleTrace() {
                   insights={insight.insights}
                   stats={insight.stats}
                   sections={insight.sections}
+                  grant={
+                    entity.type === "group" && entity.menu
+                      ? {
+                          roles: allRoles.map((r) => ({
+                            id: r.id,
+                            name: r.name,
+                            code: r.code,
+                            granted: (r.menu_ids || []).includes(entity.menu!.id),
+                            builtin: r.builtin,
+                            userCount: r.user_count,
+                          })),
+                          onToggle: toggleGrant,
+                          disabled: !isAdmin,
+                        }
+                      : undefined
+                  }
                   note="授权链来自真实数据：用户 → 角色（sys_roles）→ 页面（menu_items 授权）；DB 级规则取自数据权限表。"
                   actions={
                     <>
-                      <Button size="small" icon={<TeamOutlined />} onClick={() => goLayer(2)}>
-                        返回模块
-                      </Button>
-                      <Button
-                        size="small"
-                        type="primary"
-                        icon={<SafetyCertificateOutlined />}
-                        onClick={() => goLayer(1)}
-                      >
+                      {entity.type === "role" && (() => {
+                        const full = allRoles.find((x) => x.code === entity.role);
+                        return full ? (
+                          <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(full)}>
+                            编辑角色
+                          </Button>
+                        ) : null;
+                      })()}
+                      {entity.type === "user" && (
+                        <Button size="small" icon={<TeamOutlined />} onClick={() => navigate("/users")}>
+                          去用户管理
+                        </Button>
+                      )}
+                      {entity.type === "group" && (
+                        <Button size="small" icon={<AppstoreOutlined />} onClick={() => navigate("/menu-star")}>
+                          菜单管理
+                        </Button>
+                      )}
+                      <Button size="small" icon={<SafetyCertificateOutlined />} onClick={() => goLayer(1)}>
                         回到全景
                       </Button>
                     </>
@@ -1472,7 +1575,7 @@ export default function RoleTrace() {
         </div>
       </section>
 
-      <p className="note" style={{ background: "#f6f8fc", color: "#7d8ba0", marginTop: 14 }}>
+      <p className="note" style={{ background: "rgba(59, 130, 246, 0.08)", color: "#9a9ab0", marginTop: 14 }}>
         溯源用的菜单就是侧边栏真实渲染的那一份（config/nav.ts），
         因此「角色 → 分组 → 菜单」的结果与界面完全一致，不会出现溯源里能进、界面上看不到的情况。
       </p>
@@ -1559,7 +1662,7 @@ export default function RoleTrace() {
             selectable={false}
             treeData={menuTreeData}
             checkedKeys={permChecked}
-            onCheck={(checked, info) => setPermChecked([...(checked as string[]), ...((info.halfCheckedKeys || []) as string[])])}
+            onCheck={(checked, info) => setPermChecked([...(checked as number[]), ...((info.halfCheckedKeys || []) as number[])])}
           />
         ) : (
           <div role="radiogroup" aria-label="数据范围" style={{ display: "flex", flexDirection: "column", gap: 10 }}>

@@ -1,17 +1,17 @@
 /**
  * PermissionMatrix —— 角色 × 菜单授权矩阵（移植 scaffold PermissionMatrix.vue，可编辑版）。
  *
- * 行 = 菜单树（目录可折叠），列 = 角色。
- * - 悬停十字高亮整行整列；点格子切换授权（目录/菜单行整枝开关，勾选子项连带勾上祖先）；
+ * 行 = 菜单树（目录/页面/按钮三级，含按钮），列 = 角色。
+ * - 悬停十字高亮整行整列；点格子切换授权（目录/页面行整枝开关，勾选子项连带勾上祖先）；
  * - 内置角色列只读；有改动时底部升起「未保存 N 项」浮条，一次提交。
  *
- * 数据：roles/grants 来自 /api/roles（sys_roles + sys_role_menus）；
- *       菜单树来自 config/nav.ts（目录=分组，菜单=导航项）。
+ * 数据：roles/grants 来自 /api/roles（sys_roles + sys_role_menus.menu_id 整数）；
+ *       菜单树来自 /api/menus/tree（menu_items：dir/menu/btn 三级）。
  */
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "antd";
 import { CheckOutlined, DownOutlined, RightOutlined } from "@ant-design/icons";
-import type { NavGroup } from "../config/nav";
+import type { MenuItemRow } from "../api/menus";
 
 export interface MatrixRole {
   id: number;
@@ -22,30 +22,45 @@ export interface MatrixRole {
 }
 
 interface MatrixRow {
-  key: string;
+  key: number;
   name: string;
-  type: "dir" | "menu";
+  type: "dir" | "menu" | "btn";
   depth: number;
-  parents: string[];
-  descendants: string[];
+  parents: number[];
+  descendants: number[];
+  permission: string;
 }
 
-const TYPE_LABEL: Record<string, string> = { dir: "目录", menu: "菜单" };
+const TYPE_LABEL: Record<string, string> = { dir: "目录", menu: "菜单", btn: "按钮" };
 
-function flattenGroups(groups: NavGroup[]): MatrixRow[] {
+function collectIds(n: MenuItemRow, acc: number[] = []): number[] {
+  acc.push(n.id);
+  (n.children ?? []).forEach((c) => collectIds(c, acc));
+  return acc;
+}
+
+function flattenTree(nodes: MenuItemRow[]): MatrixRow[] {
   const rows: MatrixRow[] = [];
-  groups.forEach((g) => {
-    const dirKey = `g:${g.short}`;
-    const itemKeys = g.items.map((i) => i.key);
-    rows.push({ key: dirKey, name: g.label, type: "dir", depth: 0, parents: [], descendants: itemKeys });
-    g.items.forEach((i) => {
-      rows.push({ key: i.key, name: i.name, type: "menu", depth: 1, parents: [dirKey], descendants: [] });
+  const walk = (ns: MenuItemRow[], depth: number, parents: number[]) => {
+    ns.forEach((n) => {
+      const descendants = collectIds(n).filter((id) => id !== n.id);
+      rows.push({
+        key: n.id,
+        name: n.name,
+        type: n.type as "dir" | "menu" | "btn",
+        depth,
+        parents,
+        descendants,
+        permission: n.permission || "",
+      });
+      walk(n.children ?? [], depth + 1, [...parents, n.id]);
     });
-  });
+  };
+  walk(nodes, 0, []);
   return rows;
 }
 
-export interface MatrixChange { roleId: number; menuIds: string[] }
+export interface MatrixChange { roleId: number; menuIds: number[] }
 
 export default function PermissionMatrix({
   menus,
@@ -55,25 +70,25 @@ export default function PermissionMatrix({
   saving,
   onSave,
 }: {
-  menus: NavGroup[];
+  menus: MenuItemRow[];
   roles: MatrixRole[];
-  grants: Record<number, string[]>;
+  grants: Record<number, number[]>;
   editable: boolean;
   saving?: boolean;
   onSave?: (changes: MatrixChange[]) => void;
 }) {
-  const [draft, setDraft] = useState<Record<number, Set<string>>>({});
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const [hoverRow, setHoverRow] = useState<string | null>(null);
+  const [draft, setDraft] = useState<Record<number, Set<number>>>({});
+  const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
+  const [hoverRow, setHoverRow] = useState<number | null>(null);
   const [hoverCol, setHoverCol] = useState<string | null>(null);
 
   useEffect(() => {
-    const next: Record<number, Set<string>> = {};
+    const next: Record<number, Set<number>> = {};
     roles.forEach((r) => { next[r.id] = new Set(grants[r.id] ?? []); });
     setDraft(next);
   }, [roles, grants]);
 
-  const rows = useMemo(() => flattenGroups(menus), [menus]);
+  const rows = useMemo(() => flattenTree(menus), [menus]);
   const visibleRows = useMemo(
     () => rows.filter((r) => !r.parents.some((id) => collapsed.has(id))),
     [rows, collapsed]
@@ -101,7 +116,7 @@ export default function PermissionMatrix({
     setDraft({ ...draft, [role.id]: set });
   };
 
-  const toggleCollapse = (id: string) => {
+  const toggleCollapse = (id: number) => {
     setCollapsed((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -117,7 +132,7 @@ export default function PermissionMatrix({
         .filter((r) => !r.builtin)
         .map((r) => {
           const before = new Set(grants[r.id] ?? []);
-          const after = draft[r.id] ?? new Set<string>();
+          const after = draft[r.id] ?? new Set<number>();
           let diff = 0;
           after.forEach((id) => { if (!before.has(id)) diff += 1; });
           before.forEach((id) => { if (!after.has(id)) diff += 1; });
@@ -129,7 +144,7 @@ export default function PermissionMatrix({
   const changeCount = changes.reduce((a, c) => a + c.diff, 0);
 
   const reset = () => {
-    const next: Record<number, Set<string>> = {};
+    const next: Record<number, Set<number>> = {};
     roles.forEach((r) => { next[r.id] = new Set(grants[r.id] ?? []); });
     setDraft(next);
   };

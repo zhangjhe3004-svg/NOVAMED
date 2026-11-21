@@ -27,8 +27,8 @@
 }
 .lf-grid {
   background:
-    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    linear-gradient(rgba(37, 99, 235, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(37, 99, 235, 0.04) 1px, transparent 1px);
   background-size: 42px 42px;
   mask-image: radial-gradient(90% 80% at 50% 45%, #000 30%, transparent 78%);
   -webkit-mask-image: radial-gradient(90% 80% at 50% 45%, #000 30%, transparent 78%);
@@ -86,7 +86,7 @@
 }
 .lf-tick.is-major {
   stroke-width: 1.1;
-  stroke: rgba(255, 255, 255, 0.3);
+  stroke: rgba(21, 58, 124, 0.22);
 }
 .lf-tick.is-on {
   stroke: #82dd2d;
@@ -112,10 +112,10 @@
   font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
   font-size: 10.5px;
   letter-spacing: 0.08em;
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.6);
 }
 
-/* ── 服务状态铭牌（深色玻璃） ── */
+/* ── 服务状态铭牌（白纸卡，深色 hero 上的内容浮层） ── */
 .lf-plate {
   display: grid;
   grid-template-columns: auto auto;
@@ -123,10 +123,11 @@
   gap: 6px 10px;
   padding: 14px 18px;
   font-size: 13px;
-  color: #fff;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.06);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.07);
+  color: #2b3444;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 4px 14px rgba(6, 16, 38, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.35);
   backdrop-filter: blur(8px);
   width: fit-content;
 }
@@ -134,7 +135,7 @@
   grid-column: 1 / -1;
   font-size: 10px;
   letter-spacing: 0.14em;
-  color: rgba(255, 255, 255, 0.5);
+  color: #8b97a8;
 }
 .lf-health-dot {
   width: 8px;
@@ -145,15 +146,15 @@
   transition: background 0.3s, box-shadow 0.3s;
 }
 .lf-health-dot.is-ok {
-  background: #82dd2d;
-  box-shadow: 0 0 0 4px rgba(130, 221, 45, 0.2), 0 0 12px rgba(130, 221, 45, 0.6);
+  background: #4d9e5f;
+  box-shadow: 0 0 0 4px rgba(77, 158, 95, 0.18), 0 0 12px rgba(77, 158, 95, 0.5);
 }
 .lf-plate b {
   font-weight: 650;
 }
 .lf-plate .lf-lat {
   font-size: 11.5px;
-  color: rgba(255, 255, 255, 0.5);
+  color: #7a8699;
   font-variant-numeric: tabular-nums;
 }
 
@@ -179,31 +180,34 @@
   width: 30px;
   height: 30px;
   border-radius: 8px;
-  color: #82dd2d;
-  background: rgba(130, 221, 45, 0.12);
+  color: #3b6df0;
+  background: rgba(59, 109, 240, 0.1);
   flex: none;
 }
 .lf-captitle {
   display: block;
   font-size: 12.5px;
   font-weight: 650;
-  color: #fff;
+  color: #2b3444;
 }
 .lf-capdesc {
   display: block;
   margin-top: 2px;
   font-size: 11.5px;
-  color: rgba(255, 255, 255, 0.5);
+  color: #7a8699;
   line-height: 1.5;
 }
 
-/* ── 右侧登录卡：辉光跟随 + 指针轻倾 ── */
+/* ── 右侧登录卡：白卡 + 辉光跟随 + 指针轻倾 ── */
 .lf-card {
   position: relative;
   border-radius: 20px;
-  background: #fff;
-  border: 1px solid rgba(230, 238, 246, 0.9);
-  box-shadow: 0 24px 60px rgba(24, 52, 96, 0.12), 0 2px 8px rgba(24, 52, 96, 0.05);
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(21, 58, 124, 0.12);
+  box-shadow: 0 24px 60px rgba(21, 58, 124, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(21, 58, 124, 0.04);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
   transform-style: preserve-3d;
   transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
   will-change: transform;
@@ -217,7 +221,7 @@
   transition: opacity 0.3s;
   background: radial-gradient(
     320px circle at var(--gx, 50%) var(--gy, 50%),
-    rgba(66, 125, 241, 0.1),
+    rgba(59, 130, 246, 0.12),
     transparent 65%
   );
 }
@@ -239,7 +243,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(140deg, #4f8bff, #236de9 60%, #1d4ed8);
+  background: linear-gradient(140deg, #4f8bff, #236de9 60%, #2563eb);
   box-shadow: 0 10px 24px rgba(35, 109, 233, 0.35);
   animation: lf-orb-pop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
 }
@@ -259,7 +263,7 @@
 }
 .lf-success-orb circle {
   fill: none;
-  stroke: rgba(255, 255, 255, 0.55);
+  stroke: rgba(199, 201, 224, 0.58);
   stroke-width: 2.4;
   transform: rotate(-90deg);
   transform-origin: 50% 50%;
@@ -320,4 +324,41 @@
   .loginfx:not(.is-ready) .lf-in {
     opacity: 1;
   }
+}
+
+/* ── 白卡上的 antd 控件对比度修正（登录卡已恢复白底，dark 主题文字需反转） ── */
+/* 文字：v6 结构中 label span 是 .ant-checkbox 的相邻兄弟（.ant-checkbox + span） */
+.lf-card .ant-checkbox + span {
+  color: #334155 !important;
+}
+/* 防止「保持登录状态」在窄卡内断行 */
+.lf-card .ant-checkbox-wrapper {
+  white-space: nowrap;
+}
+/* 勾选框本体（v6 无 -inner，视觉直接画在 .ant-checkbox span 上）：白底 + 蓝边 */
+.lf-card .ant-checkbox {
+  background-color: #ffffff !important;
+  border-color: rgba(21, 58, 124, 0.45) !important;
+  border-radius: 4px !important;
+}
+/* hover：边框加深为登录主色蓝 */
+.lf-card .ant-checkbox-wrapper:hover .ant-checkbox:not(.ant-checkbox-checked) {
+  border-color: #2563eb !important;
+}
+/* 选中态：蓝底 + 白对勾（对勾 ::after 由 antd 用 colorWhite 绘制，保持白即可） */
+.lf-card .ant-checkbox-checked {
+  background-color: #2563eb !important;
+  border-color: #2563eb !important;
+}
+.lf-card .ant-checkbox-indeterminate {
+  background-color: #2563eb !important;
+  border-color: #2563eb !important;
+}
+.lf-card .ant-input,
+.lf-card .ant-input-password,
+.lf-card input {
+  color: #1e293b !important;
+}
+.lf-card input::placeholder {
+  color: rgba(51, 65, 85, 0.4);
 }

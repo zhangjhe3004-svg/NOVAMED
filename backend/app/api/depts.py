@@ -16,10 +16,10 @@ from ..models.models import SysDept, User
 
 router = APIRouter(prefix="/api/depts", tags=["部门管理"])
 
-# 内置部门种子（id 显式，与前端画布根节点「MediCode 智慧医疗」对应）
+# 内置部门种子（id 显式，与前端画布根节点「NOVAMED 智慧医疗」对应）
 _SEED = [
     # (id, parent_id, name, leader, phone, email, sort, status)
-    (1, 0, "MediCode 智慧医疗", "周明远", "", "hq@example.com", 1, 1),
+    (1, 0, "NOVAMED 智慧医疗", "周明远", "", "hq@example.com", 1, 1),
     (2, 1, "临床科室", "", "", "clinical@example.com", 1, 1),
     (3, 2, "内科", "张伟", "", "im@example.com", 1, 1),
     (4, 2, "外科", "李芳", "", "surgery@example.com", 2, 1),

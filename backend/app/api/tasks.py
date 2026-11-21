@@ -155,6 +155,7 @@ def _execute_task(db: Session, t: ScheduledTask):
                 title=f"定时提醒 · {t.name}",
                 content=t.payload or t.name,
                 level="info",
+                link="/tasks",
             ))
             s.commit()
         finally:

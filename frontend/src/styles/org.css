@@ -1,5 +1,5 @@
 /* ============================================================================
-   MediCode · 组织画布 (org.css)
+   NOVAMED · 组织画布 (org.css)
    ----------------------------------------------------------------------------
    与 stage.css 同源：分类色槽 --cat-bg/--cat-ink/--cat-line 由 .cat-1..5 提供。
    关键约束：.org-layer 的 transform 专供平移缩放，节点的入场动画也用 transform，
@@ -21,10 +21,10 @@
   border-radius: var(--md-r-xl, 20px);
   border: 1px solid #e2e9f2;
   background:
-    radial-gradient(58% 48% at 16% 10%, rgba(37, 99, 235, 0.05), transparent 70%),
+    radial-gradient(58% 48% at 16% 10%, rgba(59, 130, 246, 0.05), transparent 70%),
     radial-gradient(52% 44% at 86% 92%, rgba(19, 141, 133, 0.05), transparent 70%),
     #fff;
-  box-shadow: var(--md-shadow-rest, 0 1px 2px rgba(27, 43, 69, 0.04)), 0 1px 3px rgba(27, 43, 69, 0.03);
+  box-shadow: var(--md-shadow-rest, 0 1px 2px rgba(59, 130, 246, 0.04)), 0 1px 3px rgba(59, 130, 246, 0.03);
   cursor: grab;
   touch-action: none;
   user-select: none;
@@ -39,7 +39,7 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background-image: radial-gradient(rgba(27, 43, 69, 0.13) 1px, transparent 1.2px);
+  background-image: radial-gradient(rgba(59, 130, 246, 0.13) 1px, transparent 1.2px);
   background-size: 22px 22px;
   mask-image: radial-gradient(80% 80% at 50% 50%, #000 40%, transparent 100%);
   -webkit-mask-image: radial-gradient(80% 80% at 50% 50%, #000 40%, transparent 100%);
@@ -75,12 +75,12 @@
 }
 
 .org-link.is-active {
-  stroke: color-mix(in srgb, var(--cat-ink, #2563eb) 88%, transparent);
+  stroke: color-mix(in srgb, var(--cat-ink, #3b82f6) 88%, transparent);
   stroke-width: 2;
 }
 
 .org-pulse {
-  fill: var(--cat-ink, #2563eb);
+  fill: var(--cat-ink, #3b82f6);
   opacity: 0;
   stroke: rgba(255, 255, 255, 0.85);
   stroke-width: 6;
@@ -99,7 +99,7 @@
   border-radius: var(--md-r-md, 12px);
   border: 1px solid #e4ebf4;
   background: #fff;
-  box-shadow: var(--md-shadow-rest, 0 1px 2px rgba(27, 43, 69, 0.04));
+  box-shadow: var(--md-shadow-rest, 0 1px 2px rgba(59, 130, 246, 0.04));
   cursor: pointer;
   outline: none;
   transition: box-shadow 300ms linear, border-color 300ms linear,
@@ -107,18 +107,18 @@
 }
 
 .org-node:hover {
-  box-shadow: var(--md-shadow-hover, 0 4px 10px rgba(27, 43, 69, 0.06));
+  box-shadow: var(--md-shadow-hover, 0 4px 10px rgba(59, 130, 246, 0.06));
   translate: 0 -2px;
 }
 
 .org-node:focus-visible {
-  outline: 2px solid var(--blue, #2563eb);
+  outline: 2px solid var(--blue, #3b82f6);
   outline-offset: 3px;
 }
 
 .org-node.is-selected {
-  border-color: color-mix(in srgb, var(--blue, #2563eb) 55%, transparent);
-  box-shadow: var(--md-shadow-pop, 0 8px 20px rgba(27, 43, 69, 0.08)), 0 0 0 4px rgba(37, 99, 235, 0.1);
+  border-color: color-mix(in srgb, var(--blue, #3b82f6) 55%, transparent);
+  box-shadow: var(--md-shadow-pop, 0 8px 20px rgba(59, 130, 246, 0.08)), 0 0 0 4px rgba(59, 130, 246, 0.1);
   translate: 0 -3px;
 }
 
@@ -140,7 +140,7 @@
 
 .org-node.is-root .org-count {
   color: #d7e6f7;
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(21, 58, 124, 0.11);
 }
 
 .org-node.is-off {
@@ -213,13 +213,13 @@
   color: #7d8ba0;
   border: 1px solid #e4ebf4;
   background: #fff;
-  box-shadow: var(--md-shadow-rest, 0 1px 2px rgba(27, 43, 69, 0.04));
+  box-shadow: var(--md-shadow-rest, 0 1px 2px rgba(59, 130, 246, 0.04));
   cursor: pointer;
   z-index: 2;
 }
 
 .org-toggle:hover {
-  color: var(--blue, #2563eb);
+  color: var(--blue, #3b82f6);
   border-color: #bcd3f8;
 }
 
@@ -269,7 +269,7 @@
   padding: 2px 9px 2px 6px;
   border-radius: 999px;
   font-size: 11px;
-  color: #63718a;
+  color: #9a9ab0;
   background: var(--cat-bg, #f2f6fb);
   border: 1px solid var(--cat-line, #e4ebf4);
 }
@@ -292,7 +292,7 @@
   background: rgba(255, 255, 255, 0.86);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  box-shadow: var(--md-shadow-rest, 0 1px 2px rgba(27, 43, 69, 0.04));
+  box-shadow: var(--md-shadow-rest, 0 1px 2px rgba(59, 130, 246, 0.04));
   color: #4d5f7a;
   font-family: inherit;
   font-size: 11.5px;
@@ -301,7 +301,7 @@
 }
 
 .org-scope:hover {
-  color: var(--blue, #2563eb);
+  color: var(--blue, #3b82f6);
   border-color: #cddcf2;
 }
 
@@ -312,7 +312,7 @@
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.94);
   border: 1px solid #e6ecf3;
-  box-shadow: var(--md-shadow-hover, 0 4px 10px rgba(27, 43, 69, 0.06));
+  box-shadow: var(--md-shadow-hover, 0 4px 10px rgba(59, 130, 246, 0.06));
   font-size: 11.5px;
   line-height: 1.8;
   color: #6b7a90;
@@ -350,7 +350,7 @@
   border: 1px solid #e6ecf3;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  box-shadow: var(--md-shadow-hover, 0 4px 10px rgba(27, 43, 69, 0.06));
+  box-shadow: var(--md-shadow-hover, 0 4px 10px rgba(59, 130, 246, 0.06));
 }
 
 .org-card .eyebrow {
@@ -452,7 +452,7 @@
   border: 1px solid #e6ecf3;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  box-shadow: var(--md-shadow-hover, 0 4px 10px rgba(27, 43, 69, 0.06));
+  box-shadow: var(--md-shadow-hover, 0 4px 10px rgba(59, 130, 246, 0.06));
   cursor: default;
 }
 
@@ -473,7 +473,7 @@
 
 .org-controls button:hover {
   background: #eef5ff;
-  color: var(--blue, #2563eb);
+  color: var(--blue, #3b82f6);
 }
 
 /* ---------- 自适应 ---------- */

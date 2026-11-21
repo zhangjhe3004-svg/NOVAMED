@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-MediCode doctor 命令 —— 系统运行诊断（对齐优化方案 9.2 节 / 工单 T22）
+NOVAMED doctor 命令 —— 系统运行诊断（对齐优化方案 9.2 节 / 工单 T22）
 
 检查范围：运行时、依赖、构建、端口、数据、配置、依赖服务、进程。
 不输出任何密钥值。
@@ -44,7 +44,7 @@ def port_free(port):
 
 
 def main():
-    print("MediCode doctor")
+    print("NOVAMED doctor")
     print("项目根目录: " + ROOT)
 
     section("运行时")

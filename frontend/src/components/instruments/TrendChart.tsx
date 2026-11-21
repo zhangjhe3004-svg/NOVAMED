@@ -40,7 +40,7 @@ const PAD = { top: 18, right: 14, bottom: 28, left: 38 };
 const MORPH_MS = 720;
 
 /** 与 cat-1..5 同色 */
-const PALETTE = ["#2563eb", "#138d85", "#7a5cc4", "#c4423e", "#a8792a", "#5b8dd6"];
+const PALETTE = ["#3b82f6", "#138d85", "#0ea5e9", "#c4423e", "#a8792a", "#5b8dd6"];
 
 /** 纵轴取整：至少留 15% 顶部余量，刻度步长取 1 / 2 / 5 × 10ⁿ */
 function niceStep(raw: number) {

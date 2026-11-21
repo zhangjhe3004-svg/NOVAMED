@@ -30,27 +30,17 @@ def _make_engine(url: str, fk: bool = True):
             cursor.close()
 
         return e
-    return create_engine(
-        url,
-        echo=settings.DEBUG,
-        pool_size=10,
-        max_overflow=20,
-        pool_pre_ping=True,
-    )
+    return create_engine(url, echo=settings.DEBUG, pool_size=10, max_overflow=20)
 
 
-# 开发环境仍用两份 SQLite；生产环境将患者域和员工域表放入同一个 PostgreSQL 数据库。
-if "sqlite" in settings.DATABASE_URL.lower():
-    PATIENT_DB_URL = f"sqlite:///{(DATA_DIR / 'patient.db')}"
-    EMPLOYEE_DB_URL = f"sqlite:///{(DATA_DIR / 'employee.db')}"
-else:
-    PATIENT_DB_URL = settings.DATABASE_URL
-    EMPLOYEE_DB_URL = settings.DATABASE_URL
+# 患者域 / 员工域 独立库（backend/data/ 下一个文件夹，两个库文件并存）
+PATIENT_DB_URL = f"sqlite:///{(DATA_DIR / 'patient.db')}"
+EMPLOYEE_DB_URL = f"sqlite:///{(DATA_DIR / 'employee.db')}"
 
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-# 患者域与员工域在开发环境使用独立 SQLite 文件；生产环境使用同一 PostgreSQL 数据库，
-# 因历史模型存在跨域引用，不在患者库引擎上启用 SQLite 外键校验。
+# 患者库跨库引用员工 users（appointments.doctor_id -> users.id），因此关闭其外键校验；
+# 员工库保留外键校验。
 patient_engine = _make_engine(PATIENT_DB_URL, fk=False)
 employee_engine = _make_engine(EMPLOYEE_DB_URL)
 
@@ -83,7 +73,8 @@ def get_employee_db():
 
 # 表 -> 所属域
 _PATIENT_TABLES = {"patients", "patient_accounts", "appointments", "medical_records", "knowledge_docs",
-                   "record_comments", "doctor_schedules", "medicines", "billing_records", "lab_tests"}
+                   "record_comments", "doctor_schedules", "medicines", "billing_records", "lab_tests",
+                   "family_history", "patient_notifications", "scanned_documents"}
 _EMPLOYEE_TABLES = {"users", "messages", "notifications", "audit_logs", "login_logs", "token_usage", "conversations",
                     "user_preferences", "session_records", "scheduled_tasks", "nearby_files",
                     # 员工域低代码引擎元数据表（动态集合/页面/ACL/业务工作流）
@@ -93,7 +84,11 @@ _EMPLOYEE_TABLES = {"users", "messages", "notifications", "audit_logs", "login_l
                     # 菜单管理（目录/页面/按钮三级菜单树）
                     "menu_items",
                     # 部门管理（组织架构树）/ 岗位管理
-                    "sys_depts", "sys_posts"}
+                    "sys_depts", "sys_posts",
+                    # 字典管理（类型 + 数据）/ 参数配置
+                    "sys_dict_types", "sys_dict_data", "sys_configs",
+                    # 代码生成（导入表配置 + 字段映射）
+                    "gen_tables", "gen_table_columns"}
 
 
 def init_db():
@@ -115,7 +110,7 @@ def init_db():
 
 def _ensure_columns():
     """轻量迁移：对存在缺列的表执行 ALTER TABLE ADD COLUMN，按域分别处理"""
-    if "sqlite" not in PATIENT_DB_URL.lower() or "sqlite" not in EMPLOYEE_DB_URL.lower():
+    if "sqlite" not in settings.DATABASE_URL and "sqlite" not in PATIENT_DB_URL:
         return
     plan = {
         employee_engine: {
@@ -127,19 +122,28 @@ def _ensure_columns():
                 "auth_level": "INTEGER DEFAULT 1",
                 "id_type": "VARCHAR(50)", "surname": "VARCHAR(50)", "given_name": "VARCHAR(50)",
                 "valid_until": "VARCHAR(30)", "issue_date": "VARCHAR(30)", "registered_place": "VARCHAR(100)",
+                "reg_fee": "INTEGER DEFAULT 0",
             },
             "wf_instances": {"creator_id": "INTEGER"},
+            "sys_role_menus": {"menu_id": "INTEGER"},
             "messages": {
                 "deleted_by": "VARCHAR(200) DEFAULT ''",
                 "recalled": "BOOLEAN DEFAULT 0",
                 "quote_id": "INTEGER",
                 "quote_preview": "VARCHAR(200) DEFAULT ''",
             },
+            "notifications": {"link": "VARCHAR(200) DEFAULT ''"},
         },
         patient_engine: {
             "knowledge_docs": {"status": "VARCHAR(20) DEFAULT '草稿'", "approval_level": "INTEGER DEFAULT 1", "approvals": "TEXT"},
             "medical_records": {"room": "VARCHAR(50)", "ai_suggestion": "TEXT", "ai_confidence": "VARCHAR(20)", "ai_reviewed": "INTEGER DEFAULT 0", "admin_reviewed": "INTEGER DEFAULT 0", "admin_name": "VARCHAR(100)"},
             "patient_accounts": {"patient_id": "INTEGER"},
+            "billing_records": {
+                "confirmed_by": "VARCHAR(100) DEFAULT ''",
+                "confirmed_at": "VARCHAR(30) DEFAULT ''",
+                "paid_by": "VARCHAR(100) DEFAULT ''",
+                "paid_at": "VARCHAR(30) DEFAULT ''",
+            },
         },
     }
     try:

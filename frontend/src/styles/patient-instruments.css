@@ -1,0 +1,162 @@
+/* ============================================================================
+   NOVAMED · 患者端令牌（patient-instruments.css）
+   ----------------------------------------------------------------------------
+   患者端复用员工端 instruments 组件库与玻璃皮肤，但整体走
+   「Soft Utility 柔和工具风」深色版：深青灰分层底（非纯黑）、
+   薄荷青主行动色、薄荷/杏/蓝状态色。.patient-app 作用域覆盖，不影响员工端。
+
+   令牌（深色 Soft Utility）：
+     Surface #16201f  Surface2 #1e2b29  Elevated #243330
+     Text #e6f0ed  Muted #a5bab5  Faint #7d9791
+     Primary(薄荷) #5fd0b4  Apricot #e3b45f  Rose #e0857a  Blue #8aa7dd
+   ============================================================================ */
+
+.patient-app {
+  /* 主读数/正文色（员工端 --ink 深蓝灰 → 患者端浅青白文字） */
+  --ink: #e6f0ed;
+  --muted: #a5bab5;
+
+  /* 玻璃拟态令牌 → Soft Utility 深色（深面板 + 薄荷描边） */
+  --glass-bg:          rgba(30, 43, 41, 0.9);
+  --glass-bg-strong:   #243330;
+  --glass-bg-soft:     rgba(30, 43, 41, 0.7);
+  --glass-stroke:      rgba(169, 216, 204, 0.18);
+  --glass-stroke-soft: rgba(169, 216, 204, 0.10);
+  --glass-highlight:   rgba(95, 208, 180, 0.28);
+  --glass-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.28),
+    0 2px 8px rgba(0, 0, 0, 0.22);
+  --champagne: #5fd0b4;
+  --champagne-bright: #7fdbc3;
+  --moonlight: #8aa7dd;
+
+  /* 列表/卡片通用令牌（lv 语汇，患者端深色 Soft Utility 版） */
+  --lv-ink: #e6f0ed;
+  --lv-muted: #a5bab5;
+  --lv-faint: #7d9791;
+  --lv-line: rgba(169, 216, 204, 0.12);
+  --lv-line-strong: rgba(169, 216, 204, 0.22);
+  --lv-surface-solid: #243330;
+  --lv-blue: #5fd0b4;
+  --lv-blue-soft: rgba(95, 208, 180, 0.16);
+}
+
+/* 分类色槽：薄荷/杏/蓝/玫瑰 状态区分（非装饰铺色）——深色底提亮文字 */
+.patient-app .cat-1 { --cat-bg: rgba(95,208,180,0.18);  --cat-ink: #5fd0b4; --cat-line: rgba(95,208,180,0.28); }
+.patient-app .cat-2 { --cat-bg: rgba(227,180,95,0.16);  --cat-ink: #e3b45f; --cat-line: rgba(227,180,95,0.26); }
+.patient-app .cat-3 { --cat-bg: rgba(138,167,221,0.18); --cat-ink: #8aa7dd; --cat-line: rgba(138,167,221,0.28); }
+.patient-app .cat-4 { --cat-bg: rgba(224,133,122,0.16); --cat-ink: #e0857a; --cat-line: rgba(224,133,122,0.26); }
+.patient-app .cat-5 { --cat-bg: rgba(169,216,204,0.10); --cat-ink: #a5bab5; --cat-line: rgba(169,216,204,0.18); }
+
+/* ============================================================================
+   弹窗（mac-drawer，用于 Modal rootClassName）—— 样式对齐员工端 Modal
+   深青灰面板 + 圆形关闭钮 + 青灰输入框 + 薄荷主按钮，保持患者端配色
+   ============================================================================ */
+.mac-drawer .ant-modal .ant-modal-content,
+.mac-drawer .ant-modal .ant-modal-container {
+  border-radius: 14px !important;
+  background: #1e2b29 !important;
+  border: 1px solid rgba(169, 216, 204, 0.14) !important;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+.mac-drawer .ant-modal-header {
+  background: transparent !important;
+  border-bottom: 1px solid rgba(169, 216, 204, 0.12);
+  border-radius: 14px 14px 0 0;
+  margin-bottom: 20px;
+}
+.mac-drawer .ant-modal-title {
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: #e6f0ed !important;
+}
+/* 圆形描边关闭钮（参考员工端 Modal） */
+.mac-drawer .ant-modal-close {
+  top: 18px;
+  inset-inline-end: 20px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid rgba(169, 216, 204, 0.28);
+  display: grid;
+  place-items: center;
+  color: #9ab0ab;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+.mac-drawer .ant-modal-close:hover {
+  background: rgba(95, 208, 180, 0.14);
+  border-color: rgba(95, 208, 180, 0.45);
+  color: #e6f0ed;
+}
+.mac-drawer .ant-modal-body {
+  background: #1e2b29 !important;
+}
+/* 描述格线：青灰表格风（三层选择器盖过 glassmorphism 全局 !important） */
+.mac-drawer .ant-modal .ant-descriptions-item-label {
+  color: #a5bab5 !important;
+  background: rgba(95, 208, 180, 0.08) !important;
+  border-color: rgba(169, 216, 204, 0.14) !important;
+}
+.mac-drawer .ant-modal .ant-descriptions-item-content {
+  color: #e6f0ed !important;
+  background: #243330 !important;
+  border-color: rgba(169, 216, 204, 0.14) !important;
+}
+.mac-drawer .ant-descriptions-view {
+  border: 1px solid rgba(169, 216, 204, 0.16);
+  border-radius: 8px;
+  overflow: hidden;
+}
+/* 输入框/下拉：深青底 + 青灰描边圆角（三层选择器盖过全局玻璃规则） */
+.mac-drawer .ant-modal .ant-input,
+.mac-drawer .ant-modal .ant-select-selector,
+.mac-drawer .ant-modal textarea,
+.mac-drawer .ant-modal .ant-input-affix-wrapper {
+  background: #16201f !important;
+  border-color: rgba(169, 216, 204, 0.22) !important;
+  border-radius: 8px !important;
+  color: #e6f0ed !important;
+}
+.mac-drawer .ant-input::placeholder,
+.mac-drawer textarea::placeholder {
+  color: #6b827d !important;
+}
+.mac-drawer .ant-input:hover,
+.mac-drawer .ant-select-selector:hover,
+.mac-drawer .ant-input-affix-wrapper:hover {
+  border-color: rgba(95, 208, 180, 0.45) !important;
+}
+/* 主按钮：薄荷实底（与员工端「确定」同级强调，三层选择器盖过全局玻璃规则） */
+.mac-drawer .ant-modal .ant-btn-primary {
+  background: #5fd0b4 !important;
+  color: #0e2a26 !important;
+  border-color: #5fd0b4 !important;
+  box-shadow: 0 2px 8px rgba(95, 208, 180, 0.35);
+}
+.mac-drawer .ant-modal .ant-btn-primary:hover {
+  background: #7fdbc3 !important;
+  color: #0e2a26 !important;
+}
+/* 链接按钮（语音输入等） */
+.mac-drawer .ant-modal .ant-btn-link {
+  color: #5fd0b4 !important;
+}
+/* 表单 label 颜色 */
+.mac-drawer .ant-form-item-label > label {
+  color: #c6d2d0 !important;
+}
+/* 底部 footer：与员工端一致（取消 + 主按钮右对齐） */
+.mac-drawer .ant-modal-footer {
+  border-top: 1px solid rgba(169, 216, 204, 0.12);
+  border-radius: 0 0 14px 14px;
+  margin-top: 20px;
+}
+/* footer 默认按钮（取消等）与系统面板同色 */
+.mac-drawer .ant-modal .ant-btn-default {
+  background: #243330 !important;
+  border-color: rgba(169, 216, 204, 0.22) !important;
+  color: #e6f0ed !important;
+}

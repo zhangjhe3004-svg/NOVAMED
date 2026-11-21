@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-MediCode 一键初始化双数据库（患者库 patient.db / 员工库 employee.db）
+NOVAMED 一键初始化双数据库（患者库 patient.db / 员工库 employee.db）
 
 说明：
 - 仅使用 Python 标准库 sqlite3，不依赖 SQLAlchemy / FastAPI，可独立运行。
@@ -329,7 +329,7 @@ def main():
     project_root = os.path.dirname(os.path.dirname(here))
     data_dir = os.path.join(project_root, "backend", "data")
 
-    print("开始初始化 MediCode 双数据库（存储到 backend/data/）：")
+    print("开始初始化 NOVAMED 双数据库（存储到 backend/data/）：")
 
     employee_db = os.path.join(data_dir, "employee.db")
     patient_db = os.path.join(data_dir, "patient.db")

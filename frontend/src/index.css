@@ -1,5 +1,5 @@
 ﻿/* =====================================================
-   MediCode — NocoBase / AntD 清爽风格（保留页面工具类）
+   NOVAMED — NocoBase / AntD 清爽风格（保留页面工具类）
    ===================================================== */
 
 /* ----- Design Tokens (NocoBase palette) ----- */
@@ -15,10 +15,10 @@
   --md-tertiary: #722ed1;
   --md-on-tertiary: #ffffff;
   --md-tertiary-container: #f9f0ff;
-  --md-on-tertiary-container: #391085;
-  --md-error: #ff4d4f;
+  --md-on-tertiary-container: #0c2a6b;
+  --md-error: #E5746B;
   --md-on-error: #ffffff;
-  --md-error-container: #fff1f0;
+  --md-error-container: rgba(229,116,107,0.12);
   --md-on-error-container: #a8071a;
   --md-surface: #ffffff;
   --md-surface-dim: #f0f0f0;
@@ -36,14 +36,14 @@
   --md-elevation-1: 0 1px 2px 0 rgba(0,0,0,0.03), 0 1px 6px -1px rgba(0,0,0,0.02), 0 2px 4px 0 rgba(0,0,0,0.02);
   --md-elevation-2: 0 1px 2px 0 rgba(0,0,0,0.04), 0 2px 6px 2px rgba(0,0,0,0.03);
   --md-elevation-3: 0 4px 8px 3px rgba(0,0,0,0.04), 0 1px 3px 0 rgba(0,0,0,0.03);
-  --md-typescale-display: 400 57px/64px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
-  --md-typescale-headline: 400 28px/36px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
-  --md-typescale-title-large: 500 22px/28px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
-  --md-typescale-title-medium: 500 16px/24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
-  --md-typescale-body-large: 400 16px/24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
-  --md-typescale-body-medium: 400 14px/20px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
-  --md-typescale-label-large: 500 14px/20px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
-  --md-typescale-label-medium: 500 12px/16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --md-typescale-display: 400 57px/64px "Inter", "Noto Sans SC", "PingFang SC", "Source Han Sans SC", system-ui, sans-serif;
+  --md-typescale-headline: 400 28px/36px "Inter", "Noto Sans SC", "PingFang SC", "Source Han Sans SC", system-ui, sans-serif;
+  --md-typescale-title-large: 500 22px/28px "Inter", "Noto Sans SC", "PingFang SC", "Source Han Sans SC", system-ui, sans-serif;
+  --md-typescale-title-medium: 500 16px/24px "Inter", "Noto Sans SC", "PingFang SC", "Source Han Sans SC", system-ui, sans-serif;
+  --md-typescale-body-large: 400 16px/24px "Inter", "Noto Sans SC", "PingFang SC", "Source Han Sans SC", system-ui, sans-serif;
+  --md-typescale-body-medium: 400 14px/20px "Inter", "Noto Sans SC", "PingFang SC", "Source Han Sans SC", system-ui, sans-serif;
+  --md-typescale-label-large: 500 14px/20px "Inter", "Noto Sans SC", "PingFang SC", "Source Han Sans SC", system-ui, sans-serif;
+  --md-typescale-label-medium: 500 12px/16px "Inter", "Noto Sans SC", "PingFang SC", "Source Han Sans SC", system-ui, sans-serif;
 }
 
 /* 表格 / 弹窗 / 表单控件的全站皮肤已迁移到 styles/scaffold-tables.css
@@ -57,7 +57,7 @@
 
 /* Uiverse fab button */
 .fab-btn {
-  background-color: #f2f7fa;
+  background-color: rgba(37,99,235,0.06); border: 1px solid rgba(21,58,124,0.12);
   width: 70px;
   height: 30px;
   border: none;
@@ -78,20 +78,20 @@
   font-size: 12px;
 }
 .fab-btn span:first-child {
-  color: #0e418f;
+  color: #2563eb;
 }
 .fab-btn span:last-child {
-  color: #b5ccf3;
+  color: #3b82f6;
   opacity: 0;
   transform: translate(-50%, 100%);
 }
 .fab-btn:hover, .fab-btn:focus {
-  background-color: #0e418f;
+  background-color: #2563eb;
   width: 80px;
   height: 34px;
 }
 .fab-btn:hover span:first-child, .fab-btn:focus span:first-child {
-  color: #b5ccf3;
+  color: #3b82f6;
   transform: translate(-50%, -150%);
   opacity: 0;
 }
@@ -117,18 +117,18 @@
 .page-heading .eyebrow {
   font-size: 10px;
   letter-spacing: 1.5px;
-  color: #8b98aa;
+  color: var(--muted);
   margin-bottom: 4px;
 }
 .page-heading h1 {
   font-size: 26px;
   font-weight: 600;
-  color: #1b2b45;
+  color: #eaf1fb;
   margin: 0;
 }
 .page-heading .sub {
   font-size: 13px;
-  color: #78869b;
+  color: rgba(51,65,85,0.58);
   margin-top: 6px;
 }
 .page-heading .actions {
@@ -139,7 +139,7 @@
 }
 .segmented {
   display: inline-flex;
-  background: #f0f3f8;
+  background: rgba(21,58,124,0.1);
   border-radius: 8px;
   padding: 3px;
   gap: 2px;
@@ -156,8 +156,8 @@
   transition: all 0.2s;
 }
 .segmented button.selected {
-  background: #fff;
-  color: #1b2b45;
+  background: rgba(37, 99, 235, 0.06);
+  color: #eaf1fb;
   box-shadow: 0 1px 3px rgba(0,0,0,0.08);
 }
 
@@ -172,10 +172,10 @@
   .stats { grid-template-columns: repeat(2, 1fr); }
 }
 .stat {
-  background: #fff;
+  background: rgba(37, 99, 235, 0.06);
   border-radius: 14px;
   padding: 20px 22px;
-  border: 1px solid #edf1f7;
+  border: 1px solid rgba(21,58,124,0.1);
   box-shadow: 0 1px 2px rgba(0,0,0,0.02);
 }
 .stat-top {
@@ -183,7 +183,7 @@
   justify-content: space-between;
   align-items: center;
   font-size: 12px;
-  color: #78869b;
+  color: rgba(51,65,85,0.58);
   margin-bottom: 10px;
 }
 .stat-icon {
@@ -194,41 +194,41 @@
   align-items: center;
   justify-content: center;
   font-size: 16px;
-  background: #eaf1ff;
+  background: rgba(37,99,235,0.14);
   color: #2563eb;
 }
-.stat-icon.teal { background: #e6f4f1; color: #138d85; }
-.stat-icon.gold { background: #fff7e9; color: #d6a451; }
-.stat-icon.red { background: #fff1f0; color: #c4423e; }
-.stat-icon.navy { background: #eaf1ff; color: #2563eb; }
+.stat-icon.teal { background: #e6f4f1; color: #2563eb; }
+.stat-icon.gold { background: rgba(37,99,235,0.12); color: #2563eb; }
+.stat-icon.red { background: rgba(229,116,107,0.12); color: #E5746B; }
+.stat-icon.navy { background: rgba(37,99,235,0.14); color: #2563eb; }
 .stat-value {
   font-size: 32px;
   font-weight: 700;
-  color: #1b2b45;
+  color: #eaf1fb;
   margin-bottom: 8px;
 }
 .stat-bottom {
   font-size: 11px;
-  color: #8b98aa;
+  color: var(--muted);
 }
 .stat-bottom em {
   font-style: normal;
   color: #2563eb;
   font-weight: 500;
 }
-.stat-bottom em.warn { color: #c4423e; }
+.stat-bottom em.warn { color: #E5746B; }
 
 /* 面板 */
 .panel {
-  background: #fff;
+  background: rgba(37, 99, 235, 0.06);
   border-radius: 14px;
-  border: 1px solid #edf1f7;
+  border: 1px solid rgba(21,58,124,0.1);
   box-shadow: 0 1px 2px rgba(0,0,0,0.02);
   margin-bottom: 16px;
 }
 .panel-head {
   padding: 18px 22px;
-  border-bottom: 1px solid #f0f3f8;
+  border-bottom: 1px solid rgba(21,58,124,0.1);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -238,14 +238,14 @@
 .panel-head h2 {
   font-size: 15px;
   font-weight: 600;
-  color: #1b2b45;
+  color: #eaf1fb;
   margin: 0;
 }
 .panel-head small {
   display: block;
   margin-top: 3px;
   font-size: 12px;
-  color: #8b98aa;
+  color: var(--muted);
 }
 .panel-body {
   padding: 18px 22px;
@@ -272,18 +272,18 @@
 .mini small {
   display: block;
   font-size: 11px;
-  color: #8b98aa;
+  color: var(--muted);
   margin-bottom: 6px;
 }
 .mini b {
   font-size: 22px;
   font-weight: 700;
-  color: #1b2b45;
+  color: #eaf1fb;
 }
 .mini b span {
   font-size: 12px;
   font-weight: 400;
-  color: #8b98aa;
+  color: var(--muted);
   margin-left: 3px;
 }
 
@@ -296,7 +296,7 @@
   align-items: center;
   gap: 12px;
   padding: 14px 22px;
-  border-bottom: 1px solid #f0f3f8;
+  border-bottom: 1px solid rgba(21,58,124,0.1);
   transition: background 0.15s;
 }
 .list-item:hover {
@@ -306,12 +306,12 @@
   display: block;
   font-size: 13px;
   font-weight: 500;
-  color: #1b2b45;
+  color: #eaf1fb;
 }
 .list-item p {
   margin: 2px 0 0;
   font-size: 11px;
-  color: #8b98aa;
+  color: var(--muted);
 }
 
 /* 头像 */
@@ -331,7 +331,7 @@
   border-radius: 9px;
 }
 .avatar.teal {
-  background: linear-gradient(135deg, #138d85, #2bb5a0);
+  background: linear-gradient(135deg, #2563eb, #2bb5a0);
 }
 
 /* 徽标 */
@@ -343,9 +343,9 @@
   white-space: nowrap;
   flex-shrink: 0;
 }
-.badge.green { background: #e6f4f1; color: #138d85; }
-.badge.amber { background: #fff7e9; color: #b88c38; }
-.badge.red { background: #fff1f0; color: #c4423e; }
+.badge.green { background: #e6f4f1; color: #2563eb; }
+.badge.amber { background: rgba(37,99,235,0.12); color: #2563eb; }
+.badge.red { background: rgba(229,116,107,0.12); color: #E5746B; }
 
 /* 提示条 */
 .note {
@@ -353,7 +353,7 @@
   padding: 10px 14px;
   border-radius: 8px;
 }
-.note.red { background: #fff1f0; color: #a92e2a; }
+.note.red { background: rgba(229,116,107,0.12); color: #a92e2a; }
 
 /* 语音转文字：麦克风监听脉冲动画 */
 @keyframes wb-voice-pulse {

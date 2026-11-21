@@ -1,8 +1,8 @@
 /* ============================================================================
-   MediCode · 仪表组件库 (instruments.css)
+   NOVAMED · 仪表组件库 (instruments.css)
    ----------------------------------------------------------------------------
    给「总览控制台 / 运营数据 / 各业务看板」共用的一套读数元件。
-   语汇取自 scaffold 的 instruments.css，但配色与圆角跟随 MediCode 现有令牌，
+   语汇取自 scaffold 的 instruments.css，但配色与圆角跟随 NOVAMED 现有令牌，
    且读数一律 tabular-nums，避免数字跳动时整行左右抖。
 
    元件：Metric/Odometer（读数）、DeltaPill（环比）、TickRing（刻度环）、
@@ -29,7 +29,7 @@
   display: inline-flex;
   align-items: baseline;
   gap: 3px;
-  color: var(--ink, #1b2b45);
+  color: var(--ink, #eaf1fb);
   font-weight: 660;
   letter-spacing: -0.02em;
   line-height: 1.05;
@@ -171,7 +171,7 @@
 }
 
 .tick-ring-tick.is-on {
-  stroke: var(--cat-ink, #2563eb);
+  stroke: var(--cat-ink, #3b82f6);
   opacity: 0.85;
 }
 
@@ -196,7 +196,7 @@
 
 .tick-ring-caption {
   font-size: 11.5px;
-  color: #78869b;
+  color: rgba(232,232,244,0.78);
   text-align: center;
 }
 
@@ -222,7 +222,7 @@
 
 .trend-axis {
   font-size: 9.5px;
-  fill: #a3aebe;
+  fill: var(--muted);
 }
 
 .trend-line {
@@ -268,7 +268,7 @@
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.94);
   border: 1px solid #e4ebf4;
-  box-shadow: var(--md-shadow-hover, 0 4px 10px rgba(27, 43, 69, 0.06));
+  box-shadow: var(--md-shadow-hover, 0 4px 10px rgba(59, 130, 246, 0.06));
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   pointer-events: none;
@@ -306,7 +306,7 @@
 .trend-tip-row b {
   margin-left: auto;
   font-weight: 650;
-  color: var(--ink, #1b2b45);
+  color: var(--ink, #eaf1fb);
 }
 
 .trend-legend {
@@ -332,7 +332,7 @@
 }
 
 .trend-legend-item b {
-  color: var(--ink, #1b2b45);
+  color: var(--ink, #eaf1fb);
   font-variant-numeric: tabular-nums;
 }
 
@@ -380,19 +380,19 @@
   position: absolute;
   inset: 0 auto 0 0;
   border-radius: 999px;
-  background: var(--cat-ink, #2563eb);
+  background: var(--cat-ink, #3b82f6);
   transform-origin: 0 50%;
   transition: width 620ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .bar-fill.is-peak {
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85), 0 2px 6px rgba(27, 43, 69, 0.12);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85), 0 2px 6px rgba(59, 130, 246, 0.12);
 }
 
 .bar-value {
   font-size: 11.5px;
   font-weight: 620;
-  color: var(--ink, #1b2b45);
+  color: var(--ink, #eaf1fb);
   font-variant-numeric: tabular-nums;
   min-width: 30px;
   text-align: right;
@@ -402,7 +402,7 @@
   padding: 22px 0;
   text-align: center;
   font-size: 12px;
-  color: #a3aebe;
+  color: var(--muted);
 }
 
 /* ---------------------------------------------------------------------------
@@ -423,7 +423,7 @@
   /* 主刻度靠 repeating-linear-gradient 画，避免几十个 DOM 节点 */
   background-image:
     repeating-linear-gradient(90deg, #cdd8e6 0 1px, transparent 1px calc(100% / var(--ruler-major))),
-    repeating-linear-gradient(90deg, #e6ecf3 0 1px, transparent 1px calc(100% / (var(--ruler-major) * var(--ruler-minor))));
+    repeating-linear-gradient(90deg, rgba(21,58,124,0.11) 0 1px, transparent 1px calc(100% / (var(--ruler-major) * var(--ruler-minor))));
   background-repeat: repeat-x;
   background-size: calc(100% / var(--ruler-major)) 100%, calc(100% / (var(--ruler-major) * var(--ruler-minor))) 100%;
 }
@@ -442,7 +442,7 @@
   position: relative;
   height: 14px;
   font-size: 10px;
-  color: #a3aebe;
+  color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
 
@@ -459,7 +459,7 @@
   height: 12px;
   margin-left: -1px;
   border-radius: 2px;
-  background: var(--blue, #2563eb);
+  background: var(--blue, #3b82f6);
 }
 
 .ruler-marker-label {
@@ -472,7 +472,7 @@
   font-size: 10.5px;
   font-weight: 650;
   color: #fff;
-  background: var(--blue, #2563eb);
+  background: var(--blue, #3b82f6);
   white-space: nowrap;
 }
 
@@ -486,7 +486,7 @@
   gap: 7px;
   padding: 12px 14px;
   border-radius: 12px;
-  background: linear-gradient(150deg, #1b2b45 0%, #25405f 100%);
+  background: linear-gradient(150deg, #10192e 0%, #25405f 100%);
   color: #e8eef7;
   border: 1px solid #2f4b6d;
 }
@@ -550,9 +550,9 @@
   gap: 10px;
   padding: 17px 19px 15px;
   border-radius: 14px;
-  background: #fff;
-  border: 1px solid #e6ecf3;
-  box-shadow: var(--md-shadow-rest, 0 1px 2px rgba(27, 43, 69, 0.04));
+  background: rgba(59, 130, 246, 0.06);
+  border: 1px solid rgba(21,58,124,0.11);
+  box-shadow: var(--md-shadow-rest, 0 1px 2px rgba(59, 130, 246, 0.04));
   cursor: pointer;
   text-align: left;
   transition: box-shadow var(--md-dur-base, 280ms) var(--md-ease-smooth, ease),
@@ -561,7 +561,7 @@
 }
 
 .kpi:hover {
-  box-shadow: var(--md-shadow-hover, 0 4px 10px rgba(27, 43, 69, 0.06));
+  box-shadow: var(--md-shadow-hover, 0 4px 10px rgba(59, 130, 246, 0.06));
   border-color: #cfdcf0;
   translate: 0 -3px;
 }
@@ -574,7 +574,7 @@
 
 .kpi-title {
   font-size: 12px;
-  color: #78869b;
+  color: rgba(232,232,244,0.78);
 }
 
 .kpi-ico {
@@ -603,7 +603,7 @@
   align-items: center;
   gap: 8px;
   font-size: 10.5px;
-  color: #9aa6b5;
+  color: var(--muted);
 }
 
 .kpi-spark {
@@ -674,7 +674,7 @@ sup.tick-ring-unit {
 
 /* 末端圆点：回弹落定；延迟到刻度扫完再出现 */
 .tick-ring-cap {
-  fill: var(--cat-ink, #2563eb);
+  fill: var(--cat-ink, #3b82f6);
   transform-box: fill-box;
   transform-origin: center;
   transition: transform 520ms cubic-bezier(0.34, 1.56, 0.64, 1) 780ms;
@@ -688,7 +688,7 @@ sup.tick-ring-unit {
   font-weight: 660;
   letter-spacing: -0.02em;
   line-height: 1.05;
-  color: var(--ink, #1b2b45);
+  color: var(--ink, #eaf1fb);
 }
 
 sup.tick-ring-unit {
@@ -721,7 +721,7 @@ sup.tick-ring-unit {
 .trend-value-label {
   font-size: 11px;
   font-weight: 650;
-  fill: var(--ink, #1b2b45);
+  fill: var(--ink, #eaf1fb);
   font-variant-numeric: tabular-nums;
 }
 
@@ -756,7 +756,7 @@ sup.tick-ring-unit {
   font-size: 20px;
   font-weight: 650;
   letter-spacing: -0.01em;
-  color: var(--ink, #1b2b45);
+  color: var(--ink, #eaf1fb);
 }
 
 .page-head p {
@@ -1098,4 +1098,40 @@ sup.tick-ring-unit {
   .heat-cell {
     animation: none !important;
   }
+}
+
+/* ── Swimlane 时间轴泳道 ─────────────────────────────── */
+.swimlane {
+  width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+.swimlane-label {
+  user-select: none;
+}
+.swimlane-tip {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+  z-index: 6;
+  min-width: 96px;
+  max-width: 220px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: var(--lv-surface-solid, #fff);
+  border: 1px solid var(--lv-line, rgba(46, 58, 62, 0.085));
+  box-shadow: var(--lv-e, 0 8px 24px rgba(23, 25, 29, 0.12));
+  white-space: nowrap;
+}
+.swimlane-tip-title {
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--lv-ink);
+}
+.swimlane-tip-sub {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--lv-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

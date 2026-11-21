@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from .database import get_employee_db, get_db
 from .security import decode_access_token
+from .rbac import has_role
 from ..models.models import User, UserRole, PatientAccount
 
 _bearer = HTTPBearer(auto_error=False)
@@ -34,16 +35,18 @@ def get_current_user(
     return user
 
 
-def require_admin(user: User = Depends(get_current_user)) -> User:
-    """仅管理员可访问"""
-    if user.role != UserRole.ADMIN:
+def require_admin(user: User = Depends(get_current_user),
+                  db: Session = Depends(get_employee_db)) -> User:
+    """仅管理员/超级管理员可访问（多角色：sys_user_role 权威）。"""
+    if not has_role(db, user, "admin", "super_admin"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="需要管理员权限")
     return user
 
 
-def require_doctor(user: User = Depends(get_current_user)) -> User:
-    """仅医生/管理员可访问"""
-    if user.role not in (UserRole.ADMIN, UserRole.DOCTOR, UserRole.SENIOR):
+def require_doctor(user: User = Depends(get_current_user),
+                   db: Session = Depends(get_employee_db)) -> User:
+    """仅医生/高级职称/管理员可访问（多角色）。"""
+    if not has_role(db, user, "doctor", "senior", "admin", "super_admin"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="需要医生权限")
     return user
 

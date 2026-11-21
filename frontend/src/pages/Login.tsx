@@ -20,13 +20,15 @@ import api from "../api/client";
 import { useAuth } from "../stores/auth";
 import { prefersReducedMotion } from "../utils/motion";
 import NeuralNet from "../components/NeuralNet";
+import BrandMark from "../components/BrandMark";
+import BrandLockup from "../components/BrandLockup";
+import BrandSparkle from "../components/BrandSparkle";
 
 const INTRO_KEY = "medicode.login-intro";
 
 /** 患者端独立 SPA（不同端口 = 不同源，sessionStorage 不共享，走 SSO 落地） */
-const isDevelopment = import.meta.env.DEV;
 const PATIENT_ORIGIN: string =
-  import.meta.env.VITE_PATIENT_ORIGIN || (isDevelopment ? "http://localhost:3005" : window.location.origin);
+  (import.meta as any).env?.VITE_PATIENT_ORIGIN || "http://localhost:3005";
 
 /* 秒针刻度：60 根，主刻度每 5 根 */
 const TICKS = Array.from({ length: 60 }, (_, i) => {
@@ -48,8 +50,8 @@ export default function LoginPage() {
   const { login } = useAuth();
 
   const theme = {
-    staff: { primary: "#2563eb", bg: "#142d53", accent: "#427df1", text: "#adc1df" },
-    patient: { primary: "#16887c", bg: "#194e50", accent: "#218e83", text: "#6b9692" },
+    staff: { primary: "#2563eb", bg: "#142d53", accent: "#3b82f6", text: "#adc1df" },
+    patient: { primary: "#27857d", bg: "#194e50", accent: "#2ea398", text: "#6b9692" },
   };
   const currentTheme = theme[mode];
 
@@ -67,8 +69,8 @@ export default function LoginPage() {
   const probeHealth = async () => {
     const start = performance.now();
     try {
-      await api.get("/health");
-      setHealth({ ok: true, latency: Math.round(performance.now() - start) });
+      const res = await fetch("/api/health");
+      setHealth({ ok: res.ok, latency: Math.round(performance.now() - start) });
     } catch {
       setHealth({ ok: false, latency: null });
     }
@@ -200,26 +202,6 @@ export default function LoginPage() {
     }
   };
 
-  const handleDemoLogin = async () => {
-    if (!isDevelopment) return;
-    setLoading(true);
-    try {
-      if (mode === "patient") {
-        await gotoPatientPortal("admin", "admin");
-        return;
-      }
-      const result = await loginApi({ username: "admin", password: "admin" });
-      login(result.user, result.access_token);
-      message.success(`欢迎，${result.user.real_name}！`);
-      await playSuccess();
-      navigate("/dashboard");
-    } catch (err: any) {
-      message.error(err.response?.data?.detail || err.message || "演示登录失败");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div
       ref={rootRef}
@@ -228,7 +210,8 @@ export default function LoginPage() {
         minHeight: "100vh",
         display: "grid",
         gridTemplateColumns: "53% 47%",
-        fontFamily: "Segoe UI, Microsoft YaHei, sans-serif",
+        fontFamily:
+          "'Inter', 'Noto Sans SC', 'PingFang SC', 'Source Han Sans SC', system-ui, sans-serif",
       }}
     >
       {/* 左侧故事区 */}
@@ -254,42 +237,26 @@ export default function LoginPage() {
           data-lfd="0"
           style={{
             display: "flex",
-            alignItems: "center",
-            gap: 12,
-            fontSize: 26,
-            fontWeight: 650,
-            letterSpacing: -0.8,
+            flexDirection: "column",
+            alignItems: "flex-start",
+            gap: 8,
           }}
         >
-          <div
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <BrandSparkle size={44} on="dark" />
+            <BrandLockup height={44} on="dark" />
+          </div>
+          <small
             style={{
-              display: "grid",
-              placeItems: "center",
-              background: currentTheme.accent,
-              borderRadius: 11,
-              width: 38,
-              height: 40,
-              fontSize: 31,
-              fontWeight: 500,
+              fontWeight: 400,
+              fontSize: 10,
+              letterSpacing: 2,
+              color: mode === "staff" ? "#9eb7d8" : "#6f9994",
+              marginLeft: 2,
             }}
           >
-            +
-          </div>
-          <div>
-            MediCode
-            <small
-              style={{
-                display: "block",
-                fontWeight: 400,
-                fontSize: 10,
-                letterSpacing: 2,
-                color: mode === "staff" ? "#9eb7d8" : "#6f9994",
-                marginTop: 4,
-              }}
-            >
-              SMART MEDICAL SYSTEM
-            </small>
-          </div>
+            NOVA MEDICAL SYSTEM
+          </small>
         </div>
 
         {/* 画布主区：文案居左 + 实时时钟刻度盘居右垂直居中 */}
@@ -400,7 +367,7 @@ export default function LoginPage() {
               <span className="lf-capico"><MobileOutlined /></span>
               <span>
                 <span className="lf-captitle">多端协同服务</span>
-                <span className="lf-capdesc">员工端与患者端一体联动，信息随时触达</span>
+                <span className="lf-capdesc">客户端一体联动，信息随时触达</span>
               </span>
             </div>
           </div>
@@ -417,7 +384,7 @@ export default function LoginPage() {
             letterSpacing: 0.4,
           }}
         >
-          MEDICODE / 专注每一次诊疗 · 全域智慧医疗系统
+          NOVAMED / 专注每一次诊疗 · 全域智慧医疗系统
         </div>
       </section>
 
@@ -427,34 +394,13 @@ export default function LoginPage() {
           padding: "40px 62px 24px",
           display: "flex",
           flexDirection: "column",
-          background: "#fff",
+          background:
+            "radial-gradient(60% 50% at 70% 20%, rgba(37,99,235,0.10), transparent 70%), radial-gradient(50% 40% at 20% 85%, rgba(37,99,235,0.05), transparent 70%), linear-gradient(160deg, #ffffff 0%, #f8fafc 60%, #f4f7fc 100%)",
+          color: "#1e293b",
         }}
         onPointerMove={onTilt}
         onPointerLeave={resetTilt}
       >
-        {/* 顶部链接 */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: 15,
-            fontSize: 11,
-            alignItems: "center",
-          }}
-        >
-          <span
-            style={{
-              background: "#fff7e7",
-              borderRadius: 5,
-              color: "#9e7634",
-              padding: "5px 9px",
-              fontSize: 10,
-            }}
-          >
-            {isDevelopment ? "本地开发环境" : "授权账号登录"}
-          </span>
-        </div>
-
         {/* 登录卡 */}
         <div style={{ width: "100%", maxWidth: 400, margin: "auto", padding: "48px 0 40px" }}>
           <div ref={cardRef} className="lf-card lf-in" data-lfd="260" style={{ padding: "30px 30px 26px" }}>
@@ -464,7 +410,7 @@ export default function LoginPage() {
               style={{
                 display: "flex",
                 padding: 4,
-                background: "#f3f6fb",
+                background: "#f1f5f9",
                 borderRadius: 10,
                 marginBottom: 30,
               }}
@@ -476,13 +422,13 @@ export default function LoginPage() {
                   width: "50%",
                   padding: 11,
                   border: 0,
-                  background: mode === "staff" ? "#fff" : "none",
+                  background: mode === "staff" ? "rgba(37,99,235,0.12)" : "none",
                   borderRadius: 7,
-                  color: mode === "staff" ? currentTheme.primary : "#8390a5",
+                  color: mode === "staff" ? currentTheme.primary : "rgba(51,65,85,0.58)",
                   fontWeight: mode === "staff" ? 600 : 400,
                   fontSize: 12,
                   cursor: "pointer",
-                  boxShadow: mode === "staff" ? "0 2px 7px rgba(36, 71, 117, 0.04)" : "none",
+                  boxShadow: mode === "staff" ? "0 2px 7px rgba(3, 7, 18, 0.3)" : "none",
                 }}
               >
                 员工登录
@@ -494,13 +440,13 @@ export default function LoginPage() {
                   width: "50%",
                   padding: 11,
                   border: 0,
-                  background: mode === "patient" ? "#fff" : "none",
+                  background: mode === "patient" ? "rgba(37,99,235,0.12)" : "none",
                   borderRadius: 7,
-                  color: mode === "patient" ? currentTheme.primary : "#8390a5",
+                  color: mode === "patient" ? currentTheme.primary : "rgba(51,65,85,0.58)",
                   fontWeight: mode === "patient" ? 600 : 400,
                   fontSize: 12,
                   cursor: "pointer",
-                  boxShadow: mode === "patient" ? "0 2px 7px rgba(36, 71, 117, 0.04)" : "none",
+                  boxShadow: mode === "patient" ? "0 2px 7px rgba(3, 7, 18, 0.3)" : "none",
                 }}
               >
                 患者登录
@@ -520,13 +466,13 @@ export default function LoginPage() {
             <div
               style={{
                 fontSize: 12,
-                color: "#8a98ab",
+                color: "rgba(51,65,85,0.66)",
                 lineHeight: 1.9,
                 marginBottom: 24,
               }}
             >
               {mode === "staff"
-                ? "登录 MediCode，开启今天的诊疗工作。"
+                ? "登录 NOVAMED，开启今天的诊疗工作。"
                 : "预约、报到、就诊记录，一处轻松管理。"}
             </div>
 
@@ -538,6 +484,7 @@ export default function LoginPage() {
                     fontSize: 12,
                     fontWeight: 500,
                     marginBottom: 10,
+                    color: "#334155",
                   }}
                 >
                   {mode === "staff" ? "员工账号" : "患者账号 / 手机号"}
@@ -547,12 +494,12 @@ export default function LoginPage() {
                     display: "flex",
                     alignItems: "center",
                     gap: 11,
-                    border: "1px solid #e4ebf4",
+                    border: "1px solid rgba(21,58,124,0.12)",
                     borderRadius: 8,
                     padding: "0 13px",
                     height: 48,
-                    color: "#9aabc1",
-                    background: "#fcfdff",
+                    color: "rgba(51,65,85,0.55)",
+                    background: "#ffffff",
                   }}
                 >
                   <UserOutlined style={{ fontSize: 18 }} />
@@ -571,7 +518,7 @@ export default function LoginPage() {
                         border: "none",
                         background: "none",
                         fontSize: 12,
-                        color: "#314b6b",
+                        color: "#eaf1fb",
                         height: "100%",
                       }}
                     />
@@ -586,6 +533,7 @@ export default function LoginPage() {
                     fontSize: 12,
                     fontWeight: 500,
                     marginBottom: 10,
+                    color: "#334155",
                   }}
                 >
                   登录密码
@@ -595,12 +543,12 @@ export default function LoginPage() {
                     display: "flex",
                     alignItems: "center",
                     gap: 11,
-                    border: "1px solid #e4ebf4",
+                    border: "1px solid rgba(21,58,124,0.12)",
                     borderRadius: 8,
                     padding: "0 13px",
                     height: 48,
-                    color: "#9aabc1",
-                    background: "#fcfdff",
+                    color: "rgba(51,65,85,0.55)",
+                    background: "#ffffff",
                   }}
                 >
                   <LockOutlined style={{ fontSize: 18 }} />
@@ -615,7 +563,7 @@ export default function LoginPage() {
                         border: "none",
                         background: "none",
                         fontSize: 12,
-                        color: "#314b6b",
+                        color: "#eaf1fb",
                         height: "100%",
                       }}
                     />
@@ -629,7 +577,7 @@ export default function LoginPage() {
                   justifyContent: "space-between",
                   alignItems: "center",
                   fontSize: 11,
-                  color: "#8292a9",
+                  color: "rgba(51,65,85,0.66)",
                   margin: "16px 0 22px",
                 }}
               >
@@ -671,9 +619,10 @@ export default function LoginPage() {
                       borderRadius: 8,
                       background: currentTheme.primary,
                       border: "none",
+                      color: mode === "staff" ? "#eef3fb" : undefined,
                       fontSize: 13,
                       fontWeight: 500,
-                      boxShadow: "0 6px 15px rgba(37, 99, 235, 0.1)",
+                      boxShadow: "0 6px 15px rgba(59, 130, 246, 0.25)",
                     }}
                     block
                   >
@@ -683,40 +632,7 @@ export default function LoginPage() {
               </div>
             </Form>
 
-            {isDevelopment && (
-              <>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    color: "#a6b2c2",
-                    fontSize: 10,
-                    margin: "20px 0",
-                  }}
-                >
-                  <span style={{ height: 1, background: "#edf1f6", flex: 1 }}></span>
-                  快速预览，仅限开发环境
-                  <span style={{ height: 1, background: "#edf1f6", flex: 1 }}></span>
-                </div>
-                <Button
-                  onClick={handleDemoLogin}
-                  style={{
-                    width: "100%",
-                    height: 43,
-                    background: "white",
-                    border: "1px solid #e4ebf4",
-                    borderRadius: 8,
-                    fontSize: 12,
-                    color: "#5e779a",
-                    cursor: "pointer",
-                  }}
-                >
-                  使用演示身份进入
-                </Button>
-              </>
-            )}
-
+            {/* 分隔线 */}
             {mode === "staff" && (
               <Button
                 onClick={handleCardLogin}
@@ -725,43 +641,29 @@ export default function LoginPage() {
                   width: "100%",
                   height: 43,
                   marginTop: 12,
-                  background: "white",
-                  border: "1px solid #e4ebf4",
+                  background: "#ffffff",
+                  border: "1px solid rgba(21,58,124,0.12)",
                   borderRadius: 8,
                   fontSize: 12,
-                  color: "#5e779a",
+                  color: "#9aa5b8",
                   cursor: "pointer",
                 }}
               >
                 员工刷卡登录（NFC）
               </Button>
             )}
-
-            <p
-              style={{
-                fontSize: 10,
-                color: "#a2aebf",
-                lineHeight: 1.9,
-                textAlign: "center",
-                margin: "16px 0 0",
-              }}
-            >
-              请使用经授权的账号登录，不要与他人共享账号。
-            </p>
           </div>
         </div>
 
         <footer
           style={{
             fontSize: 10,
-            color: "#a2aec0",
+            color: "#6b7390",
             lineHeight: 1.9,
             textAlign: "center",
           }}
         >
-          MediCode 全域智慧医疗系统
-          <br />
-          登录入口与权限域分离 · 医疗数据访问需遵循实际授权
+          NOVAMED 全域智慧医疗系统
         </footer>
       </section>
     </div>

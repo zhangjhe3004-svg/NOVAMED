@@ -15,6 +15,7 @@ import {
   ArrowUpOutlined, CheckOutlined,
 } from "@ant-design/icons";
 import { getPlugins, enablePlugin, disablePlugin, type PluginInfo } from "../api/plugins";
+import ProviderIcon from "../components/ProviderIcon";
 
 const { Text } = Typography;
 
@@ -23,6 +24,8 @@ const { Text } = Typography;
 interface MarketItem {
   name: string; desc: string; icon: string; color: string;
   downloads: number; installs: number; category: string;
+  /** 有矢量品牌 logo 的项走 ProviderIcon（@lobehub/icons），否则回退 emoji */
+  provider?: string;
 }
 
 const CATEGORIES = ["全部", "办公协同", "开发工具", "效率工具", "信息资讯", "数据分析", "知识学习"];
@@ -32,7 +35,7 @@ const SKILLS: MarketItem[] = [
   { name: "AI 辅助诊断", desc: "症状分析 · 相似病例 · 知识库检索 · 防幻觉验证", icon: "🩺", color: "#722ed1", downloads: 365000, installs: 69700, category: "数据分析" },
   { name: "语音转文字", desc: "症状/诊断/处方/备注等大段文本语音输入", icon: "🎤", color: "#1677ff", downloads: 289000, installs: 51200, category: "效率工具" },
   { name: "号源排班同步", desc: "员工排班一键同步号源，预约实时扣号", icon: "📅", color: "#138d85", downloads: 120400, installs: 22800, category: "办公协同" },
-  { name: "责任链下级审阅", desc: "上级分配下级 · 脱敏记录审阅 · 站内通知", icon: "🧭", color: "#d6a451", downloads: 98600, installs: 18400, category: "办公协同" },
+  { name: "责任链下级审阅", desc: "上级分配下级 · 脱敏记录审阅 · 站内通知", icon: "🧭", color: "#3b82f6", downloads: 98600, installs: 18400, category: "办公协同" },
   { name: "低代码引擎", desc: "动态集合 · 页面 Schema 构建器 · 数据权限规则", icon: "🧩", color: "#eb2f96", downloads: 88200, installs: 15600, category: "开发工具" },
   { name: "消息中心", desc: "微信式撤回/引用/删除 · 会话未读管理", icon: "💬", color: "#13c2c2", downloads: 210600, installs: 40300, category: "办公协同" },
   { name: "表格导出", desc: "就诊记录/排班/接诊数据一键导出 xlsx", icon: "📊", color: "#2f54eb", downloads: 176300, installs: 33100, category: "效率工具" },
@@ -49,17 +52,17 @@ const SKILLS: MarketItem[] = [
 
 // 连接器市场
 const CONNECTORS: MarketItem[] = [
-  { name: "OpenAI", desc: "GPT 系列模型接入，用于辅助诊断", icon: "🤖", color: "#10a37f", downloads: 88400, installs: 52300, category: "开发工具" },
-  { name: "DeepSeek", desc: "DeepSeek 对话模型接入", icon: "🐋", color: "#4d6bfe", downloads: 96700, installs: 61100, category: "开发工具" },
-  { name: "通义千问", desc: "阿里千问模型接入", icon: "☁️", color: "#615ced", downloads: 74100, installs: 44800, category: "开发工具" },
-  { name: "Claude", desc: "Anthropic Claude 模型接入", icon: "🧠", color: "#d97757", downloads: 62800, installs: 35900, category: "开发工具" },
+  { name: "OpenAI", desc: "GPT 系列模型接入，用于辅助诊断", icon: "🤖", color: "#10a37f", downloads: 88400, installs: 52300, category: "开发工具", provider: "openai" },
+  { name: "DeepSeek", desc: "DeepSeek 对话模型接入", icon: "🐋", color: "#4d6bfe", downloads: 96700, installs: 61100, category: "开发工具", provider: "deepseek" },
+  { name: "通义千问", desc: "阿里千问模型接入", icon: "☁️", color: "#615ced", downloads: 74100, installs: 44800, category: "开发工具", provider: "qwen" },
+  { name: "Claude", desc: "Anthropic Claude 模型接入", icon: "🧠", color: "#d97757", downloads: 62800, installs: 35900, category: "开发工具", provider: "claude" },
   { name: "QQ 邮箱", desc: "收发、搜索和整理 QQ 邮件", icon: "📧", color: "#12b7f5", downloads: 45200, installs: 18400, category: "办公协同" },
   { name: "腾讯文档", desc: "创建、编辑和协作腾讯文档", icon: "📄", color: "#2b7fff", downloads: 102300, installs: 58700, category: "办公协同" },
   { name: "腾讯会议", desc: "通过命令行创建、查询和管理会议", icon: "🎥", color: "#2b6fff", downloads: 67400, installs: 29800, category: "办公协同" },
   { name: "企业微信", desc: "企业微信官方 CLI 套件，覆盖消息与组织", icon: "💼", color: "#0082ef", downloads: 78900, installs: 36200, category: "办公协同" },
   { name: "飞书", desc: "通过命令行管理飞书/Lark 全部能力", icon: "🕊️", color: "#3370ff", downloads: 59600, installs: 24700, category: "办公协同" },
   { name: "钉钉", desc: "通过命令行管理钉钉全产品能力", icon: "🔵", color: "#1296db", downloads: 54100, installs: 21300, category: "办公协同" },
-  { name: "GitHub", desc: "在 GitHub 上克隆、推送代码", icon: "🐙", color: "#24292f", downloads: 83700, installs: 47600, category: "开发工具" },
+  { name: "GitHub", desc: "在 GitHub 上克隆、推送代码", icon: "🐙", color: "#24292f", downloads: 83700, installs: 47600, category: "开发工具", provider: "github" },
   { name: "Notion", desc: "创建、搜索和管理 Notion 工作区", icon: "📓", color: "#111111", downloads: 48800, installs: 22500, category: "知识学习" },
   { name: "百度网盘", desc: "连接百度网盘，支持文件与分享管理", icon: "☁️", color: "#06a7ff", downloads: 39400, installs: 14800, category: "效率工具" },
   { name: "微云", desc: "查看、下载、删除微云文件", icon: "🌐", color: "#12b7a5", downloads: 28700, installs: 9600, category: "效率工具" },
@@ -88,10 +91,10 @@ function MarketCard({ item, installed, onToggle }: {
   return (
     <div
       style={{
-        position: "relative", background: "#fff", border: "1px solid #eef1f6", borderRadius: 14,
+        position: "relative", background: "rgba(59, 130, 246, 0.06)", border: "1px solid rgba(21,58,124,0.11)", borderRadius: 14,
         padding: "16px 16px 12px", cursor: "default", transition: "box-shadow .2s, transform .2s",
       }}
-      onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 8px 24px rgba(27,43,69,0.10)"; }}
+      onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 8px 24px rgba(59, 130, 246, 0.18)"; }}
       onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; }}
     >
       {/* 右上角 + 下载按钮 */}
@@ -102,35 +105,36 @@ function MarketCard({ item, installed, onToggle }: {
         title={installed ? "已安装（点击卸载）" : "点击下载安装"}
         style={{
           position: "absolute", top: 12, right: 12, width: 26, height: 26,
-          borderRadius: 8, border: "1px solid #e5eaf2", display: "grid", placeItems: "center",
-          background: installed ? "#f6ffed" : "#fff",
+          borderRadius: 8, border: "1px solid rgba(21,58,124,0.12)", display: "grid", placeItems: "center",
+          background: installed ? "rgba(126,200,80,0.16)" : "rgba(59, 130, 246, 0.06)",
         }}
       />
       <div style={{ display: "flex", alignItems: "center", gap: 10, paddingRight: 30 }}>
         <div style={{
           width: 42, height: 42, borderRadius: 12, flexShrink: 0,
-          background: item.color + "1a", display: "grid", placeItems: "center", fontSize: 22,
+          background: item.color + "1a", color: item.color,
+          display: "grid", placeItems: "center",
         }}>
-          {item.icon}
+          {item.provider ? <ProviderIcon provider={item.provider} size={22} /> : item.icon}
         </div>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 13.5, fontWeight: 600, color: "#1b2b45", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          <div style={{ fontSize: 13.5, fontWeight: 600, color: "#eaf1fb", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {item.name}
           </div>
-          <div style={{ fontSize: 11, color: "#7d8aa5", marginTop: 2, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical" }}>
+          <div style={{ fontSize: 11, color: "rgba(232,232,244,0.78)", marginTop: 2, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical" }}>
             {item.desc}
           </div>
         </div>
       </div>
       {/* 统计行：下载量 / 安装量 */}
-      <div style={{ display: "flex", gap: 16, marginTop: 12, fontSize: 11, color: "#98a3b8" }}>
+      <div style={{ display: "flex", gap: 16, marginTop: 12, fontSize: 11, color: "rgba(232,232,244,0.7)" }}>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
           <DownloadOutlined /> {fmtCount(item.downloads)}
         </span>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
           <CheckCircleOutlined /> {fmtCount(item.installs)}
         </span>
-        <span style={{ marginLeft: "auto", color: "#c3cbd9" }}>{item.category}</span>
+        <span style={{ marginLeft: "auto", color: "rgba(232,232,244,0.55)" }}>{item.category}</span>
       </div>
     </div>
   );
@@ -200,7 +204,7 @@ export default function Hub() {
   const toolbar = (
     <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: "auto" }}>
       <Input
-        prefix={<SearchOutlined style={{ color: "#98a3b8" }} />}
+        prefix={<SearchOutlined style={{ color: "rgba(232,232,244,0.7)" }} />}
         placeholder={activeTab === "connectors" ? "搜索连接器" : "搜索技能"}
         allowClear
         value={searchKw}
@@ -230,9 +234,9 @@ export default function Hub() {
           onClick={() => setCategory(c)}
           style={{
             fontSize: 12, padding: "4px 14px", borderRadius: 999, cursor: "pointer",
-            background: category === c ? "#1677ff" : "#f4f6fa",
-            color: category === c ? "#fff" : "#5b6b83",
-            border: `1px solid ${category === c ? "#1677ff" : "transparent"}`,
+            background: category === c ? "#3b82f6" : "rgba(59, 130, 246, 0.06)",
+            color: category === c ? "#eef3fb" : "rgba(232,232,244,0.78)",
+            border: `1px solid ${category === c ? "#3b82f6" : "rgba(21,58,124,0.11)"}`,
             transition: "all .15s",
           }}
         >
@@ -250,7 +254,7 @@ export default function Hub() {
       {!kw && (
         <div style={{ marginBottom: 20 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-            <span style={{ fontSize: 14, fontWeight: 650, color: "#1b2b45" }}>精选技能</span>
+            <span style={{ fontSize: 14, fontWeight: 650, color: "#eaf1fb" }}>精选技能</span>
             <Button type="text" size="small" icon={<ReloadOutlined />}
               onClick={() => setFeaturedSeed((s) => s + 1)}>
               换一批
@@ -265,7 +269,7 @@ export default function Hub() {
       )}
       {/* 推荐 + 分类筛选 */}
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 4 }}>
-        <span style={{ fontSize: 14, fontWeight: 650, color: "#1b2b45" }}>推荐</span>
+        <span style={{ fontSize: 14, fontWeight: 650, color: "#eaf1fb" }}>推荐</span>
       </div>
       {categoryChips}
       {filteredSkills.length === 0 ? (
@@ -311,7 +315,7 @@ export default function Hub() {
         <div style={gridStyle}>
           {plugins.map((p) => (
             <div key={p.name} style={{
-              position: "relative", background: "#fff", border: "1px solid #eef1f6", borderRadius: 14,
+              position: "relative", background: "rgba(59, 130, 246, 0.06)", border: "1px solid rgba(21,58,124,0.11)", borderRadius: 14,
               padding: "16px 16px 12px",
             }}>
               <div style={{ position: "absolute", top: 12, right: 12 }}>
@@ -320,16 +324,16 @@ export default function Hub() {
               <div style={{ display: "flex", alignItems: "center", gap: 10, paddingRight: 50 }}>
                 <div style={{
                   width: 42, height: 42, borderRadius: 12, flexShrink: 0,
-                  background: p.enabled ? "#eaf1ff" : "#f1f3f7", color: p.enabled ? "#2563eb" : "#8a94a6",
+                  background: p.enabled ? "rgba(66,125,241,0.16)" : "rgba(59, 130, 246, 0.05)", color: p.enabled ? "#5B8DEF" : "rgba(232,232,244,0.7)",
                   display: "grid", placeItems: "center", fontSize: 20,
                 }}>
                   <RobotOutlined />
                 </div>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, color: "#1b2b45" }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: "#eaf1fb" }}>
                     {p.display_name} <Text type="secondary" style={{ fontSize: 10, fontWeight: 400 }}>v{p.version}</Text>
                   </div>
-                  <div style={{ fontSize: 11, color: "#7d8aa5", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  <div style={{ fontSize: 11, color: "rgba(232,232,244,0.78)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                     {p.description}
                   </div>
                 </div>
@@ -371,7 +375,7 @@ export default function Hub() {
       </Card>
 
       {/* 底部统计 */}
-      <div style={{ textAlign: "center", marginTop: 14, fontSize: 11, color: "#98a3b8", display: "flex", justifyContent: "center", gap: 16 }}>
+      <div style={{ textAlign: "center", marginTop: 14, fontSize: 11, color: "rgba(232,232,244,0.7)", display: "flex", justifyContent: "center", gap: 16 }}>
         <span><ArrowUpOutlined /> 已下载安装 {installedCount} 项</span>
         <span>技能市场 {SKILLS.length} 项 · 连接器 {CONNECTORS.length} 项 · 专家插件 {plugins.length} 项</span>
       </div>

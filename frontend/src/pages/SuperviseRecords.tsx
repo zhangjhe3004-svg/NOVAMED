@@ -259,7 +259,7 @@ export default function SuperviseRecords() {
       {/* 页面标题 */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "16px 24px", flexWrap: "wrap", marginBottom: 16 }}>
         <div>
-          <div style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>下级审阅</div>
+          <div className="md-page-title" style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>下级审阅</div>
           <div style={{ color: "var(--lv-muted)", fontSize: 13, marginTop: 5 }}>只有由你分配后的下级医生才会出现在列表中；核对诊断与处方并给出意见。</div>
         </div>
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
@@ -471,7 +471,7 @@ export default function SuperviseRecords() {
         <div style={{ marginBottom: 12 }}>
           <Input
             placeholder="搜索姓名 / 账号 / 科室"
-            prefix={<SearchOutlined style={{ color: "#9aa6b6" }} />}
+            prefix={<SearchOutlined style={{ color: "var(--muted)" }} />}
             allowClear
             value={candidateKeyword}
             onChange={(e) => setCandidateKeyword(e.target.value)}

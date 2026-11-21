@@ -380,7 +380,7 @@ export default function DeptManage() {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "16px 24px", flexWrap: "wrap" }}>
         <div>
-          <div style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>部门管理</div>
+          <div className="md-page-title" style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>部门管理</div>
           <div style={{ color: "var(--lv-muted)", fontSize: 13, marginTop: 6 }}>
             维护组织架构。部门层级同时决定「本部门及以下」数据权限的范围。
           </div>

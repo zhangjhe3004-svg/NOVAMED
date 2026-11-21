@@ -43,7 +43,7 @@ const STATUS: Record<string, { text: string; cls: string }> = {
   已撤回: { text: "已撤回", cls: "lv-tag--gray" },
 };
 
-const AVATAR_PALETTE = ["#3b82f6", "#0ea5a4", "#7c5cff", "#e0708a", "#d6a451"];
+const AVATAR_PALETTE = ["#60a5fa", "#0ea5a4", "#3b82f6", "#e0708a", "#3b82f6"];
 
 function avatarColor(name?: string) {
   const s = String(name || "?");
@@ -243,14 +243,14 @@ export default function LeaveCenter({ config }: { config?: Record<string, any> }
     },
     {
       title: "审批人", dataIndex: "approver", key: "approver", width: 140,
-      render: (v: string) => <span style={{ color: v ? "#33445c" : "#9aa6b7" }}>{v || "上级审批(默认)"}</span>,
+      render: (v: string) => <span style={{ color: v ? "#33445c" : "var(--muted)" }}>{v || "上级审批(默认)"}</span>,
     },
     {
       title: "状态", dataIndex: "status", key: "status", width: 110, render: statusTag,
     },
     {
       title: "提交时间", dataIndex: "created_at", key: "created_at", width: 160,
-      render: (v: string) => <span className="tnum" style={{ color: "#9aa6b7" }}>{v || "—"}</span>,
+      render: (v: string) => <span className="tnum" style={{ color: "var(--muted)" }}>{v || "—"}</span>,
     },
     {
       title: "操作", key: "op", width: 150, fixed: "right" as const,
@@ -316,7 +316,7 @@ export default function LeaveCenter({ config }: { config?: Record<string, any> }
       <div className="lv-query">
         <Input
           allowClear
-          prefix={<SearchOutlined style={{ color: "#9aa6b7" }} />}
+          prefix={<SearchOutlined style={{ color: "var(--muted)" }} />}
           placeholder="搜索员工 / 事由 / 审批人"
           value={kw}
           onChange={(e) => { setKw(e.target.value); setPage(1); }}

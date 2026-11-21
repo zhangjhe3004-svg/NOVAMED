@@ -212,7 +212,7 @@ export default function OrgCanvas() {
       return [
         {
           id: "root-hospital",
-          name: "MediCode 智慧医疗",
+          name: "NOVAMED 智慧医疗",
           leader: `全院 ${depts.length} 个科室统一视图`,
           badge: `${users.length} 人`,
           count: users.length,
@@ -785,7 +785,7 @@ export default function OrgCanvas() {
           </div>
         </div>
         <div className="actions">
-          <Tag color="navy" style={{ background: "#e4eaf4", color: "#2d4a74", border: "none" }}>
+          <Tag color="navy" style={{ background: "rgba(59, 130, 246, 0.18)", color: "#93c5fd", border: "none" }}>
             <TeamOutlined style={{ marginRight: 4 }} />
             {isAdmin ? `全院 ${users.length} 人` : `责任链内 ${peers.length} 人`}
           </Tag>
@@ -989,7 +989,7 @@ export default function OrgCanvas() {
         )}
       </div>
 
-      <p className="note" style={{ background: "#f6f8fc", color: "#7d8ba0", marginTop: 14 }}>
+      <p className="note" style={{ background: "rgba(59, 130, 246, 0.08)", color: "#9a9ab0", marginTop: 14 }}>
         提示：科室名与成员来自员工名册的「科室」字段，给账号分配科室后会自动出现在这里，
         无需单独维护科室字典。选中节点后其根路径的连线会点亮并跑脉冲（导 Conduct）。
       </p>

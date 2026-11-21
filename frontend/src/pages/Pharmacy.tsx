@@ -106,17 +106,17 @@ export default function Pharmacy() {
     { title: "药品名称", dataIndex: "name", width: 180, render: (v: string, r: MedicineItem) => (
       <div>
         <div style={{ fontWeight: 600, color: "var(--lv-ink)" }}>{v}</div>
-        <div style={{ fontSize: 11, color: "#9aa6b6" }}>{r.spec || "-"}</div>
+        <div style={{ fontSize: 11, color: "var(--muted)" }}>{r.spec || "-"}</div>
       </div>
     ) },
     { title: "分类", dataIndex: "category", width: 100, render: (v: string) => v ? <span className="lv-tag lv-tag--neutral">{v}</span> : "-" },
     { title: "厂家", dataIndex: "manufacturer", width: 150, ellipsis: true },
     { title: "单价", dataIndex: "price_yuan", width: 90, align: "right" as const,
-      render: (v: number) => <span className="tnum" style={{ color: "#d6a451", fontWeight: 600 }}>¥{v.toFixed(2)}</span> },
+      render: (v: number) => <span className="tnum" style={{ color: "#3b82f6", fontWeight: 600 }}>¥{v.toFixed(2)}</span> },
     { title: "库存", dataIndex: "stock", width: 90, align: "center" as const,
       render: (v: number, r: MedicineItem) => (
         <span style={{ fontWeight: 600, color: r.low_stock ? "#c4423e" : "var(--lv-ink)" }}>
-          {v} <span style={{ fontSize: 11, color: "#9aa6b6" }}>{r.unit}</span>
+          {v} <span style={{ fontSize: 11, color: "var(--muted)" }}>{r.unit}</span>
         </span>
       ) },
     { title: "状态", width: 110, render: (_: any, r: MedicineItem) =>
@@ -143,7 +143,7 @@ export default function Pharmacy() {
       {/* 页头 */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "16px 24px", flexWrap: "wrap" }}>
         <div>
-          <div style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>药房管理</div>
+          <div className="md-page-title" style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>药房管理</div>
           <div style={{ color: "var(--lv-muted)", fontSize: 13, marginTop: 5 }}>药品库存管理、入库出库与库存预警。</div>
         </div>
         <div style={{ display: "flex", gap: 12 }}>
@@ -191,7 +191,7 @@ export default function Pharmacy() {
           className="lv-btn"
           data-act="low"
           onClick={() => setLowOnly(!lowOnly)}
-          style={lowOnly ? { color: "#c4423e", borderColor: "#f3c0bd", background: "#fdf0ef" } : undefined}
+          style={lowOnly ? { color: "#f87171", borderColor: "rgba(248,113,113,0.4)", background: "rgba(248,113,113,0.12)" } : undefined}
         >
           <WarningOutlined /> 仅看预警
         </button>

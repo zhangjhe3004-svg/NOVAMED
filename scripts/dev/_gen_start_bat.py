@@ -7,13 +7,13 @@ BAT = BAT_DIR
 
 START_BAT = r'''@echo off
 setlocal enabledelayedexpansion
-title MediCode 一键启动
+title NOVAMED 一键启动
 
 REM 项目根目录（本脚本位于 bat\ 下）
 cd /d "%~dp0.."
 
 echo ============================================
-echo   MediCode 一键启动
+echo   NOVAMED 一键启动
 echo   当前目录: %CD%
 echo ============================================
 echo.
@@ -30,8 +30,8 @@ if not exist "frontend" (
 echo [OK] 目录检查通过
 echo.
 
-REM 清理旧的 MediCode 服务进程（避免端口冲突/重复启动）
-echo [信息] 正在停止旧的 MediCode 服务进程...
+REM 清理旧的 NOVAMED 服务进程（避免端口冲突/重复启动）
+echo [信息] 正在停止旧的 NOVAMED 服务进程...
 powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\dev\stop_services.ps1"
 echo.
 
@@ -55,24 +55,13 @@ if exist "backend\.ports" (
 echo ============================================
 echo   端口分配
 echo   [后端]   http://localhost:%BACKEND_PORT%/docs
-echo   [员工端] http://localhost:%STAFF_PORT%
-echo   [患者端] http://localhost:%PATIENT_PORT%
+echo   [客户端] http://localhost:%STAFF_PORT%
 echo ============================================
 echo.
 
-REM 清理 Vite 缓存
-echo [信息] 清理 Vite 缓存...
-if exist "frontend\node_modules\.vite" (
-    rmdir /s /q "frontend\node_modules\.vite" 2>nul
-    echo [OK] 员工端 Vite 缓存已清理
-) else (
-    echo [OK] 员工端 Vite 缓存不存在，跳过
-)
-if exist "frontend\node_modules\.vite-patient" (
-    rmdir /s /q "frontend\node_modules\.vite-patient" 2>nul
-    echo [OK] 患者端 Vite 缓存已清理
-)
-echo.
+REM 不再清理 Vite 缓存：清缓存会导致每次启动都重新预构建依赖（明显拖慢启动）。
+REM 仅当依赖变更/白屏时才需要手动清理，见「前端修复.bat」。
+echo [信息] 跳过 Vite 缓存清理（复用缓存，加速启动）...
 
 REM 日志目录
 if not exist "bat\logs" mkdir "bat\logs"
@@ -83,19 +72,21 @@ echo ============================================
 echo.
 
 REM 后端：0.0.0.0 监听，手机/局域网可访问（三个 start 都是异步的，无需互相等待）
-start "MediCode-Backend" /min cmd /c "cd /d %CD%\backend && set BACKEND_PORT=%BACKEND_PORT%&& python -m uvicorn app.main:app --reload --host 0.0.0.0 --port %BACKEND_PORT% > %CD%\bat\logs\backend.log 2>&1"
+REM 去掉 --reload：--reload 会额外 spawn 一个 reloader 子进程、把整套启动初始化跑两遍，
+REM 「一键启动」无需热重载，直启可显著缩短就绪时间。
+start "NOVAMED-Backend" /min cmd /c "cd /d %CD%\backend && set BACKEND_PORT=%BACKEND_PORT%&& python -m uvicorn app.main:app --host 0.0.0.0 --port %BACKEND_PORT% > %CD%\bat\logs\backend.log 2>&1"
 
 REM 员工端前端（直接调 vite，跳过 npm 中间层，省 1-2 秒）
-start "MediCode-Frontend" /min cmd /c "cd /d %CD%\frontend && set STAFF_PORT=%STAFF_PORT%&& set BACKEND_PORT=%BACKEND_PORT%&& node node_modules\vite\bin\vite.js > %CD%\bat\logs\frontend.log 2>&1"
+start "NOVAMED-Frontend" /min cmd /c "cd /d %CD%\frontend && set STAFF_PORT=%STAFF_PORT%&& set BACKEND_PORT=%BACKEND_PORT%&& node node_modules\vite\bin\vite.js > %CD%\bat\logs\frontend.log 2>&1"
 
 REM 患者端前端
-start "MediCode-Patient" /min cmd /c "cd /d %CD%\frontend && set PATIENT_PORT=%PATIENT_PORT%&& set BACKEND_PORT=%BACKEND_PORT%&& node node_modules\vite\bin\vite.js --config vite.patient.config.ts > %CD%\bat\logs\patient.log 2>&1"
+start "NOVAMED-Patient" /min cmd /c "cd /d %CD%\frontend && set PATIENT_PORT=%PATIENT_PORT%&& set BACKEND_PORT=%BACKEND_PORT%&& node node_modules\vite\bin\vite.js --config vite.patient.config.ts > %CD%\bat\logs\patient.log 2>&1"
 
-REM 等待员工端（统一登录页）就绪后自动打开浏览器：node 单进程轮询，150ms 间隔，就绪即开
-echo [信息] 等待员工端就绪（最多 30 秒），就绪后立即打开浏览器...
+REM 等待客户端（统一登录页）就绪后自动打开浏览器：node 单进程轮询，150ms 间隔，就绪即开
+echo [信息] 等待客户端就绪（最多 30 秒），就绪后立即打开浏览器...
 node -e "const t0=Date.now();(function p(){const s=require('net').connect({port:%STAFF_PORT%,host:'127.0.0.1'});s.on('connect',()=>{s.destroy();process.exit(0)});s.on('error',()=>{s.destroy();if(Date.now()-t0>30000)process.exit(1);setTimeout(p,150)})})()"
 start "" "http://localhost:%STAFF_PORT%/login"
-echo [OK] 已打开统一登录页：http://localhost:%STAFF_PORT%/login
+echo [OK] 已打开客户端统一登录页：http://localhost:%STAFF_PORT%/login
 
 echo.
 echo ============================================
@@ -103,12 +94,11 @@ echo   启动完成！服务已在后台最小化运行
 echo ============================================
 echo.
 echo 登录信息:
-echo   员工端: http://localhost:%STAFF_PORT%   (账号: admin/admin)
-echo   患者端: 已并入员工端统一入口（登录页切换「患者登录」直通患者工作台）
+echo   客户端: http://localhost:%STAFF_PORT%   (账号: admin/admin，登录页可切换「患者登录」)
 echo   API文档: http://localhost:%BACKEND_PORT%/docs
 echo.
 echo 说明:
-echo   - 两个端已统一入口：员工端登录页含「员工登录 / 患者登录」切换，登录后各自进入对应工作台（自动读取对应数据库）。
+echo   - 客户端统一入口：登录页含「员工登录 / 患者登录」切换，登录后各自进入对应工作台（自动读取对应数据库）。
 echo   - 服务窗口已最小化到任务栏，桌面只保留本窗口，不影响其他操作。
 echo   - 运行日志: bat\logs\backend.log / frontend.log / patient.log
 echo   - 停止服务: 双击 bat\一键停止.bat
@@ -119,14 +109,14 @@ pause >nul
 '''
 
 STOP_BAT = r'''@echo off
-title MediCode 一键停止
+title NOVAMED 一键停止
 cd /d "%~dp0.."
 
 echo ============================================
-echo   MediCode 一键停止
+echo   NOVAMED 一键停止
 echo ============================================
 echo.
-echo [信息] 正在停止所有 MediCode 服务...
+echo [信息] 正在停止所有 NOVAMED 服务...
 powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\dev\stop_services.ps1"
 echo.
 echo [OK] 已全部停止。

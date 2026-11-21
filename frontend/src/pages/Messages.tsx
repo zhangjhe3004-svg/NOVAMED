@@ -25,6 +25,7 @@ import {
   RollbackOutlined,
   CopyOutlined,
   RightOutlined,
+  LeftOutlined,
 } from "@ant-design/icons";
 import {
   listPeers, listRecords, sendTransfer,
@@ -92,6 +93,9 @@ export default function Messages() {
 
   // 弹窗
   const [groupOpen, setGroupOpen] = useState(false);
+  // 左右面板折叠态（收起后保留 44px 窄条，点击可展开）
+  const [leftOpen, setLeftOpen] = useState(true);
+  const [rightOpen, setRightOpen] = useState(true);
   const [groupForm] = Form.useForm();
   const [startOpen, setStartOpen] = useState(false);
   const [startForm] = Form.useForm();
@@ -524,7 +528,7 @@ export default function Messages() {
       {/* 页面标题 */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "16px 24px", flexWrap: "wrap", marginBottom: 16 }}>
         <div>
-          <div style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>消息</div>
+          <div className="md-page-title" style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>消息</div>
           <div style={{ color: "var(--lv-muted)", fontSize: 13, marginTop: 5 }}>员工消息 · 支持引用、撤回与删除，与同事高效协作。</div>
         </div>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
@@ -534,23 +538,42 @@ export default function Messages() {
         </div>
       </div>
 
-      {/* 三栏聊天界面 */}
+      {/* 三栏聊天界面（左右两栏可折叠，收起后保留 44px 窄条） */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "290px minmax(0, 1fr) 260px",
+          gridTemplateColumns: `${leftOpen ? "290px" : "44px"} minmax(0, 1fr) ${rightOpen ? "260px" : "44px"}`,
           minHeight: 640,
-          background: "#fff",
+          background: "#1a2740",
           borderRadius: 14,
-          border: "1px solid #e6ecf3",
+          border: "1px solid rgba(59, 130, 246, 0.18)",
           overflow: "hidden",
         }}
       >
-        {/* 左侧：联系人列表 */}
-        <aside style={{ borderRight: "1px solid #e6ecf3" }}>
-          <div style={{ padding: "16px 16px 10px" }}>
-            <label className="input" style={{ width: "100%" }}>
-              <SearchOutlined style={{ color: "#9aa6b6" }} />
+        {/* 左侧：联系人列表（可折叠为窄条） */}
+        {!leftOpen ? (
+          <aside
+            style={{ borderRight: "1px solid rgba(59, 130, 246, 0.18)", display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 12, gap: 10 }}
+          >
+            <button
+              type="button"
+              title="展开联系人列表"
+              onClick={() => setLeftOpen(true)}
+              style={{
+                width: 30, height: 30, borderRadius: 8, border: "1px solid rgba(59, 130, 246, 0.3)",
+                background: "rgba(59, 130, 246, 0.14)", color: "#93c5fd", cursor: "pointer",
+                display: "grid", placeItems: "center", fontSize: 13, flex: "none",
+              }}
+            >
+              <RightOutlined />
+            </button>
+            <span style={{ writingMode: "vertical-rl", letterSpacing: 4, fontSize: 11, color: "var(--muted)", userSelect: "none" }}>联系人</span>
+          </aside>
+        ) : (
+        <aside style={{ borderRight: "1px solid rgba(59, 130, 246, 0.18)" }}>
+          <div style={{ padding: "16px 16px 10px", display: "flex", alignItems: "center", gap: 8 }}>
+            <label className="input" style={{ width: "100%", flex: 1, minWidth: 0 }}>
+              <SearchOutlined style={{ color: "var(--muted)" }} />
               <Input
                 placeholder="搜索联系人或消息"
                 variant="borderless"
@@ -560,6 +583,18 @@ export default function Messages() {
                 allowClear
               />
             </label>
+            <button
+              type="button"
+              title="收起"
+              onClick={() => setLeftOpen(false)}
+              style={{
+                width: 26, height: 26, borderRadius: 7, border: "1px solid rgba(59, 130, 246, 0.3)",
+                background: "transparent", color: "var(--muted)", cursor: "pointer",
+                display: "grid", placeItems: "center", fontSize: 11, flex: "none",
+              }}
+            >
+              <LeftOutlined />
+            </button>
           </div>
 
           <div style={{ padding: "0 16px 10px" }}>
@@ -598,9 +633,9 @@ export default function Messages() {
                     width: "100%",
                     textAlign: "left",
                     padding: "14px 18px",
-                    background: selectedContact?.id === contact.id ? "#eef4ff" : "transparent",
+                    background: selectedContact?.id === contact.id ? "rgba(59, 130, 246, 0.16)" : "transparent",
                     border: "none",
-                    borderBottom: "1px solid #f0f3f8",
+                    borderBottom: "1px solid rgba(59, 130, 246, 0.14)",
                     cursor: "pointer",
                     alignItems: "flex-start",
                   }}
@@ -608,8 +643,8 @@ export default function Messages() {
                   <span
                     className="avatar"
                     style={{
-                      background: contact.isGroup ? "#142d53" : "#eaf1ff",
-                      color: contact.isGroup ? "#fff" : "#4774b9",
+                      background: contact.isGroup ? "#16294d" : "rgba(59, 130, 246, 0.18)",
+                      color: "#eaf1fb",
                     }}
                   >
                     {contact.avatar}
@@ -617,7 +652,7 @@ export default function Messages() {
                   <span style={{ flex: 1, minWidth: 0 }}>
                     <b style={{ fontSize: 12, display: "flex", justifyContent: "space-between" }}>
                       {contact.name}
-                      <span style={{ fontWeight: 400, fontSize: 10, color: "#9aa6b6" }}>{sum?.lastTime || ""}</span>
+                      <span style={{ fontWeight: 400, fontSize: 10, color: "var(--muted)" }}>{sum?.lastTime || ""}</span>
                     </b>
                     <p
                       style={{
@@ -639,7 +674,7 @@ export default function Messages() {
                         minWidth: 17,
                         height: 17,
                         borderRadius: 9,
-                        background: "#2563eb",
+                        background: "#3b82f6",
                         color: "#fff",
                         fontSize: 10,
                         display: "grid",
@@ -656,13 +691,14 @@ export default function Messages() {
             })}
           </div>
         </aside>
+        )}
 
         {/* 中间：对话线程 */}
         <div style={{ display: "flex", flexDirection: "column" }}>
           <div
             style={{
               padding: "16px 22px",
-              borderBottom: "1px solid #e6ecf3",
+              borderBottom: "1px solid rgba(59, 130, 246, 0.16)",
               display: "flex",
               alignItems: "center",
               gap: 12,
@@ -673,15 +709,15 @@ export default function Messages() {
                 <span
                   className="avatar"
                   style={{
-                    background: selectedContact.isGroup ? "#142d53" : "#fbf2df",
-                    color: selectedContact.isGroup ? "#fff" : "#a8792a",
+                    background: selectedContact.isGroup ? "#16294d" : "#2a2a40",
+                    color: "#eaf1fb",
                   }}
                 >
                   {selectedContact.avatar}
                 </span>
                 <div>
                   <b style={{ fontSize: 13, display: "block" }}>{selectedContact.name}</b>
-                  <small style={{ fontSize: 10, color: "#78869b" }}>
+                  <small style={{ fontSize: 10, color: "#9a9ab0" }}>
                     {selectedContact.isGroup
                       ? `群组 · ${groupTargets.length} 位成员`
                       : `${selectedContact.dept ? selectedContact.dept + " · " : ""}${selectedContact.title || selectedContact.relation || "在线"}`}
@@ -711,7 +747,7 @@ export default function Messages() {
               display: "flex",
               flexDirection: "column",
               gap: 14,
-              background: "#fafbfd",
+              background: "#0f0f1a",
               overflowY: "auto",
               maxHeight: 420,
             }}
@@ -720,8 +756,8 @@ export default function Messages() {
               style={{
                 alignSelf: "center",
                 fontSize: 10,
-                color: "#9aa6b6",
-                background: "#eef2f8",
+                color: "var(--muted)",
+                background: "#101b2e",
                 padding: "4px 12px",
                 borderRadius: 999,
               }}
@@ -732,7 +768,7 @@ export default function Messages() {
             {threadLoading ? (
               <div style={{ textAlign: "center", padding: 20 }}><Spin size="small" /></div>
             ) : thread.length === 0 ? (
-              <div style={{ textAlign: "center", color: "#9aa6b6", fontSize: 11, marginTop: 20 }}>
+              <div style={{ textAlign: "center", color: "var(--muted)", fontSize: 11, marginTop: 20 }}>
                 暂无消息记录，发送第一条消息开始沟通
               </div>
             ) : (
@@ -756,8 +792,8 @@ export default function Messages() {
                       <span
                         className="avatar"
                         style={{
-                          background: msg.is_me ? "#eaf1ff" : "#fbf2df",
-                          color: msg.is_me ? "#4774b9" : "#a8792a",
+                          background: msg.is_me ? "rgba(59, 130, 246, 0.22)" : "#2a2a40",
+                          color: msg.is_me ? "#93c5fd" : "#9a9ab0",
                         }}
                       >
                         {msg.is_me ? "我" : selectedContact?.avatar}
@@ -765,9 +801,9 @@ export default function Messages() {
                       <div>
                         <div
                           style={{
-                            background: msg.is_me ? "#2563eb" : "#fff",
-                            color: msg.is_me ? "#fff" : "#1b2b45",
-                            border: msg.is_me ? "1px solid #2563eb" : "1px solid #e6ecf3",
+                            background: msg.is_me ? "#3b82f6" : "#2a2a40",
+                            color: msg.is_me ? "#fff" : "#eaf1fb",
+                            border: msg.is_me ? "1px solid #3b82f6" : "1px solid rgba(59, 130, 246, 0.2)",
                             borderRadius: 12,
                             padding: "10px 13px",
                             fontSize: 12,
@@ -782,12 +818,12 @@ export default function Messages() {
                             <div
                               style={{
                                 fontSize: 10,
-                                color: msg.is_me ? "rgba(255,255,255,0.85)" : "#8190a4",
-                                background: msg.is_me ? "rgba(255,255,255,0.14)" : "#f2f5f9",
+                                color: msg.is_me ? "rgba(232,232,244,0.9)" : "#9a9ab0",
+                                background: msg.is_me ? "rgba(59, 130, 246, 0.3)" : "#101b2e",
                                 borderRadius: 6,
                                 padding: "5px 8px",
                                 marginBottom: 6,
-                                borderLeft: `3px solid ${msg.is_me ? "rgba(255,255,255,0.5)" : "#2563eb"}`,
+                                borderLeft: `3px solid ${msg.is_me ? "rgba(232,232,244,0.72)" : "#3b82f6"}`,
                               }}
                             >
                               <b>{quoted?.sender || msg.quote_sender || "引用"}</b>
@@ -799,7 +835,7 @@ export default function Messages() {
                           {msg.recalled ? <em style={{ fontStyle: "normal" }}>你撤回了一条消息</em> : msg.content}
                         </div>
                         <div style={{ display: "flex", gap: 6, alignItems: "center", justifyContent: msg.is_me ? "flex-end" : "flex-start", marginTop: 4 }}>
-                          <time style={{ fontSize: 10, color: "#9aa6b6" }}>{msg.timestamp}</time>
+                          <time style={{ fontSize: 10, color: "var(--muted)" }}>{msg.timestamp}</time>
                           {/* 悬停操作按钮 */}
                           <span style={{ display: "flex", gap: 4 }}>
                             {!msg.recalled && (
@@ -836,7 +872,7 @@ export default function Messages() {
               style={{
                 margin: "0 18px 6px",
                 padding: "8px 12px",
-                background: "#eef4ff",
+                background: "rgba(59, 130, 246, 0.12)",
                 borderRadius: 8,
                 display: "flex",
                 alignItems: "center",
@@ -856,7 +892,7 @@ export default function Messages() {
           {/* 消息输入框 */}
           <div
             style={{
-              borderTop: "1px solid #e6ecf3",
+              borderTop: "1px solid rgba(59, 130, 246, 0.16)",
               padding: "14px 18px",
               display: "flex",
               gap: 10,
@@ -896,23 +932,56 @@ export default function Messages() {
           </div>
         </div>
 
-        {/* 右侧：联系人详情 */}
-        <aside style={{ borderLeft: "1px solid #e6ecf3" }}>
+        {/* 右侧：联系人详情（可折叠为窄条） */}
+        {!rightOpen ? (
+          <aside
+            style={{ borderLeft: "1px solid rgba(59, 130, 246, 0.18)", display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 12, gap: 10 }}
+          >
+            <button
+              type="button"
+              title="展开详情"
+              onClick={() => setRightOpen(true)}
+              style={{
+                width: 30, height: 30, borderRadius: 8, border: "1px solid rgba(59, 130, 246, 0.3)",
+                background: "rgba(59, 130, 246, 0.14)", color: "#93c5fd", cursor: "pointer",
+                display: "grid", placeItems: "center", fontSize: 13, flex: "none",
+              }}
+            >
+              <LeftOutlined />
+            </button>
+            <span style={{ writingMode: "vertical-rl", letterSpacing: 4, fontSize: 11, color: "var(--muted)", userSelect: "none" }}>详情</span>
+          </aside>
+        ) : (
+        <aside style={{ borderLeft: "1px solid rgba(59, 130, 246, 0.18)" }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", padding: "10px 12px 0" }}>
+            <button
+              type="button"
+              title="收起"
+              onClick={() => setRightOpen(false)}
+              style={{
+                width: 26, height: 26, borderRadius: 7, border: "1px solid rgba(59, 130, 246, 0.3)",
+                background: "transparent", color: "var(--muted)", cursor: "pointer",
+                display: "grid", placeItems: "center", fontSize: 11,
+              }}
+            >
+              <RightOutlined />
+            </button>
+          </div>
           {selectedContact && (
             <div style={{ padding: "20px 22px" }}>
               <div className="person" style={{ marginBottom: 18 }}>
                 <span
                   className="avatar lg"
                   style={{
-                    background: selectedContact.isGroup ? "#142d53" : "#fbf2df",
-                    color: selectedContact.isGroup ? "#fff" : "#a8792a",
+                    background: selectedContact.isGroup ? "#16294d" : "#2a2a40",
+                    color: "#eaf1fb",
                   }}
                 >
                   {selectedContact.avatar}
                 </span>
                 <span>
                   <b style={{ fontSize: 14 }}>{selectedContact.name}</b>
-                  <small style={{ display: "block", color: "#78869b", marginTop: 4 }}>
+                  <small style={{ display: "block", color: "#9a9ab0", marginTop: 4 }}>
                     {selectedContact.isGroup
                       ? `群组 · ${groupTargets.length} 位成员`
                       : `${selectedContact.dept ? selectedContact.dept + " · " : ""}${selectedContact.title || ""}`}
@@ -925,10 +994,10 @@ export default function Messages() {
                   <h3 style={{ fontSize: 12, margin: "0 0 10px" }}>群组成员</h3>
                   <div style={{ display: "grid", gap: 6, marginBottom: 8 }}>
                     {(selectedContact.members || []).map((m) => (
-                      <span key={m.id} style={{ fontSize: 11, color: "#40506b" }}>
+                      <span key={m.id} style={{ fontSize: 11, color: "#9a9ab0" }}>
                         <span
                           className="avatar"
-                          style={{ width: 20, height: 20, fontSize: 10, marginRight: 6, background: "#eaf1ff", color: "#4774b9" }}
+                          style={{ width: 20, height: 20, fontSize: 10, marginRight: 6, background: "rgba(59, 130, 246, 0.18)", color: "#93c5fd" }}
                         >
                           {m.name[0]}
                         </span>
@@ -974,6 +1043,7 @@ export default function Messages() {
             </div>
           )}
         </aside>
+        )}
       </div>
 
       {/* 新建群组 */}

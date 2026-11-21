@@ -70,6 +70,7 @@ class User(Base, TimestampMixin):
     title = Column(String(50), default="")
     work_status = Column(String(20), default="在职")
     auth_level = Column(Integer, default=1, nullable=False)  # 数字身份权限级别（1-9）
+    reg_fee = Column(Integer, default=0, nullable=False)  # 挂号费（分；0=未设定，患者端显示「待定」）
 
 
 class Message(Base, TimestampMixin):
@@ -100,6 +101,7 @@ class Notification(Base, TimestampMixin):
     content = Column(Text, default="")
     is_read = Column(Boolean, default=False)
     level = Column(String(20), default="info")  # info / warning / error
+    link = Column(String(200), default="")  # 相关页面路由，通知可一键跳转处理
 
 
 class AuditLog(Base, TimestampMixin):
@@ -305,9 +307,13 @@ class BillingRecord(Base, TimestampMixin):
     department = Column(String(100), default="")                # 科室
     items = Column(Text, default="")                             # 收费项目（JSON 数组）
     total_amount = Column(Integer, default=0)                    # 总金额（分）
-    payment_method = Column(String(30), default="现金")          # 支付方式
-    status = Column(String(30), index=True, default="已收费")    # 已收费/已退费/待收费
-    operator = Column(String(100), default="")                   # 收费员
+    payment_method = Column(String(30), default="")              # 支付方式（确认收费方式时填写）
+    status = Column(String(30), index=True, default="待收费")    # 待收费/待到账/已收费/已退费
+    operator = Column(String(100), default="")                   # 开单收费员
+    confirmed_by = Column(String(100), default="")               # 确认收费方式操作员
+    confirmed_at = Column(String(30), default="")                # 确认收费方式时间
+    paid_by = Column(String(100), default="")                    # 确认到账操作员
+    paid_at = Column(String(30), default="")                     # 确认到账时间
     remark = Column(Text, default="")
 
 
@@ -329,6 +335,52 @@ class LabTest(Base, TimestampMixin):
     doctor_name = Column(String(100), default="")
     operator = Column(String(100), default="")                  # 检查技师/录入人
     remark = Column(Text, default="")
+
+
+class FamilyHistory(Base, TimestampMixin):
+    """家族病史（patient.db）—— 患者个人健康档案的一部分"""
+    __tablename__ = "family_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, index=True, nullable=False)
+    relation = Column(String(50), default="")    # 亲属关系：父亲/母亲/祖父母/兄弟姐妹等
+    disease = Column(String(200), default="")    # 疾病名称
+    onset_age = Column(String(20), default="")   # 发病年龄
+    note = Column(Text, default="")              # 备注
+
+
+class PatientNotification(Base, TimestampMixin):
+    """患者通知（patient.db）—— 患者端消息/通知中心"""
+    __tablename__ = "patient_notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, index=True, nullable=False)
+    title = Column(String(200), default="")
+    content = Column(Text, default="")
+    is_read = Column(Boolean, default=False)
+    level = Column(String(20), default="info")   # info / warning / success
+    kind = Column(String(30), default="system")  # system / appointment / report
+
+
+class ScannedDocument(Base, TimestampMixin):
+    """扫描文档归档（patient.db）—— 拍照/扫描件 + 本地 OCR 识别文本
+
+    通过 patient_id / record_id / labtest_id 三个可空外键，关联到
+    患者档案、就诊记录、检查检验任意一个业务对象（也可都为空，作通用归档）。
+    images 存 JSON 数组（base64，前端已压缩），ocr_text 为 tesseract.js 本地识别结果。
+    """
+    __tablename__ = "scanned_documents"
+
+    id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, index=True, nullable=True)   # 关联患者
+    record_id = Column(Integer, index=True, nullable=True)    # 关联就诊记录
+    labtest_id = Column(Integer, index=True, nullable=True)   # 关联检查检验
+    title = Column(String(200), default="")
+    category = Column(String(30), default="病历")  # 病历/处方/检验单/影像/证件/其他
+    images = Column(Text, default="[]")            # JSON 数组存 base64（前端压缩）
+    ocr_text = Column(Text, default="")            # OCR 识别文本
+    created_by = Column(Integer, nullable=True)    # 录入员工 id
+    created_by_name = Column(String(100), default="")
 
 
 class ScheduledTask(Base, TimestampMixin):
@@ -367,19 +419,23 @@ class SysRole(Base, TimestampMixin):
 
 
 class SysRoleMenu(Base, TimestampMixin):
-    """角色-菜单授权（employee.db）—— menu_key 对应前端导航项 key；无行=未配置（走前端静态回退）"""
+    """角色-菜单授权（employee.db）—— menu_id（整数，指向 menu_items.id，含 dir/menu/btn 三级）为权威粒度。
+
+    menu_key 为 legacy 字符串导航 key 列（保留以兼容旧数据，由 core/rbac.migrate_role_menus 迁移到 menu_id）。
+    """
     __tablename__ = "sys_role_menus"
 
     id = Column(Integer, primary_key=True, index=True)
     role_id = Column(Integer, index=True, nullable=False)
-    menu_key = Column(String(80), nullable=False)
+    menu_id = Column(Integer, index=True, nullable=True)
+    menu_key = Column(String(80), nullable=False, default="")
 
 
 class SysUserRole(Base):
     """用户-角色关联（employee.db）—— 对齐 scaffold sys_user_role（user_id, role_id 复合主键）。
 
-    说明：MediCode 用户角色主键仍以 users.role 枚举为准（认证链路强依赖），本表作为
-    与 scaffold SQL 结构对齐的关联表，供权限溯源图聚合时做「用户↔角色」映射。
+    说明：本表是用户角色的**权威来源**（支持多角色叠加）；users.role 枚举作为「主角色」
+    提示保留以向后兼容，由 core/rbac.sync_user_primary_role 在角色变更时同步。
     """
     __tablename__ = "sys_user_role"
 
@@ -429,3 +485,76 @@ class SysPost(Base, TimestampMixin):
     sort = Column(Integer, default=0)
     status = Column(Integer, default=1)                         # 1 正常 / 0 停用
     remark = Column(String(500), default="")
+
+
+class SysDictType(Base, TimestampMixin):
+    """字典类型（employee.db）—— 字典管理页 CRUD 实体（对齐 scaffold sys_dict_type）"""
+    __tablename__ = "sys_dict_types"
+
+    id = Column(Integer, primary_key=True, index=True)
+    dict_name = Column(String(100), nullable=False)             # 字典名称
+    dict_type = Column(String(100), nullable=False, index=True, unique=True)  # 字典编码
+    status = Column(Integer, default=1)                         # 1 正常 / 0 停用
+    remark = Column(String(500), default="")
+
+
+class SysDictData(Base, TimestampMixin):
+    """字典数据（employee.db）—— 字典管理页抽屉 CRUD 实体（对齐 scaffold sys_dict_data）"""
+    __tablename__ = "sys_dict_data"
+
+    id = Column(Integer, primary_key=True, index=True)
+    dict_type = Column(String(100), nullable=False, index=True)  # 所属字典类型编码
+    dict_label = Column(String(100), nullable=False)             # 显示标签
+    dict_value = Column(String(100), nullable=False)             # 实际键值
+    sort = Column(Integer, default=0)                            # 排序号
+    status = Column(Integer, default=1)                          # 1 正常 / 0 停用
+    tone = Column(String(32), default="")                        # 标签色调 neutral/ok/info/danger
+    is_default = Column(Integer, default=0)                      # 1 默认项 / 0 否
+    remark = Column(String(500), default="")
+
+
+class SysConfig(Base, TimestampMixin):
+    """参数配置（employee.db）—— 参数管理页 CRUD 实体（对齐 scaffold sys_config）"""
+    __tablename__ = "sys_configs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    config_name = Column(String(100), nullable=False)            # 参数名称
+    config_key = Column(String(100), nullable=False, index=True, unique=True)  # 参数键名
+    config_value = Column(String(500), nullable=False)           # 参数值
+    config_type = Column(String(1), default="N")                 # Y 系统内置 / N 自定义
+    builtin = Column(Boolean, default=False)                     # 内置参数：不可删除、键名不可改
+    remark = Column(String(500), default="")
+
+
+class GenTable(Base, TimestampMixin):
+    """代码生成表配置（employee.db）—— 代码生成页导入的数据表（对齐 scaffold gen_table）"""
+    __tablename__ = "gen_tables"
+
+    id = Column(Integer, primary_key=True, index=True)
+    table_name = Column(String(100), nullable=False, index=True, unique=True)  # 数据库表名
+    table_comment = Column(String(200), default="")              # 表说明
+    class_name = Column(String(100), nullable=False)             # 后端实体类名（大驼峰）
+    module_name = Column(String(64), nullable=False)             # 模块名称
+    business_name = Column(String(64), nullable=False)           # 业务名称
+    synced = Column(Boolean, default=True)                       # 是否确认字段配置
+
+
+class GenTableColumn(Base, TimestampMixin):
+    """代码生成字段配置（employee.db）—— 导入表的字段映射（对齐 scaffold gen_table_column）"""
+    __tablename__ = "gen_table_columns"
+
+    id = Column(Integer, primary_key=True, index=True)
+    table_id = Column(Integer, nullable=False, index=True)       # 所属 gen_tables.id
+    column_name = Column(String(100), nullable=False)            # 数据库字段名
+    field_name = Column(String(100), nullable=False)             # 模型字段名（snake_case）
+    py_type = Column(String(64), nullable=False)                 # Python 类型 str/int/float/bool/datetime
+    db_type = Column(String(64), nullable=False)                 # SQLite 声明类型
+    column_comment = Column(String(200), default="")             # 字段说明
+    is_insert = Column(Boolean, default=True)                    # 是否新增字段
+    is_edit = Column(Boolean, default=True)                      # 是否编辑字段
+    is_list = Column(Boolean, default=True)                      # 是否列表展示
+    is_query = Column(Boolean, default=False)                    # 是否查询字段
+    query_type = Column(String(32), default="=")                 # 查询方式 LIKE / =
+    form_type = Column(String(64), default="文本框")              # 表单控件类型
+    required = Column(Boolean, default=False)                    # 是否必填
+    sort = Column(Integer, default=0)                            # 排序号

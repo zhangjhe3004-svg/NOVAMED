@@ -87,10 +87,10 @@ border.append(bottom);header._p.get_or_add_pPr().append(border)
 footer=sec.footer.paragraphs[0];footer.style='Caption';footer.alignment=WD_ALIGN_PARAGRAPH.RIGHT
 footer.add_run('实施建议 · v1.1     |     ');field(footer,'PAGE');footer.add_run(' / ');field(footer,'NUMPAGES')
 
-doc.core_properties.title='MediCode 系统优化方案与执行手册'
+doc.core_properties.title='NOVAMED 系统优化方案与执行手册'
 doc.core_properties.subject='目录、UI、前后端、数据一致性、部署及逐项验收'
-doc.core_properties.author='MediCode 项目文档'
-doc.core_properties.keywords='MediCode,UI,执行手册,FastAPI,React,验收'
+doc.core_properties.author='NOVAMED 项目文档'
+doc.core_properties.keywords='NOVAMED,UI,执行手册,FastAPI,React,验收'
 doc.core_properties.comments='基于 2026-09-11 代码检查，更新至 2026-09-12。原型为虚构数据。'
 
 doc.add_paragraph('MEDICODE  /  PRODUCT & ENGINEERING',style='Subtitle')
@@ -221,7 +221,7 @@ font_path=Path('C:/Windows/Fonts/msyh.ttc')
 font_title=ImageFont.truetype(str(font_path),26)
 font_label=ImageFont.truetype(str(font_path),17)
 canvas=Image.new('RGB',(1600,1130),'#f0f4f9');draw=ImageDraw.Draw(canvas)
-draw.text((34,22),'MediCode · 登录与患者端 UI 预览',font=font_title,fill='#19385f')
+draw.text((34,22),'NOVAMED · 登录与患者端 UI 预览',font=font_title,fill='#19385f')
 draw.text((35,65),'设计原型 / 虚构演示数据 / 2026.09',font=font_label,fill='#8092ab')
 cards=[('07-员工登录.png','员工登录',(30,112,785,602)),('08-患者登录.png','患者登录',(815,112,1570,602)),('09-患者端首页.png','患者端首页',(30,630,785,1120)),('10-患者预约.png','患者预约',(815,630,1570,1120))]
 for filename,label,(x1,y1,x2,y2) in cards:

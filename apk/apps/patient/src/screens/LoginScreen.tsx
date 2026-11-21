@@ -1,22 +1,18 @@
 /**
- * 患者端登录页（对照设计稿 14-患者手机登录）
+ * 患者登录页 —— 参考 Web 客户端患者主题改造：
+ * 深青 #194e50 品牌区（新星核 logo + 标语）+ 白色表单区（#27857d 主按钮）
  */
 import React, { useState } from "react";
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-  ActivityIndicator,
-  ScrollView,
+  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  KeyboardAvoidingView, Platform, Alert, ActivityIndicator, ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { colors, spacing, radius, fontSize, request, PatientTokenResponse } from "@medicode/shared";
+import { colors, spacing, radius, fontSize, shadow, request, PatientTokenResponse } from "@medicode/shared";
 import { usePatientAuth } from "../auth";
+import BrandMark from "../BrandMark";
+
+const TEAL_BG = "#194e50";
 
 export default function LoginScreen() {
   const { signIn } = usePatientAuth();
@@ -24,6 +20,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
   const [remember, setRemember] = useState(true);
+  const [focus, setFocus] = useState<"user" | "pwd" | null>(null);
   const [loading, setLoading] = useState(false);
 
   const doLogin = async (account: string, pwd: string) => {
@@ -48,68 +45,68 @@ export default function LoginScreen() {
   };
 
   const handleLogin = () => doLogin(phone, password);
-  const handleDemo = () => doLogin("admin", "admin");
 
   return (
     <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center", padding: spacing.lg }} keyboardShouldPersistTaps="handled">
-          {/* 品牌区 */}
-          <View style={styles.logoRow}>
-            <View style={styles.logo}>
-              <Text style={styles.logoCross}>+</Text>
+      <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+          {/* 深青品牌区（对齐客户端患者主题） */}
+          <View style={styles.brandArea}>
+            <View style={styles.logoRow}>
+              <BrandMark size={40} on="dark" />
+              <View style={{ marginLeft: 12 }}>
+                <Text style={styles.title}>NOVAMED</Text>
+                <Text style={styles.brandSub}>SMART MEDICAL SYSTEM</Text>
+              </View>
             </View>
-            <View style={{ marginLeft: spacing.sm }}>
-              <Text style={styles.title}>MediCode</Text>
-              <Text style={styles.brandSub}>SMART MEDICAL SYSTEM</Text>
-            </View>
+            <Text style={styles.slogan}>每一步就医，</Text>
+            <Text style={styles.slogan}>都更安心。</Text>
+            <Text style={styles.sloganSub}>从预约到就诊，让重要信息触手可及。</Text>
+            <Text style={styles.sloganSub}>简单清晰的指引，陪伴每一次健康之旅。</Text>
           </View>
 
-          <Text style={styles.slogan}>每一步就医，都更安心。</Text>
-          <Text style={styles.sloganSub}>从预约到就诊，让重要信息触手可及。</Text>
-          <Text style={styles.sloganSub}>简单清晰的指引，陪伴每一次健康之旅。</Text>
+          {/* 白色表单区 */}
+          <View style={styles.formArea}>
+            <Text style={styles.welcome}>欢迎来到健康空间</Text>
+            <Text style={styles.welcomeSub}>预约、报到、就诊记录，一处轻松管理。</Text>
 
-          {/* 表单区 */}
-          <View style={styles.form}>
-            <Text style={styles.h2}>欢迎来到健康空间</Text>
-            <Text style={styles.h2Sub}>预约、报到、就诊记录，一处轻松管理。</Text>
-
-            <Text style={styles.label}>患者账号 / 手机号</Text>
+            <Text style={styles.label}>用户名</Text>
             <TextInput
-              style={styles.input}
-              placeholder="请输入患者账号或手机号"
+              style={[styles.input, focus === "user" && styles.inputFocus]}
+              placeholder="请输入用户名"
               placeholderTextColor={colors.textMuted}
               value={phone}
               onChangeText={setPhone}
-              keyboardType="phone-pad"
               autoCapitalize="none"
+              autoCorrect={false}
+              onFocus={() => setFocus("user")}
+              onBlur={() => setFocus((f) => (f === "user" ? null : f))}
             />
             <Text style={styles.label}>登录密码</Text>
-            <View style={styles.pwdWrap}>
+            <View style={[styles.pwdWrap, focus === "pwd" && styles.inputFocus]}>
               <TextInput
-                style={[styles.input, { flex: 1, marginBottom: 0, borderWidth: 0, paddingVertical: 12 }]}
+                style={[styles.input, styles.pwdInput]}
                 placeholder="请输入密码"
                 placeholderTextColor={colors.textMuted}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPwd}
+                onFocus={() => setFocus("pwd")}
+                onBlur={() => setFocus((f) => (f === "pwd" ? null : f))}
               />
-              <TouchableOpacity style={{ paddingHorizontal: spacing.md }} onPress={() => setShowPwd((v) => !v)}>
+              <TouchableOpacity style={styles.pwdToggle} onPress={() => setShowPwd((v) => !v)}>
                 <Text style={styles.showBtn}>{showPwd ? "隐藏" : "显示"}</Text>
               </TouchableOpacity>
             </View>
 
             <View style={styles.rememberRow}>
-              <TouchableOpacity style={styles.checkbox} onPress={() => setRemember((v) => !v)}>
-                <View style={[styles.checkboxBox, remember && { backgroundColor: colors.teal, borderColor: colors.teal }]}>
-                  {remember ? <Text style={{ color: "#fff", fontSize: 11, lineHeight: 13 }}>✓</Text> : null}
+              <TouchableOpacity style={styles.checkbox} onPress={() => setRemember((v) => !v)} activeOpacity={0.6}>
+                <View style={[styles.checkboxBox, remember && { backgroundColor: colors.brandTeal, borderColor: colors.brandTeal }]}>
+                  {remember ? <Text style={{ color: "#fff", fontSize: 12, lineHeight: 15 }}>✓</Text> : null}
                 </View>
                 <Text style={styles.rememberText}>保持登录状态</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => Alert.alert("提示", "请联系管理员重置密码")}>
+              <TouchableOpacity onPress={() => Alert.alert("提示", "请联系管理员重置密码")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <Text style={styles.forgot}>忘记密码?</Text>
               </TouchableOpacity>
             </View>
@@ -118,26 +115,13 @@ export default function LoginScreen() {
               style={[styles.button, loading && { opacity: 0.6 }]}
               onPress={handleLogin}
               disabled={loading}
+              activeOpacity={0.85}
             >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.buttonText}>进入我的健康空间 →</Text>
-              )}
-            </TouchableOpacity>
-
-            <View style={styles.orRow}>
-              <View style={styles.orLine} />
-              <Text style={styles.orText}>快速预览，无需真实账号</Text>
-              <View style={styles.orLine} />
-            </View>
-
-            <TouchableOpacity style={styles.demoBtn} onPress={handleDemo} disabled={loading}>
-              <Text style={styles.demoBtnText}>使用演示身份进入</Text>
+              {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>进入我的健康空间</Text>}
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.foot}>MediCode 全域智慧医疗系统</Text>
+          <Text style={styles.foot}>NOVAMED 全域智慧医疗系统</Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -145,58 +129,65 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#f2f7f6" },
+  safe: { flex: 1, backgroundColor: "#fff" },
   container: { flex: 1 },
+  brandArea: {
+    backgroundColor: TEAL_BG,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg + 6,
+    paddingBottom: spacing.xl + 8,
+  },
   logoRow: { flexDirection: "row", alignItems: "center", marginBottom: spacing.xl },
-  logo: { width: 52, height: 52, borderRadius: 13, backgroundColor: colors.teal, alignItems: "center", justifyContent: "center" },
-  logoCross: { color: "#fff", fontSize: 30, fontWeight: "700", lineHeight: 34 },
-  title: { fontSize: fontSize.title, fontWeight: "700", color: colors.text },
-  brandSub: { fontSize: 10, letterSpacing: 1.5, color: colors.textMuted, marginTop: 2 },
-  slogan: { fontSize: 26, fontWeight: "700", color: colors.teal, lineHeight: 36 },
-  sloganSub: { fontSize: fontSize.sm, color: colors.textSecondary, marginTop: 4, lineHeight: 20 },
-  form: { backgroundColor: colors.card, borderRadius: radius.lg, padding: spacing.lg, marginTop: spacing.xl },
-  h2: { fontSize: fontSize.xl, fontWeight: "700", color: colors.text },
-  h2Sub: { fontSize: fontSize.sm, color: colors.textSecondary, marginTop: 4 },
+  title: { fontSize: fontSize.xxl, fontWeight: "800", color: "#fff", letterSpacing: 1 },
+  brandSub: { fontSize: 9, letterSpacing: 1.5, color: "rgba(255,255,255,0.55)", marginTop: 2 },
+  slogan: { fontSize: 26, fontWeight: "700", color: "#fff", lineHeight: 36 },
+  sloganSub: { fontSize: fontSize.sm, color: "rgba(255,255,255,0.6)", marginTop: 6, lineHeight: 19 },
+  formArea: {
+    flex: 1,
+    backgroundColor: "#fff",
+    borderRadius: 24,
+    marginTop: -20,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg + 4,
+  },
+  welcome: { fontSize: 21, fontWeight: "700", color: colors.text },
+  welcomeSub: { fontSize: fontSize.sm, color: colors.textSecondary, marginTop: 4 },
   label: { fontSize: fontSize.sm, color: colors.textSecondary, marginBottom: spacing.xs, marginTop: spacing.md },
   input: {
-    borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
-    paddingVertical: 12,
+    paddingVertical: 13,
     fontSize: fontSize.md,
     color: colors.text,
+    backgroundColor: "#F2F2F7",
+  },
+  inputFocus: {
     backgroundColor: "#fff",
-    marginBottom: 4,
+    borderWidth: 1.5,
+    borderColor: colors.brandTeal,
   },
   pwdWrap: {
-    flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: colors.border,
-    borderRadius: radius.md, backgroundColor: "#fff",
+    flexDirection: "row", alignItems: "center",
+    borderRadius: radius.md, backgroundColor: "#F2F2F7",
   },
-  showBtn: { color: colors.teal, fontSize: fontSize.sm, fontWeight: "600" },
+  pwdInput: { flex: 1, borderWidth: 0 },
+  pwdToggle: { paddingHorizontal: spacing.md, paddingVertical: 13 },
+  showBtn: { color: colors.brandTeal, fontSize: fontSize.sm, fontWeight: "600" },
   rememberRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: spacing.md },
-  checkbox: { flexDirection: "row", alignItems: "center" },
+  checkbox: { flexDirection: "row", alignItems: "center", paddingVertical: 4 },
   checkboxBox: {
-    width: 16, height: 16, borderRadius: 4, borderWidth: 1.5, borderColor: colors.border,
+    width: 18, height: 18, borderRadius: 5, borderWidth: 1.5, borderColor: colors.border,
     alignItems: "center", justifyContent: "center",
   },
-  rememberText: { fontSize: fontSize.sm, color: colors.textSecondary, marginLeft: 6 },
-  forgot: { fontSize: fontSize.sm, color: colors.teal, fontWeight: "600" },
+  rememberText: { fontSize: fontSize.sm, color: colors.textSecondary, marginLeft: 8 },
+  forgot: { fontSize: fontSize.sm, color: colors.brandTeal, fontWeight: "600" },
   button: {
-    backgroundColor: colors.teal,
-    borderRadius: radius.md,
-    paddingVertical: 14,
+    backgroundColor: colors.brandTeal,
+    borderRadius: radius.pill,
+    paddingVertical: 15,
     alignItems: "center",
     marginTop: spacing.lg,
   },
   buttonText: { color: "#fff", fontSize: fontSize.lg, fontWeight: "600" },
-  orRow: { flexDirection: "row", alignItems: "center", marginTop: spacing.lg },
-  orLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.border },
-  orText: { fontSize: fontSize.xs, color: colors.textMuted, marginHorizontal: spacing.sm },
-  demoBtn: {
-    borderWidth: 1, borderColor: colors.border, borderRadius: radius.md,
-    paddingVertical: 13, alignItems: "center", marginTop: spacing.md, backgroundColor: "#fff",
-  },
-  demoBtnText: { color: colors.text, fontSize: fontSize.md, fontWeight: "600" },
-  foot: { fontSize: fontSize.xs, color: colors.textMuted, textAlign: "center", marginTop: spacing.xl },
+  foot: { fontSize: fontSize.xs, color: colors.textMuted, textAlign: "center", marginTop: spacing.md, marginBottom: spacing.lg },
 });

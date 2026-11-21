@@ -1,6 +1,6 @@
 import api from "./client";
 
-export interface NotificationItem { id: number; title: string; content: string; is_read: boolean; level: string; created_at?: string; }
+export interface NotificationItem { id: number; title: string; content: string; is_read: boolean; level: string; link?: string; created_at?: string; }
 
 export async function listNotifications(): Promise<{ items: NotificationItem[] }> {
   const res = await api.get("/notifications"); return res.data;

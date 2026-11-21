@@ -63,6 +63,7 @@ def create_appointment(payload: AppointmentCreate, db: Session = Depends(get_db)
                 title="新预约挂号",
                 content=f"患者 {payload.patient_name or payload.phone} 预约了 {payload.date} {payload.time_slot}（{payload.department}）的号源，请在工作台查看。",
                 level="info",
+                link="/doctor-workbench",
             ))
             s.commit()
         finally:

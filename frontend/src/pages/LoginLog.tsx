@@ -9,6 +9,7 @@ import {
 } from "@ant-design/icons";
 import api from "../api/client";
 import { Odometer, TrendChart, HeatGrid } from "../components/instruments";
+import PermissionButton from "../components/PermissionButton";
 
 interface LoginRow { id: number; user_id: number; username: string; ip: string; status: string; created_at: string; }
 interface LoginStats { range: string; total: number; failed: number; successRate: number; users: number; ips: number; series: { bucket: string; total: number; failed: number }[]; }
@@ -118,13 +119,15 @@ export default function LoginLog() {
       {/* 页头 */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "16px 24px", flexWrap: "wrap" }}>
         <div>
-          <div style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>登录日志</div>
+          <div className="md-page-title" style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>登录日志</div>
           <div style={{ color: "var(--lv-muted)", fontSize: 13, marginTop: 6 }}>记录账号的登录与失败尝试，便于发现异常登录。</div>
         </div>
         <div style={{ display: "flex", gap: 12 }}>
-          <Popconfirm title="清空全部登录日志？清空后无法恢复，建议先导出留档。" okText="清空" okButtonProps={{ danger: true }} onConfirm={clearAll}>
-            <button className="lv-btn" type="button" style={{ color: "var(--lv-red-text)" }}><DeleteOutlined /> 清空日志</button>
-          </Popconfirm>
+          <PermissionButton code="medicode:loginLog:remove">
+            <Popconfirm title="清空全部登录日志？清空后无法恢复，建议先导出留档。" okText="清空" okButtonProps={{ danger: true }} onConfirm={clearAll}>
+              <button className="lv-btn" type="button" style={{ color: "var(--lv-red-text)" }}><DeleteOutlined /> 清空日志</button>
+            </Popconfirm>
+          </PermissionButton>
           <button className="lv-btn" type="button" onClick={exportCsv}><DownloadOutlined /> 导出</button>
         </div>
       </div>

@@ -15,7 +15,19 @@ export default defineConfig({
     },
   },
   cacheDir: "node_modules/.vite",
+  preview: {
+    host: "0.0.0.0",
+    port: 3051,
+    strictPort: true,
+    proxy: {
+      "/api": {
+        target: "http://localhost:18001",
+        changeOrigin: true,
+      },
+    },
+  },
   build: {
+    emptyOutDir: false,
     rollupOptions: {
       output: {
         manualChunks(id) {

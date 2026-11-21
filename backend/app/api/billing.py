@@ -26,8 +26,12 @@ class BillingPayload(BaseModel):
     patient_name: str = ""
     department: str = ""
     items: list[BillingItem] = []
-    payment_method: str = "现金"
+    payment_method: str = ""
     remark: str = ""
+
+
+class ConfirmMethodPayload(BaseModel):
+    payment_method: str
 
 
 def _bill_dict(b: BillingRecord) -> dict:
@@ -42,6 +46,8 @@ def _bill_dict(b: BillingRecord) -> dict:
         "total_yuan": round(b.total_amount / 100, 2),
         "payment_method": b.payment_method, "status": b.status,
         "operator": b.operator, "remark": b.remark,
+        "confirmed_by": b.confirmed_by, "confirmed_at": b.confirmed_at,
+        "paid_by": b.paid_by, "paid_at": b.paid_at,
         "created_at": b.created_at.isoformat() if b.created_at else None,
     }
 
@@ -75,6 +81,7 @@ def billing_stats(_=Depends(get_current_user), db: Session = Depends(get_db)):
     return {
         "total_count": len(all_bills),
         "paid_count": len(paid),
+        "pending_count": sum(1 for b in all_bills if b.status in ("待收费", "待到账")),
         "total_amount": total_amount,
         "total_yuan": round(total_amount / 100, 2),
         "refund_count": sum(1 for b in all_bills if b.status == "已退费"),
@@ -96,12 +103,43 @@ def create_billing(payload: BillingPayload, user=Depends(get_current_user), db: 
         department=payload.department,
         items=json.dumps([i.model_dump() for i in payload.items], ensure_ascii=False),
         total_amount=total,
-        payment_method=payload.payment_method,
-        status="已收费",
+        payment_method="",        # 开单阶段尚未确认支付方式
+        status="待收费",          # 开单后进入待收费，需经两步确认
         operator=user.real_name or user.username,
         remark=payload.remark,
     )
     db.add(b)
+    db.commit()
+    db.refresh(b)
+    return _bill_dict(b)
+
+
+@router.post("/{bid}/confirm-method")
+def confirm_method(bid: int, payload: ConfirmMethodPayload, user=Depends(get_current_user), db: Session = Depends(get_db)):
+    """确认收费方式：填写支付方式后进入「待到账」，等待确认到账。"""
+    b = db.query(BillingRecord).filter(BillingRecord.id == bid).first()
+    if not b:
+        return {"detail": "收费记录不存在"}
+    if not payload.payment_method.strip():
+        return {"detail": "请选择支付方式"}
+    b.payment_method = payload.payment_method.strip()
+    b.status = "待到账"
+    b.confirmed_by = user.real_name or user.username
+    b.confirmed_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    db.commit()
+    db.refresh(b)
+    return _bill_dict(b)
+
+
+@router.post("/{bid}/confirm-paid")
+def confirm_paid(bid: int, user=Depends(get_current_user), db: Session = Depends(get_db)):
+    """确认收费到账：确认后状态置为「已收费」。"""
+    b = db.query(BillingRecord).filter(BillingRecord.id == bid).first()
+    if not b:
+        return {"detail": "收费记录不存在"}
+    b.status = "已收费"
+    b.paid_by = user.real_name or user.username
+    b.paid_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     db.commit()
     db.refresh(b)
     return _bill_dict(b)
@@ -112,6 +150,8 @@ def refund_billing(bid: int, _=Depends(get_current_user), db: Session = Depends(
     b = db.query(BillingRecord).filter(BillingRecord.id == bid).first()
     if not b:
         return {"detail": "收费记录不存在"}
+    if b.status != "已收费":
+        return {"detail": "仅已收费的订单可退费"}
     b.status = "已退费"
     db.commit()
     db.refresh(b)

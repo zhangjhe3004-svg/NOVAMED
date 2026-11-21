@@ -458,7 +458,7 @@ export default function LowCodeStudio() {
   return (
     <div>
       <div style={{ marginBottom: 12 }}>
-        <Title level={4} style={{ margin: 0 }}>员工端低代码工作台</Title>
+        <Title level={4} style={{ margin: 0 }}>客户端低代码工作台</Title>
         <Text type="secondary">数据源 / 页面 / 权限 / 业务工作流 —— 全部配置驱动、真实落库（NocoBase 风格）</Text>
       </div>
       <Tabs defaultActiveKey="data" items={[

@@ -25,7 +25,7 @@ export function readStagePalette(el: Element | null): StagePalette {
   const css = el ? getComputedStyle(el) : null;
   const get = (name: string, fallback: RGB) =>
     (css?.getPropertyValue(name).trim() || fallback) as RGB;
-  const ink = get("--graph-ink", "27, 43, 69");
+  const ink = get("--graph-ink", "59, 130, 246");
   return {
     cat: [
       ink,
@@ -36,7 +36,7 @@ export function readStagePalette(el: Element | null): StagePalette {
       get("--graph-5", "168, 121, 42"),
     ],
     ink,
-    accent: get("--graph-accent", "37, 99, 235"),
+    accent: get("--graph-accent", "59, 130, 246"),
     lime: get("--graph-lime", "19, 141, 133"),
     danger: get("--graph-danger", "196, 66, 62"),
     paper: get("--graph-paper", "255, 255, 255"),
@@ -473,7 +473,7 @@ export function paintNetwork(
     if (labelOk && n.label && g > 0.9 && lit && focused && alpha > 0.6) {
       ctx.save();
       ctx.fillStyle = rgba(p.ink, 0.78 * alpha);
-      ctx.font = '11px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
+      ctx.font = '11px "Inter", "Noto Sans SC", "PingFang SC", sans-serif';
       ctx.textBaseline = "middle";
       const text = n.label.length > 9 ? `${n.label.slice(0, 8)}…` : n.label;
       if (n.angle === undefined) {

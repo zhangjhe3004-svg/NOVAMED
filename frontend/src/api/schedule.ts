@@ -65,3 +65,21 @@ export async function updateSchedule(id: number, payload: any): Promise<any> {
 export async function syncFromStaff(payload?: any): Promise<{ created: number; skipped: number; unmatched: number; total_slots: number }> {
   const res = await api.post("/schedule/sync-from-staff", payload || {}); return res.data;
 }
+
+export interface RegFeeItem {
+  id: number;
+  real_name: string;
+  department: string;
+  title: string;
+  reg_fee: number; // 分；0=未设定
+}
+
+/** 管理员：全部在职医生的挂号费设定 */
+export async function listRegFees(): Promise<{ items: RegFeeItem[] }> {
+  const res = await api.get("/schedule/reg-fees"); return res.data;
+}
+
+/** 管理员：设定某医生的挂号费（fee 单位：元） */
+export async function setRegFee(doctorId: number, fee: number): Promise<{ id: number; reg_fee: number }> {
+  const res = await api.put(`/schedule/reg-fees/${doctorId}`, { fee }); return res.data;
+}

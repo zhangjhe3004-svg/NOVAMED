@@ -9,11 +9,19 @@ import {
   FileTextOutlined,
   HeartOutlined,
   ArrowLeftOutlined,
+  ScanOutlined,
+  FileImageOutlined,
+  DeleteOutlined,
 } from "@ant-design/icons";
 import { getPatient, createPatient, updatePatient, type PatientInfo } from "../api/patients";
 import { createRecord } from "../api/records";
 import VoiceTextArea from "../components/VoiceTextArea";
 import PatientFormModal from "../components/PatientFormModal";
+import DocScanner from "../components/DocScanner";
+import {
+  listDocuments, uploadDocument, deleteDocument, getDocument,
+  type ScannedDocumentMeta,
+} from "../api/documents";
 
 function PatientForm({ initial, onSave, title }: { initial?: PatientInfo; onSave: (v: any) => Promise<void>; title: string }) {
   const [form] = Form.useForm();
@@ -58,11 +66,62 @@ export function PatientDetailPage() {
   const [recordDetail, setRecordDetail] = useState<any>(null);
   // 编辑档案改走弹窗，不再跳 /patients/:id/edit 整页表单
   const [editOpen, setEditOpen] = useState(false);
+  // 扫描归档
+  const [scanOpen, setScanOpen] = useState(false);
+  const [patientDocs, setPatientDocs] = useState<ScannedDocumentMeta[]>([]);
+  const [docPreview, setDocPreview] = useState<{ title: string; images: string[]; ocr_text: string } | null>(null);
 
   useEffect(() => {
     getPatient(Number(id)).then((r) => { setPatient(r.patient); setRecords(r.records); })
       .catch((e) => message.error(e?.response?.data?.detail || "加载失败")).finally(() => setLoading(false));
+    loadDocs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  const loadDocs = async () => {
+    try {
+      const r = await listDocuments({ patient_id: Number(id) });
+      setPatientDocs(r.items || []);
+    } catch {
+      setPatientDocs([]);
+    }
+  };
+
+  const handleScanConfirm = async (result: { title: string; category: string; images: string[]; ocr_text: string }) => {
+    setScanOpen(false);
+    try {
+      await uploadDocument({
+        title: result.title || `患者档案扫描件 ${new Date().toLocaleDateString("zh-CN")}`,
+        category: result.category,
+        patient_id: Number(id),
+        images: result.images,
+        ocr_text: result.ocr_text,
+      });
+      message.success("扫描件已归档");
+      loadDocs();
+    } catch {
+      message.error("归档失败");
+    }
+  };
+
+  const handleDocPreview = async (docId: number) => {
+    try {
+      const d = await getDocument(docId);
+      setDocPreview({ title: d.title, images: d.images, ocr_text: d.ocr_text });
+    } catch {
+      message.error("加载文档失败");
+    }
+  };
+
+  const handleDocDelete = async (docId: number) => {
+    try {
+      await deleteDocument(docId);
+      message.success("已删除");
+      loadDocs();
+    } catch {
+      message.error("删除失败");
+    }
+  };
 
   if (loading) return <Spin />;
   if (!patient) return <Card>患者不存在</Card>;
@@ -126,7 +185,7 @@ export function PatientDetailPage() {
           width: "80px",
           height: "80px",
           borderRadius: "16px",
-          background: "rgba(255,255,255,0.15)",
+          background: "rgba(21,58,124,0.13)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -149,15 +208,15 @@ export function PatientDetailPage() {
           </div>
         </div>
         <div className="mini-grid" style={{ minWidth: "300px" }}>
-          <div className="mini" style={{ background: "rgba(255,255,255,0.1)" }}>
+          <div className="mini" style={{ background: "rgba(21,58,124,0.1)" }}>
             <small style={{ color: "#b3c7e1" }}>累计就诊</small>
             <b>{recordCount}<span>次</span></b>
           </div>
-          <div className="mini" style={{ background: "rgba(255,255,255,0.1)" }}>
+          <div className="mini" style={{ background: "rgba(21,58,124,0.1)" }}>
             <small style={{ color: "#b3c7e1" }}>待完善记录</small>
             <b>{pendingRecords}<span>份</span></b>
           </div>
-          <div className="mini" style={{ background: "rgba(255,255,255,0.1)" }}>
+          <div className="mini" style={{ background: "rgba(21,58,124,0.1)" }}>
             <small style={{ color: "#b3c7e1" }}>有效预约</small>
             <b>{activeAppointments}<span>个</span></b>
           </div>
@@ -236,7 +295,7 @@ export function PatientDetailPage() {
               ),
               children: (
                 <Card>
-                  <div style={{ textAlign: "center", padding: "40px", color: "#9aa6b6" }}>
+                  <div style={{ textAlign: "center", padding: "40px", color: "var(--muted)" }}>
                     暂无预约记录
                   </div>
                 </Card>
@@ -252,7 +311,7 @@ export function PatientDetailPage() {
               ),
               children: (
                 <Card>
-                  <div style={{ textAlign: "center", padding: "40px", color: "#9aa6b6" }}>
+                  <div style={{ textAlign: "center", padding: "40px", color: "var(--muted)" }}>
                     暂无处方记录
                   </div>
                 </Card>
@@ -272,7 +331,7 @@ export function PatientDetailPage() {
               <span className="badge amber">无预约</span>
             </div>
             <div className="panel-body">
-              <div style={{ textAlign: "center", padding: "20px", color: "#9aa6b6", fontSize: "12px" }}>
+              <div style={{ textAlign: "center", padding: "20px", color: "var(--muted)", fontSize: "12px" }}>
                 暂无待就诊预约
               </div>
             </div>
@@ -340,6 +399,45 @@ export function PatientDetailPage() {
               </dl>
             </div>
           </section>
+
+          {/* 扫描归档 */}
+          <section className="panel">
+            <div className="panel-head">
+              <div>
+                <h2><FileImageOutlined /> 扫描归档</h2>
+                <small>纸质病历 / 检查单 / 证件扫描件</small>
+              </div>
+              <Button size="small" icon={<ScanOutlined />} onClick={() => setScanOpen(true)}>扫描</Button>
+            </div>
+            <div className="panel-body">
+              {patientDocs.length === 0 ? (
+                <div style={{ textAlign: "center", color: "var(--muted)", fontSize: 12, padding: "12px 0" }}>
+                  暂无扫描件，可点击「扫描」归档
+                </div>
+              ) : (
+                patientDocs.map((d, i) => (
+                  <div
+                    key={d.id}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 10,
+                      padding: "8px 0", fontSize: 12,
+                      borderBottom: i < patientDocs.length - 1 ? "1px solid #f0f3f8" : "none",
+                    }}
+                  >
+                    <FileImageOutlined style={{ color: "#7a88a0", fontSize: 15 }} />
+                    <span
+                      style={{ flex: 1, color: "#2d527e", cursor: "pointer", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                      onClick={() => handleDocPreview(d.id)}
+                    >
+                      {d.title}
+                    </span>
+                    <span className="badge gray">{d.image_count} 页</span>
+                    <Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={() => handleDocDelete(d.id)} />
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
         </div>
       </div>
 
@@ -395,6 +493,43 @@ export function PatientDetailPage() {
           getPatient(Number(id)).then((r) => setPatient(r.patient)).catch(() => {});
         }}
       />
+
+      {/* 扫描文档（通用组件） */}
+      <DocScanner
+        open={scanOpen}
+        onClose={() => setScanOpen(false)}
+        onConfirm={handleScanConfirm}
+        showMeta
+        okText="保存归档"
+      />
+
+      {/* 扫描件内容预览 */}
+      <Modal
+        title={docPreview?.title || "扫描件"}
+        open={!!docPreview}
+        onCancel={() => setDocPreview(null)}
+        footer={null}
+        width={640}
+        destroyOnHidden
+      >
+        {docPreview && (
+          <div style={{ display: "grid", gap: 14 }}>
+            {docPreview.images.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, maxHeight: 380, overflow: "auto" }}>
+                {docPreview.images.map((src, i) => (
+                  <img key={i} src={src} alt={`第${i + 1}页`} style={{ width: 210, borderRadius: 8, border: "1px solid #e6ecf3" }} />
+                ))}
+              </div>
+            )}
+            <div>
+              <div style={{ fontSize: 12, color: "#9a9ab0", marginBottom: 6 }}>识别文本</div>
+              <pre style={{ whiteSpace: "pre-wrap", background: "#101b2e", padding: 12, borderRadius: 8, fontSize: 12, margin: 0, maxHeight: 220, overflow: "auto", color: "#c8d0dc" }}>
+                {docPreview.ocr_text || "（无识别文本）"}
+              </pre>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

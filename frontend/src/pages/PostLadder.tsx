@@ -402,7 +402,7 @@ export default function PostLadder() {
       </div>
 
       {scope === "chain" && (
-        <p className="note" style={{ background: "#fdf7ea", color: "#8a6a22", marginBottom: 14 }}>
+        <p className="note" style={{ background: "rgba(251,191,36,0.12)", color: "#fbbf24", marginBottom: 14 }}>
           当前账号不是管理员，阶梯仅展示你责任链内的同事（上级 / 下级）。
           管理员登录后可看到全院岗位分布与级别名称编辑入口。
         </p>

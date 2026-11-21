@@ -1,8 +1,9 @@
 import api from "./client";
 
 export interface UserItem {
-  id: number; username: string; real_name: string; role: string; phone?: string; email?: string;
+  id: number; username: string; real_name: string; role: string; roles?: string[]; phone?: string; email?: string;
   employee_no?: string; department?: string; title?: string; work_status?: string; auth_level?: number; superior_id?: number; is_active?: boolean;
+  created_at?: string;
 }
 
 export async function listUsers(params?: any): Promise<{ total: number; items: UserItem[] }> {

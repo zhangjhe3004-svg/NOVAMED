@@ -73,7 +73,7 @@ export default function StaffPage() {
       {/* 页面标题 */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "16px 24px", flexWrap: "wrap", marginBottom: 16 }}>
         <div>
-          <div style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>员工办公</div>
+          <div className="md-page-title" style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>员工办公</div>
           <div style={{ color: "var(--lv-muted)", fontSize: 13, marginTop: 5 }}>整合院内公告、排班表、请假审批、科室组织四个开箱场景</div>
         </div>
         <div style={{ display: "flex", gap: 12 }}>

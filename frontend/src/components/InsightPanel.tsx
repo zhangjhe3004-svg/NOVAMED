@@ -5,9 +5,9 @@
  * 动画只用一次入场级联（结 Crystallize），内容变化时做落定确认（settlePop），
  * 不做事后脉冲，避免在长时间停留的页面上持续抢注意力。
  */
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button, Empty } from "antd";
-import { CloseOutlined } from "@ant-design/icons";
+import { CheckOutlined, CloseOutlined, LoadingOutlined, LockOutlined } from "@ant-design/icons";
 import { revealCascade, settlePop } from "../utils/motion";
 
 export interface InsightRow {
@@ -30,6 +30,16 @@ export interface InsightSection {
   chips?: boolean;
 }
 
+/** 详情卡内直接编辑授权：胶囊可点选授予 / 取消（内置角色只读） */
+export interface InsightGrantRole {
+  id: number;
+  name: string;
+  code: string;
+  granted: boolean;
+  builtin?: boolean;
+  userCount?: number;
+}
+
 export interface InsightPanelProps {
   title: string;
   sub?: string;
@@ -45,6 +55,12 @@ export interface InsightPanelProps {
   /** 洞察卡（对齐 scaffold InsightCard：tone 色 + 标题 + 说明） */
   insights?: Array<{ tone: "info" | "warn" | "danger" | "ok"; title: string; text: string }>;
   sections?: InsightSection[];
+  /** 授权编辑区：传入即可在卡内直接授予 / 取消角色 */
+  grant?: {
+    roles: InsightGrantRole[];
+    onToggle: (roleId: number, granted: boolean) => Promise<void>;
+    disabled?: boolean;
+  };
   note?: string;
   actions?: ReactNode;
   onClose?: () => void;
@@ -62,6 +78,7 @@ export default function InsightPanel({
   tiles,
   insights,
   sections = [],
+  grant,
   note,
   actions,
   onClose,
@@ -69,6 +86,7 @@ export default function InsightPanel({
 }: InsightPanelProps) {
   const ref = useRef<HTMLDivElement | null>(null);
   const first = useRef(true);
+  const [grantPending, setGrantPending] = useState<number | null>(null);
 
   useEffect(() => {
     const el = ref.current;
@@ -203,6 +221,68 @@ export default function InsightPanel({
           )}
         </div>
       ))}
+
+      {grant && grant.roles.length > 0 && (
+        <div className="insight-section">
+          <div className="insight-section-head">
+            <span>授予角色</span>
+            <small>{grant.disabled ? "需管理员账号可修改授权" : "点击胶囊直接授予 / 取消"}</small>
+          </div>
+          <div className="insight-chips">
+            {grant.roles.map((r) => {
+              const locked = Boolean(r.builtin) || grant.disabled;
+              const pending = grantPending === r.id;
+              return (
+                <span
+                  key={r.id}
+                  role="button"
+                  tabIndex={0}
+                  title={
+                    r.builtin
+                      ? "内置角色拥有全部权限，授权不可修改"
+                      : `${r.code}${r.userCount !== undefined ? ` · ${r.userCount} 人持有` : ""}`
+                  }
+                  aria-pressed={r.granted}
+                  className="insight-chip is-clickable"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                    border: r.granted ? "1px solid var(--lv-blue)" : "1px solid var(--lv-line)",
+                    background: r.granted ? "var(--lv-blue-soft)" : "#fff",
+                    color: r.builtin ? "var(--lv-faint)" : r.granted ? "var(--lv-blue)" : "var(--lv-muted)",
+                    fontWeight: r.granted ? 650 : 500,
+                    cursor: locked || pending ? "default" : "pointer",
+                    opacity: locked ? 0.75 : 1,
+                  }}
+                  onClick={() => {
+                    if (locked || pending || !grant.onToggle) return;
+                    if (r.builtin) return;
+                    setGrantPending(r.id);
+                    grant
+                      .onToggle(r.id, !r.granted)
+                      .catch(() => {})
+                      .finally(() => setGrantPending(null));
+                  }}
+                  onKeyDown={(e) => {
+                    if ((e.key === "Enter" || e.key === " ") && !locked && !pending) {
+                      e.preventDefault();
+                      setGrantPending(r.id);
+                      grant
+                        .onToggle(r.id, !r.granted)
+                        .catch(() => {})
+                        .finally(() => setGrantPending(null));
+                    }
+                  }}
+                >
+                  {pending ? <LoadingOutlined style={{ fontSize: 11 }} /> : r.granted ? <CheckOutlined style={{ fontSize: 11 }} /> : r.builtin ? <LockOutlined style={{ fontSize: 11 }} /> : null}
+                  {r.name}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {note && <p className="insight-note">{note}</p>}
 

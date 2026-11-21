@@ -1,8 +1,8 @@
 /**
- * 主布局 — 基于 UI 设计稿的侧边栏设计
- * 232px 侧边栏，白色背景，简洁品牌展示
+ * 主布局 — 悬浮岛式液态玻璃侧边栏
+ * 232px 侧边栏，四周留白 + 磨砂玻璃；导航分组可折叠 + 当前项液态胶囊高亮
  */
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import {
   Layout,
@@ -29,9 +29,12 @@ import {
   SettingOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "../stores/auth";
-import { buildNavGroups, roleMeta, visibleNavGroups } from "../config/nav";
+import { buildNavGroups, roleMeta, visibleNavGroups, slimSidebarGroups } from "../config/nav";
 import CommandPalette from "../components/CommandPalette";
+import BrandLockup from "../components/BrandLockup";
+import BrandSparkle from "../components/BrandSparkle";
 import { myMenus } from "../api/roles";
+import { fetchMenuTree, type MenuItemRow } from "../api/menus";
 import { listNotifications, markRead } from "../api/notifications";
 import type { NotificationItem } from "../api/notifications";
 import { getPendingReviewCount } from "../api/records";
@@ -55,6 +58,8 @@ export default function MainLayout() {
   const [userHover, setUserHover] = useState(false);
   // 命令面板（⌘K / Ctrl+K）
   const [cmdOpen, setCmdOpen] = useState(false);
+  // 液态高亮胶囊（Liquid Pill）位置：当前项滑动指示器
+  const [pill, setPill] = useState({ top: 0, height: 0, opacity: 0 });
 
   // 侧边栏导航容器引用 — 用于绑定鼠标滚轮滚动
   const navRef = useRef<HTMLElement>(null);
@@ -118,35 +123,68 @@ export default function MainLayout() {
 
   const visibleGroups = visibleNavGroups(navGroups, user?.role);
 
-  // DB 菜单授权联动（角色管理·分配权限的真实效果）：
-  // /roles/my-menus 返回 null（角色未配置授权）时回退静态分组；管理员始终全量。
+  // DB 菜单授权联动（角色管理·分配权限的真实效果，RBAC：整数 menu_id）：
+  // /roles/my-menus 返回整数 menu_id 数组；null=内置角色全量（回退静态分组），[]=无菜单。
+  // 前端用菜单树把 menu_id → 导航 key 再过滤侧栏。
+  const [grantedMenuIds, setGrantedMenuIds] = useState<number[] | null>(null);
+  // 由 menu_id 解析出的导航 key 集合（与 grantedMenuIds 配套）
   const [grantedKeys, setGrantedKeys] = useState<string[] | null>(null);
   useEffect(() => {
     let alive = true;
     if (user?.role === "admin") {
-      setGrantedKeys(null);
+      setGrantedMenuIds(null);
       return;
     }
-    myMenus()
-      .then((r) => {
-        if (alive) setGrantedKeys(r.menus ?? null);
-      })
-      .catch(() => {
-        if (alive) setGrantedKeys(null);
-      });
+    (async () => {
+      try {
+        const [mine, tree] = await Promise.all([myMenus(), fetchMenuTree()]);
+        if (!alive) return;
+        const keyById = new Map<number, string>();
+        const walk = (ns: MenuItemRow[]) =>
+          ns.forEach((n) => {
+            if (n.type === "menu") keyById.set(n.id, n.permission);
+            walk(n.children ?? []);
+          });
+        walk(tree.items || []);
+        const menus = mine.menus;
+        if (menus == null) {
+          setGrantedMenuIds(null);
+          return;
+        }
+        const keys = new Set<string>();
+        menus.forEach((id) => {
+          const k = keyById.get(id);
+          if (k) keys.add(k);
+        });
+        setGrantedMenuIds(menus);
+        // 缓存 key 集合供下方过滤
+        setGrantedKeys(keys.size ? [...keys] : []);
+      } catch {
+        if (alive) setGrantedMenuIds(null);
+      }
+    })();
     return () => {
       alive = false;
     };
   }, [user?.role]);
 
   const effectiveGroups = useMemo(() => {
-    if (grantedKeys == null) return visibleGroups;
-    const allowed = new Set(grantedKeys);
+    if (grantedMenuIds == null) return visibleGroups;
+    const allowed = new Set(grantedKeys ?? []);
     return visibleGroups
       .map((g) => ({ ...g, items: g.items.filter((it) => allowed.has(it.key)) }))
       .filter((g) => g.items.length > 0);
-  }, [visibleGroups, grantedKeys]);
+  }, [visibleGroups, grantedMenuIds, grantedKeys]);
   const allNavItems = effectiveGroups.flatMap((g) => g.items);
+
+  // 侧边栏精简视图：低频/重复入口不常驻（SLIM_HIDDEN_KEYS），
+  // 快速跳转下拉与 ⌘K 仍用全量 effectiveGroups，被精简页面不受影响。
+  const sidebarGroups = useMemo(() => slimSidebarGroups(effectiveGroups as any), [effectiveGroups]);
+
+  // 分组折叠：默认只展开当前所在分组，其余收起；点击分组标题手动开合（可多开）。
+  const [openShorts, setOpenShorts] = useState<string[]>([]);
+  const toggleGroup = (short: string) =>
+    setOpenShorts((prev) => (prev.includes(short) ? prev.filter((s) => s !== short) : [...prev, short]));
 
   const handleLogout = () => {
     logout();
@@ -171,21 +209,67 @@ export default function MainLayout() {
   const currentNav = allNavItems.find((it: any) => it.key === selectedKey);
   const currentGroup = effectiveGroups.find((g: any) => g.items.some((it: any) => it.key === selectedKey));
 
+  // 路由变化时自动展开目标分组（不收起其他已展开分组，避免切换跳动）
+  useEffect(() => {
+    const short = currentGroup?.short;
+    if (short) setOpenShorts((prev) => (prev.includes(short) ? prev : [...prev, short]));
+  }, [currentGroup?.short]);
+
+  // 液态胶囊定位：随当前项/折叠/分组展开状态滑动（CSS 过渡带弹性回弹）
+  // 注意：值未变化时返回原对象让 React 跳过渲染，避免上游派生数组每次渲染
+  // 都是新引用而造成的无限更新循环。
+  useLayoutEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    const btn = nav.querySelector<HTMLElement>('.md-nav-item[data-active="true"]');
+    if (!btn) { setPill((p) => (p.opacity === 0 ? p : { ...p, opacity: 0 })); return; }
+    const nr = nav.getBoundingClientRect();
+    const br = btn.getBoundingClientRect();
+    const top = br.top - nr.top + nav.scrollTop;
+    setPill((p) =>
+      p.top === top && p.height === br.height && p.opacity === 1 ? p : { top, height: br.height, opacity: 1 }
+    );
+  }, [selectedKey, collapsed, effectiveGroups, sidebarGroups, openShorts]);
+
+  // 窗口尺寸变化时重定位胶囊
+  useEffect(() => {
+    const onResize = () => {
+      const nav = navRef.current;
+      if (!nav) return;
+      const btn = nav.querySelector<HTMLElement>('.md-nav-item[data-active="true"]');
+      if (!btn) return;
+      const nr = nav.getBoundingClientRect();
+      const br = btn.getBoundingClientRect();
+      const top = br.top - nr.top + nav.scrollTop;
+      setPill((p) =>
+        p.top === top && p.height === br.height && p.opacity === 1 ? p : { top, height: br.height, opacity: 1 }
+      );
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
   return (
-    <Layout style={{ minHeight: "100vh", background: "#f4f7fb" }}>
-      {/* UI 设计稿风格侧边栏 */}
+    <Layout style={{ minHeight: "100vh", background: "transparent" }}>
+      {/* 悬浮岛式玻璃侧边栏：不贴边、四周留白，像一张悬浮的圆角卡 */}
       <Sider
         trigger={null}
         collapsible
         collapsed={collapsed}
         width={232}
         style={{
-          background: "#ffffff",
-          borderRight: "1px solid #e6ecf3",
+          background: "rgba(16, 16, 28, 0.82)",
+          border: "1px solid rgba(59, 130, 246, 0.16)",
+          backdropFilter: "blur(22px) saturate(150%)",
+          WebkitBackdropFilter: "blur(22px) saturate(150%)",
           position: "fixed",
-          height: "100vh",
-          left: 0,
-          top: 0,
+          height: "calc(100vh - 24px)",
+          left: 12,
+          top: 12,
+          borderRadius: 24,
+          overflow: "hidden",
+          boxShadow:
+            "0 24px 60px -20px rgba(0,0,0,0.6), 0 8px 22px -10px rgba(0,0,0,0.5)",
           zIndex: 30,
         }}
       >
@@ -198,80 +282,50 @@ export default function MainLayout() {
             overflow: "hidden",
           }}
         >
-        {/* Logo — UI 设计稿风格 */}
+        {/* Logo — 深空芯片：黑蓝配色承托新星核 */}
         <div
           style={{
-            padding: "28px 17px 31px",
+            padding: "22px 14px 18px",
           }}
         >
           <div
             className="md-brand"
             style={{
               display: "flex",
-              gap: 11,
-              alignItems: "center",
+              flexDirection: "column",
+              gap: 7,
+              alignItems: "stretch",
             }}
           >
+            {/* 霓虹芯片：深紫黑底 + 紫青星核 + 白字（图标-文字间距收紧） */}
             <div
               style={{
-                width: 35,
-                height: 37,
-                borderRadius: 11,
-                flexShrink: 0,
-                filter: "drop-shadow(0 3px 6px rgba(37,99,235,0.35))",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: collapsed ? "center" : "flex-start",
+                gap: 6,
+                padding: collapsed ? "10px 0" : "11px 14px",
+                borderRadius: 12,
+                background: "linear-gradient(135deg, #0e1a33 0%, #16294d 100%)",
+                boxShadow: "0 4px 14px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(96, 165, 250, 0.14)",
               }}
             >
-              <svg width="35" height="37" viewBox="0 0 35 37" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                  <linearGradient id="logo-bg" x1="4" y1="2" x2="31" y2="35" gradientUnits="userSpaceOnUse">
-                    <stop stopColor="#4f8bff" />
-                    <stop offset="0.55" stopColor="#2563eb" />
-                    <stop offset="1" stopColor="#1d4ed8" />
-                  </linearGradient>
-                  <linearGradient id="logo-shine" x1="8" y1="2" x2="18" y2="16" gradientUnits="userSpaceOnUse">
-                    <stop stopColor="#ffffff" stopOpacity="0.35" />
-                    <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
-                  </linearGradient>
-                </defs>
-                {/* 渐变圆角底座 */}
-                <rect x="0.5" y="0.5" width="34" height="36" rx="10.5" fill="url(#logo-bg)" />
-                <rect x="0.5" y="0.5" width="34" height="36" rx="10.5" fill="url(#logo-shine)" />
-                <rect x="0.75" y="0.75" width="33.5" height="35.5" rx="10.25" stroke="#ffffff" strokeOpacity="0.18" strokeWidth="0.5" />
-                {/* 医疗十字（圆角端点） */}
-                <path
-                  d="M17.5 9.5V27.5M8.5 18.5H26.5"
-                  stroke="#ffffff"
-                  strokeWidth="5.2"
-                  strokeLinecap="round"
-                />
-                {/* 十字中心微光点 */}
-                <circle cx="17.5" cy="18.5" r="1.6" fill="#bfdbfe" />
-              </svg>
+              <BrandSparkle size={collapsed ? 28 : 26} on="dark" />
+              {!collapsed && <BrandLockup height={26} on="dark" />}
             </div>
             {!collapsed && (
-              <div>
-                <div
-                  style={{
-                    fontSize: 23,
-                    letterSpacing: -0.8,
-                    fontWeight: 600,
-                    color: "#1b2b45",
-                  }}
-                >
-                  MediCode
-                </div>
-                <small
-                  style={{
-                    display: "block",
-                    fontSize: 10,
-                    letterSpacing: 2,
-                    color: "#78869b",
-                    marginTop: 3,
-                  }}
-                >
-                  SMART MEDICAL
-                </small>
-              </div>
+              <small
+                style={{
+                  display: "block",
+                  fontSize: 10,
+                  letterSpacing: 2.6,
+                  color: "#7c7c96",
+                  fontWeight: 600,
+                  marginLeft: 4,
+                }}
+              >
+                NOVA MEDICAL
+              </small>
             )}
           </div>
         </div>
@@ -302,7 +356,7 @@ export default function MainLayout() {
           </div>
         )}
 
-        {/* 导航：分组样式对齐原型 pages.html */}
+        {/* 导航：分组样式对齐原型 pages.html；折叠用 grid-rows 高度过渡 */}
         <nav
           ref={navRef}
           style={{
@@ -311,22 +365,63 @@ export default function MainLayout() {
             overflowY: "auto",
             padding: "4px 14px 16px",
             marginTop: 4,
+            position: "relative",
           }}
         >
-          {effectiveGroups.map((g: any) => (
+          {/* 液态高亮胶囊：滑动到当前项下方，带弹性回弹 */}
+          <span
+            className="md-nav-pill"
+            aria-hidden="true"
+            style={{ top: pill.top, height: pill.height, opacity: pill.opacity }}
+          />
+          {sidebarGroups.map((g: any) => {
+            const activeInGroup = g.items.some((it: any) => it.key === selectedKey);
+            // 折叠模式（图标条）下不显示分组标题、全部展开；展开模式默认只开当前分组
+            const open = collapsed || activeInGroup || openShorts.includes(g.short);
+            return (
             <div key={g.label}>
               {!collapsed && (
-                <div
+                <button
+                  type="button"
+                  className="md-nav-group-head"
+                  aria-expanded={open}
+                  title={open ? "收起分组" : "展开分组"}
+                  onClick={() => toggleGroup(g.short)}
                   style={{
-                    fontSize: 10,
-                    letterSpacing: 1.6,
-                    color: "#9aa6b5",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 8,
+                    width: "calc(100% - 28px)",
                     margin: "16px 14px 8px",
+                    padding: 0,
+                    fontSize: 11,
+                    letterSpacing: 0.6,
+                    color: "rgba(232,232,244,0.78)",
+                    fontWeight: 600,
+                    background: "transparent",
+                    border: 0,
+                    cursor: "pointer",
+                    textAlign: "left",
+                    fontFamily: "inherit",
                   }}
                 >
-                  {g.label}
-                </div>
+                  <span>{g.label}</span>
+                  <DownOutlined
+                    style={{
+                      fontSize: 8,
+                      color: "rgba(232,232,244,0.55)",
+                      transform: open ? "rotate(0deg)" : "rotate(-90deg)",
+                      transition: "transform 0.3s ease",
+                    }}
+                  />
+                </button>
               )}
+              <div
+                className="md-nav-group-body"
+                style={{ gridTemplateRows: open ? "1fr" : "0fr" }}
+              >
+              <div>
               {g.items.map((it: any) => {
                 const active = selectedKey === it.key;
                 return (
@@ -349,14 +444,14 @@ export default function MainLayout() {
                       justifyContent: collapsed ? "center" : "flex-start",
                       borderRadius: 9,
                       margin: "2px 0",
-                      color: active ? "#2563eb" : "#63718a",
-                      background: active ? "#eaf1ff" : "transparent",
+                      color: active ? "#60a5fa" : "#9a9ab0",
+                      background: "transparent",
                       fontWeight: active ? 600 : 400,
                       fontSize: 13,
                       border: 0,
                       cursor: "pointer",
                     }}
-                    onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = "#f5f8fd"; }}
+                    onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = "rgba(59, 130, 246, 0.08)"; }}
                     onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = "transparent"; }}
                     title={collapsed ? it.name : undefined}
                   >
@@ -365,8 +460,11 @@ export default function MainLayout() {
                   </button>
                 );
               })}
+              </div>
+              </div>
             </div>
-          ))}
+            );
+          })}
         </nav>
         </div>
 
@@ -376,17 +474,17 @@ export default function MainLayout() {
         {/* 主内容区域 */}
         <Content
           style={{
-            marginLeft: collapsed ? 80 : 232,
-            width: `calc(100% - ${collapsed ? 80 : 232}px)`,
+            marginLeft: collapsed ? 104 : 256,
+            width: `calc(100% - ${collapsed ? 104 : 256}px)`,
             minWidth: 0,
           }}
         >
-          {/* 顶部栏 */}
+          {/* 顶部栏（磨砂玻璃） */}
           <Header
             style={{
               height: 78,
-              background: "#ffffffec",
-              borderBottom: "1px solid #e6ecf3",
+              background: "rgba(16, 16, 28, 0.6)",
+              borderBottom: "1px solid rgba(59, 130, 246, 0.12)",
               display: "flex",
               alignItems: "center",
               padding: "0 34px",
@@ -394,7 +492,8 @@ export default function MainLayout() {
               position: "sticky",
               top: 0,
               zIndex: 20,
-              backdropFilter: "blur(10px)",
+              backdropFilter: "blur(20px) saturate(160%)",
+              WebkitBackdropFilter: "blur(20px) saturate(160%)",
             }}
           >
             <Space>
@@ -408,19 +507,19 @@ export default function MainLayout() {
                   )
                 }
                 onClick={() => setCollapsed(!collapsed)}
-                style={{ color: "#6b7280" }}
+                style={{ color: "#9a9ab0" }}
               />
               <Text
                 style={{
                   fontSize: 12,
-                  color: "#8b96a7",
+                  color: "#9a9ab0",
                 }}
               >
                 {currentGroup ? currentGroup.short : "工作空间"}
               </Text>
               <Text
                 style={{
-                  color: "#1b2b45",
+                  color: "#eaf1fb",
                   fontWeight: 500,
                   marginLeft: 10,
                 }}
@@ -463,15 +562,39 @@ export default function MainLayout() {
                       dataSource={notifItems}
                       renderItem={(n: NotificationItem) => (
                         <div
-                          style={{ padding: "8px 4px", borderBottom: "1px solid #f0f0f0", cursor: "pointer" }}
-                          onClick={() => { markRead(n.id); setNotifOpen(false); if (n.link && n.link !== "/") navigate(n.link); }}
+                          style={{ padding: "8px 4px", borderBottom: "1px solid rgba(59, 130, 246, 0.1)" }}
                         >
-                          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                            {n.is_read === 0 && <span style={{ width: 6, height: 6, borderRadius: 6, background: "#2563eb" }} />}
+                          <div
+                            style={{ display: "flex", gap: 6, alignItems: "center", cursor: "pointer" }}
+                            onClick={() => { markRead(n.id); loadNotif(); setNotifOpen(false); if (n.link && n.link !== "/") navigate(n.link); }}
+                          >
+                            {n.is_read === 0 && <span style={{ width: 6, height: 6, borderRadius: 6, background: "#3b82f6" }} />}
                             <Text strong style={{ fontSize: 13 }}>{n.title}</Text>
                           </div>
                           {n.content && <Text type="secondary" style={{ fontSize: 12, display: "block" }} ellipsis>{n.content}</Text>}
-                          {n.created_at && <Text type="secondary" style={{ fontSize: 11 }}>{new Date(n.created_at).toLocaleString("zh-CN")}</Text>}
+                          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 4 }}>
+                            {n.created_at && <Text type="secondary" style={{ fontSize: 11 }}>{new Date(n.created_at).toLocaleString("zh-CN")}</Text>}
+                            <span style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+                              {n.link && n.link !== "/" && (
+                                <Button
+                                  size="small" type="primary"
+                                  style={{ height: 20, padding: "0 8px", fontSize: 10, borderRadius: 4 }}
+                                  onClick={(e) => { e.stopPropagation(); markRead(n.id); loadNotif(); setNotifOpen(false); navigate(n.link!); }}
+                                >
+                                  去处理
+                                </Button>
+                              )}
+                              {n.is_read === 0 && (
+                                <Button
+                                  size="small" type="text"
+                                  style={{ height: 20, padding: "0 6px", fontSize: 10 }}
+                                  onClick={(e) => { e.stopPropagation(); markRead(n.id); loadNotif(); }}
+                                >
+                                  标为已读
+                                </Button>
+                              )}
+                            </span>
+                          </div>
                         </div>
                       )}
                     />
@@ -482,7 +605,7 @@ export default function MainLayout() {
                   <Button type="text" shape="circle" icon={<BellOutlined />} />
                 </Badge>
               </Popover>
-              <Button type="text" shape="circle" icon={<QuestionCircleOutlined />} onClick={() => message.info("MediCode 帮助")} />
+              <Button type="text" shape="circle" icon={<QuestionCircleOutlined />} onClick={() => message.info("NOVAMED 帮助")} />
             </Space>
 
             <Dropdown
@@ -501,9 +624,9 @@ export default function MainLayout() {
                   marginLeft: 19,
                   padding: "5px 14px 5px 6px",
                   borderRadius: 999,
-                  border: `1px solid ${userHover ? "#dbe4f0" : "#edf1f7"}`,
-                  background: userHover ? "#eef3fa" : "#f6f8fc",
-                  boxShadow: userHover ? "0 3px 10px rgba(27,43,69,0.08)" : "none",
+                  border: `1px solid ${userHover ? "rgba(59, 130, 246, 0.3)" : "rgba(59, 130, 246, 0.16)"}`,
+                  background: userHover ? "#1a2740" : "#101b2e",
+                  boxShadow: userHover ? "0 3px 10px rgba(0,0,0,0.4)" : "none",
                   transition: "all 0.2s ease",
                 }}
               >
@@ -520,7 +643,7 @@ export default function MainLayout() {
                   {user?.real_name?.[0]}
                 </Avatar>
                 <div style={{ lineHeight: 1.3 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "#1b2b45" }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#eaf1fb" }}>
                     {user?.real_name}
                   </div>
                   <span
@@ -539,7 +662,7 @@ export default function MainLayout() {
                     {roleInfo.text}
                   </span>
                 </div>
-                <DownOutlined style={{ fontSize: 9, color: "#9aa6b5", marginLeft: 2 }} />
+                <DownOutlined style={{ fontSize: 9, color: "rgba(232,232,244,0.72)", marginLeft: 2 }} />
               </div>
             </Dropdown>
           </Header>

@@ -1,5 +1,5 @@
 """
-医码合一智慧医疗系统 — 后端主入口
+医码合一智慧医疗系统（NOVAMED）— 后端主入口
 
 ============ 启动方式 ============
 
@@ -14,7 +14,7 @@
     浏览器打开 http://localhost:8000/docs
 
 ============ 默认账号 ============
-开发模式默认管理员: admin / admin
+管理员: admin / admin123
 
 ============ 技术架构 ============
 ├── FastAPI: Web框架，自动生成API文档
@@ -61,23 +61,22 @@ async def lifespan(app: FastAPI):
     print("=" * 50)
 
     # 安全基线提示
-    if settings.DEBUG and len(settings.SECRET_KEY) < 32:
-        print("[安全提示] 当前为开发模式；部署时必须配置强随机 SECRET_KEY")
+    if settings.SECRET_KEY == "change-this-to-a-random-secret-key-in-production":
+        print("[安全警告] SECRET_KEY 仍为默认值，生产环境必须通过环境变量覆盖")
     if not settings.FERNET_KEY:
         print("[安全提示] 未配置 FERNET_KEY，PHI 字段级加密未启用（开发模式可接受）")
 
     # 1. 初始化SQLite数据库
     init_db()
-    print("[启动] 业务数据库已初始化")
+    print("[启动] SQLite 数据库已初始化")
 
     # 1a. 启动定时任务后台调度线程
-    if settings.ENABLE_TASK_SCHEDULER:
-        try:
-            from .api.tasks import start_scheduler
-            start_scheduler()
-            print("[启动] 定时任务调度线程已启动")
-        except Exception as e:
-            print(f"[启动] 定时任务调度线程启动失败: {e}")
+    try:
+        from .api.tasks import start_scheduler
+        start_scheduler()
+        print("[启动] 定时任务调度线程已启动")
+    except Exception as e:
+        print(f"[启动] 定时任务调度线程启动失败: {e}")
 
     # 1b. 初始化多租户数据存储库
     try:
@@ -87,18 +86,28 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"[启动] 数据存储库初始化失败: {e}")
 
-    # 2. 演示账号只允许出现在开发环境；生产环境仅按显式配置创建首个管理员。
-    if settings.DEBUG:
-        _ensure_default_admin()
-        _ensure_demo_staff()
-        _ensure_bulk_staff()
-        _ensure_demo_schedules()
+    # 2. 确保默认管理员存在
+    _ensure_default_admin()
+
+    # 2a. 确保演示员工账号存在（责任链层级）
+    _ensure_demo_staff()
+    _ensure_bulk_staff()
+
+    # 2a2. RBAC 迁移与授权播种（menu_key→menu_id + 用户角色回填 sys_user_role）
+    try:
+        from .core.database import employee_session
+        from .api.roles import _ensure_seeded as _ensure_roles_seeded
+        _db = employee_session()
         try:
-            _ensure_default_patient()
-        except Exception as e:
-            print(f"[警告] 默认患者账号初始化失败（不影响启动）: {e}")
-    else:
-        _ensure_bootstrap_admin()
+            _ensure_roles_seeded(_db)
+        finally:
+            _db.close()
+        print("[启动] RBAC 授权已就绪（menu_id + 多角色）")
+    except Exception as e:
+        print(f"[警告] RBAC 迁移失败（不影响启动）: {e}")
+
+    # 2d. 确保演示号源存在（患者端预约挂号）
+    _ensure_demo_schedules()
 
     # 2c. 确保默认数字权限级别（1-9）存在
     try:
@@ -106,6 +115,18 @@ async def lifespan(app: FastAPI):
         seed_permission_levels()
     except Exception as e:
         print(f"[警告] 数字权限级别初始化失败（不影响启动）: {e}")
+
+    # 2b. 确保默认患者账号存在（手机号 admin / 密码 admin）
+    try:
+        _ensure_default_patient()
+    except Exception as e:
+        print(f"[警告] 默认患者账号初始化失败（不影响启动）: {e}")
+
+    # 2b2. 患者端演示数据（检验报告 + 欢迎通知，幂等）
+    try:
+        _ensure_patient_demo_data()
+    except Exception as e:
+        print(f"[警告] 患者端演示数据初始化失败（不影响启动）: {e}")
 
     # 3. 尝试初始化MongoDB（失败也不影响系统运行）
     try:
@@ -133,7 +154,7 @@ async def lifespan(app: FastAPI):
     # 6. 员工域低代码引擎播种（幂等：建集合/页面/权限/流程 + 演示数据）
     try:
         from .services.seed_lowcode import seed_lowcode
-        seed_lowcode(include_demo_data=settings.DEBUG)
+        seed_lowcode()
     except Exception as e:
         print(f"[启动] 员工域播种失败（不影响主功能）: {e}")
 
@@ -177,36 +198,6 @@ def _ensure_default_admin():
         db.close()
 
 
-def _ensure_bootstrap_admin():
-    """Create the first production administrator only when explicit credentials are configured."""
-    username = settings.BOOTSTRAP_ADMIN_USERNAME
-    password = settings.BOOTSTRAP_ADMIN_PASSWORD
-    if not username or not password:
-        print("[启动] 未配置首个管理员账号；请在生产环境设置 BOOTSTRAP_ADMIN_USERNAME 和 BOOTSTRAP_ADMIN_PASSWORD")
-        return
-    if len(password) < 12:
-        raise ValueError("BOOTSTRAP_ADMIN_PASSWORD 至少需要 12 个字符")
-
-    from .core.database import employee_session
-    from .models.models import User, UserRole
-    from .core.security import hash_password
-
-    db = employee_session()
-    try:
-        if db.query(User).filter(User.username == username).first():
-            return
-        db.add(User(
-            username=username,
-            hashed_password=hash_password(password),
-            real_name="系统管理员",
-            role=UserRole.ADMIN,
-        ))
-        db.commit()
-        print("[启动] 已按显式配置创建首个管理员账号")
-    finally:
-        db.close()
-
-
 def _ensure_default_patient():
     """确保存在默认患者账号（手机号 admin / 密码 admin），便于快速体验患者端。"""
     from .core.database import patient_session
@@ -236,6 +227,68 @@ def _ensure_default_patient():
             print("[初始化] 默认患者账号已创建: admin / admin")
         else:
             print("[初始化] 默认患者账号已存在 (admin / admin)")
+    finally:
+        db.close()
+
+
+def _ensure_patient_demo_data():
+    """幂等：为已有患者补充演示检验报告与欢迎通知（仅当该患者 lab_tests 为空时插入，避免重复）。
+
+    仅服务于患者端「报告查询 / 消息通知」的演示体验，数据均为虚构示例。
+    """
+    import datetime as _dt
+    from .core.database import patient_session
+    from .models.models import Patient, LabTest, PatientNotification
+
+    db = patient_session()
+    try:
+        patients = db.query(Patient).all()
+        seeded = 0
+        for pat in patients:
+            has_lab = db.query(LabTest).filter(LabTest.patient_id == pat.id).first()
+            if has_lab:
+                continue
+            demo = [
+                ("血常规（五分类）", "检验", "已出报告",
+                 "白细胞 6.2×10⁹/L，红细胞 4.8×10¹²/L，血红蛋白 142 g/L，血小板 218×10⁹/L，均在参考范围内。",
+                 "白细胞 3.5–9.5×10⁹/L；红细胞 4.3–5.8×10¹²/L；血红蛋白 130–175 g/L；血小板 125–350×10⁹/L"),
+                ("尿常规", "检验", "已出报告",
+                 "尿蛋白（-），尿糖（-），尿潜血（-），镜检未见异常。",
+                 "各项均为阴性"),
+                ("胸部正位 DR", "影像", "检查中", "", "未见明显异常"),
+                ("空腹血糖 + 糖化血红蛋白", "检验", "待检查", "",
+                 "空腹血糖 3.9–6.1 mmol/L；HbA1c 4.0–6.0%"),
+            ]
+            idx = 0
+            for item_name, category, status, result, reference in demo:
+                idx += 1
+                db.add(LabTest(
+                    test_no=f"JC{_dt.datetime.now().strftime('%Y%m%d')}{pat.id:03d}{idx:02d}",
+                    patient_id=pat.id,
+                    patient_name=pat.name,
+                    department="门诊部",
+                    item_name=item_name,
+                    category=category,
+                    status=status,
+                    result=result,
+                    reference=reference,
+                    doctor_name="默认医生",
+                    operator="检验科",
+                ))
+            db.add(PatientNotification(
+                patient_id=pat.id, title="欢迎使用 NOVAMED 健康",
+                content="您已成功开通个人健康档案，可在此查看检查检验报告、接收就诊提醒。",
+                level="success", kind="system",
+            ))
+            db.add(PatientNotification(
+                patient_id=pat.id, title="报告已更新",
+                content="您有 1 份新的检验报告（血常规）已出，请前往「报告查询」查看。",
+                level="info", kind="report",
+            ))
+            seeded += 1
+        db.commit()
+        if seeded:
+            print(f"[初始化] 患者端演示数据已补充（{seeded} 名患者：检验报告 + 欢迎通知）")
     finally:
         db.close()
 
@@ -410,14 +463,14 @@ app = FastAPI(
 - 📚 **知识库**: 医学知识积累与检索
 
 ### 技术栈
-- FastAPI + SQLAlchemy + PostgreSQL/SQLite
+- FastAPI + SQLAlchemy + SQLite/PostgreSQL
 - MongoDB + FAISS 向量搜索
 - React + TypeScript + Ant Design
 - Docker 容器化部署
     """,
     lifespan=lifespan,
-    docs_url="/docs" if settings.DEBUG else None,
-    redoc_url="/redoc" if settings.DEBUG else None,
+    docs_url="/docs",
+    redoc_url="/redoc",
 )
 
 # CORS 跨域配置（鉴权走 Bearer header，无需 cookie 凭据；多机并发允许任意来源）
@@ -458,7 +511,7 @@ def root():
         "name": settings.APP_NAME,
         "version": settings.APP_VERSION,
         "status": "running",
-        "docs": "/docs" if settings.DEBUG else None,
+        "docs": "/docs",
     }
 
 

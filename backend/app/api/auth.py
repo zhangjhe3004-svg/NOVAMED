@@ -8,8 +8,9 @@ from ..core.database import get_employee_db, get_db, patient_session
 from ..core.dependencies import get_current_user, require_admin, _bearer
 from ..core.security import create_access_token, decode_access_token
 from ..core import session_archive
+from ..core.rbac import get_user_role_codes, ensure_user_roles_backfill
 from ..models.models import (User, UserRole, AuditLog, LoginLog, MedicalRecord, Appointment,
-    Message, Notification, SessionRecord, UserPreference, Conversation, TokenUsage, DoctorSchedule)
+    Message, Notification, SessionRecord, UserPreference, Conversation, TokenUsage, DoctorSchedule, SysUserRole)
 from ..schemas import (LoginRequest, CardLoginRequest, Token, UserCreate, UserUpdate,
                        UserInfo, PasswordChange, PasswordReset)
 from ..services.auth import (login as svc_login, create_user, list_users,
@@ -20,9 +21,10 @@ router = APIRouter(prefix="/api/auth", tags=["认证"])
 admin_router = APIRouter(prefix="/api/users", tags=["用户管理"])
 
 
-def _user_info(u: User) -> UserInfo:
+def _user_info(u: User, db=None) -> UserInfo:
+    roles = get_user_role_codes(db, u) if db is not None else None
     return UserInfo(
-        id=u.id, username=u.username, real_name=u.real_name, role=u.role.value,
+        id=u.id, username=u.username, real_name=u.real_name, role=u.role.value, roles=roles,
         phone=u.phone, email=u.email, id_number=u.id_number, id_type=u.id_type,
         surname=u.surname, given_name=u.given_name, valid_until=u.valid_until,
         issue_date=u.issue_date, registered_place=u.registered_place,
@@ -52,27 +54,30 @@ def card_login(payload: CardLoginRequest, db: Session = Depends(get_employee_db)
     u = db.query(User).filter((User.id_number == payload.card_no) | (User.employee_no == payload.card_no)).first()
     if not u or not u.is_active:
         return svc_login(db, "", "___invalid___")  # 会抛 401
+    ensure_user_roles_backfill(db)
+    roles = get_user_role_codes(db, u)
     sid = session_archive.start_session(u)
-    token = create_access_token(data={"sub": str(u.id), "username": u.username, "role": u.role.value, "sid": sid})
-    return Token(access_token=token, expires_in=480, user=_user_info(u))
+    token = create_access_token(data={"sub": str(u.id), "username": u.username, "role": u.role.value, "roles": roles, "sid": sid})
+    return Token(access_token=token, expires_in=480, user=_user_info(u, db))
 
 
 @router.get("/me", response_model=UserInfo)
-def me(user: User = Depends(get_current_user)):
-    return _user_info(user)
+def me(user: User = Depends(get_current_user), db: Session = Depends(get_employee_db)):
+    return _user_info(user, db)
 
 
 @router.put("/me", response_model=UserInfo)
 def update_me(payload: dict, user: User = Depends(get_current_user),
               db: Session = Depends(get_employee_db)):
     """当前用户修改个人资料 / 在岗状态"""
-    allowed = ("real_name", "phone", "email", "department", "title", "work_status")
+    allowed = ("real_name", "phone", "email", "department", "title", "work_status",
+               "username", "employee_no")
     for field in allowed:
         if field in payload and payload[field] is not None:
             setattr(user, field, str(payload[field]))
     db.commit()
     db.refresh(user)
-    return _user_info(user)
+    return _user_info(user, db)
 
 
 @router.put("/password")
@@ -163,14 +168,14 @@ def admin_list_users(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1
 @admin_router.post("")
 def admin_create_user(payload: UserCreate, _=Depends(require_admin), db: Session = Depends(get_employee_db)):
     u = create_user(db, payload)
-    return _user_info(u)
+    return _user_info(u, db)
 
 
 @admin_router.put("/{uid}")
 def admin_update_user(uid: int, payload: UserUpdate, _=Depends(require_admin),
                       db: Session = Depends(get_employee_db)):
     u = update_user(db, uid, payload.model_dump(exclude_none=True))
-    return _user_info(u)
+    return _user_info(u, db)
 
 
 @admin_router.post("/{uid}/reset-password")
@@ -199,6 +204,7 @@ def admin_delete_user(uid: int, _=Depends(require_admin), db: Session = Depends(
     db.query(Conversation).filter(Conversation.user_id == uid).delete(synchronize_session=False)
     db.query(TokenUsage).filter(TokenUsage.user_id == uid).delete(synchronize_session=False)
     db.query(AuditLog).filter(AuditLog.user_id == uid).delete(synchronize_session=False)
+    db.query(SysUserRole).filter(SysUserRole.user_id == uid).delete(synchronize_session=False)
     db.query(User).filter(User.superior_id == uid).update({User.superior_id: None}, synchronize_session=False)
     db.delete(u)
     db.commit()

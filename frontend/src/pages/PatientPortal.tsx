@@ -1,5 +1,5 @@
 /**
- * 患者自助服务端（公开门户）—— 对齐 docs/设计预览/patient.html 的青绿色「MediCode 健康」设计
+ * 患者自助服务端（公开门户）—— 对齐 docs/设计预览/patient.html 的青绿色「NOVAMED 健康」设计
  * 独立于员工系统，公开访问，引导登录 / 注册后进入患者工作台。
  */
 import { useNavigate } from "react-router-dom";
@@ -10,6 +10,7 @@ import {
   TeamOutlined, ExperimentOutlined, ClusterOutlined, RightOutlined,
   LockOutlined, UserOutlined, SafetyCertificateOutlined,
 } from "@ant-design/icons";
+import BrandMark from "../components/BrandMark";
 
 const { Text, Title } = Typography;
 
@@ -17,7 +18,7 @@ const services = [
   { icon: <FormOutlined />, name: "科室挂号", desc: "选择科室与时段", color: "#27857d" },
   { icon: <MedicineBoxOutlined />, name: "在线问诊", desc: "图文咨询医生", color: "#4c86c8" },
   { icon: <FileSearchOutlined />, name: "报告查询", desc: "查看检验报告", color: "#c3a267" },
-  { icon: <RobotOutlined />, name: "智能导诊", desc: "症状智能分诊", color: "#7b7bd0" },
+  { icon: <RobotOutlined />, name: "智能导诊", desc: "症状智能分诊", color: "#60a5fa" },
   { icon: <CalendarOutlined />, name: "体检预约", desc: "套餐在线预约", color: "#4fae9c" },
   { icon: <ClusterOutlined />, name: "我的订单", desc: "订单与缴费", color: "#d09a4d" },
   { icon: <VideoCameraOutlined />, name: "影像查询", desc: "影像报告浏览", color: "#4c86c8" },
@@ -38,9 +39,9 @@ export default function PatientPortal() {
       {/* 顶部导航（对齐 patient.html 的白色 header） */}
       <div style={{ height: 86, background: "#fff", borderBottom: "1px solid #e5eeef", display: "flex", alignItems: "center", padding: "0 max(30px, calc((100vw - 1140px)/2))", gap: 30 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-          <div style={{ width: 33, height: 35, background: "#27857d", borderRadius: 10, display: "grid", placeItems: "center", color: "#fff", fontSize: 27 }}>+</div>
+          <BrandMark size={36} accent="teal" />
           <div style={{ fontSize: 23, fontWeight: 650, color: "#243e59", lineHeight: 1 }}>
-            MediCode 健康
+            NOVAMED 健康
             <div style={{ fontSize: 10, color: "#8da8a7", fontWeight: 400, letterSpacing: 1, marginTop: 3 }}>患者服务平台</div>
           </div>
         </div>
@@ -115,7 +116,7 @@ export default function PatientPortal() {
 
         {/* 底部说明 */}
         <div style={{ textAlign: "center", padding: "16px 0 48px", color: "#8da8a7", fontSize: 12 }}>
-          MediCode 健康 · 专注每一次诊疗 · 演示环境（预约、地点及数据均为虚构）
+          NOVAMED 健康 · 专注每一次诊疗 · 演示环境（预约、地点及数据均为虚构）
         </div>
       </div>
     </div>

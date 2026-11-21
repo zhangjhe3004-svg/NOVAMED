@@ -9,13 +9,15 @@ import {
 } from "antd";
 import {
   PlusOutlined, SearchOutlined, ExperimentOutlined, EditOutlined, DeleteOutlined,
-  ReloadOutlined, FileDoneOutlined, PlayCircleOutlined, StopOutlined,
+  ReloadOutlined, FileDoneOutlined, PlayCircleOutlined, StopOutlined, ScanOutlined,
 } from "@ant-design/icons";
 import {
   listLabTests, getLabTestStats, createLabTest, updateLabTest,
   changeLabTestStatus, deleteLabTest, type LabTestItem, type LabTestStats,
 } from "../api/labtest";
 import { listPatients } from "../api/patients";
+import DocScanner from "../components/DocScanner";
+import { uploadDocument } from "../api/documents";
 
 const { Text } = Typography;
 
@@ -48,6 +50,10 @@ export default function LabTest() {
   const [resultOpen, setResultOpen] = useState(false);
   const [resultTarget, setResultTarget] = useState<LabTestItem | null>(null);
   const [resultForm] = Form.useForm();
+
+  // 扫描报告
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scanTarget, setScanTarget] = useState<LabTestItem | null>(null);
 
   const [patients, setPatients] = useState<{ value: number; label: string }[]>([]);
 
@@ -136,6 +142,33 @@ export default function LabTest() {
     }
   };
 
+  // 扫描报告：归档扫描件，并把识别文本回填到结果录入弹窗
+  const handleScanConfirm = async (result: { title: string; category: string; images: string[]; ocr_text: string }) => {
+    setScanOpen(false);
+    const target = scanTarget;
+    if (!target) return;
+    try {
+      await uploadDocument({
+        title: result.title || `${target.item_name || "检验"} 报告扫描件`,
+        category: result.category || "检验单",
+        labtest_id: target.id,
+        patient_id: target.patient_id,
+        images: result.images,
+        ocr_text: result.ocr_text,
+      });
+      message.success("报告扫描件已归档");
+    } catch {
+      message.error("归档失败");
+    }
+    if (result.ocr_text) {
+      setResultTarget(target);
+      resultForm.resetFields();
+      resultForm.setFieldsValue({ result: result.ocr_text, reference: target.reference });
+      setResultOpen(true);
+      message.info("识别文本已回填，请核对后出报告");
+    }
+  };
+
   const advance = async (row: LabTestItem, target: string) => {
     try {
       await changeLabTestStatus(row.id, { status: target });
@@ -167,6 +200,7 @@ export default function LabTest() {
           {r.status === "待检查" && <Tooltip title="采样"><button className="icon-btn" data-act="sample" onClick={() => advance(r, "已采样")}><PlayCircleOutlined /></button></Tooltip>}
           {r.status === "已采样" && <Tooltip title="开始检查"><button className="icon-btn" data-act="start" onClick={() => advance(r, "检查中")}><PlayCircleOutlined /></button></Tooltip>}
           {r.status === "检查中" && <Tooltip title="录入报告"><button className="icon-btn" data-act="report" onClick={() => openResult(r)}><FileDoneOutlined /></button></Tooltip>}
+          {r.status !== "已取消" && <Tooltip title="扫描报告"><button className="icon-btn" data-act="scan" onClick={() => { setScanTarget(r); setScanOpen(true); }}><ScanOutlined /></button></Tooltip>}
           {r.status !== "已取消" && r.status !== "已出报告" && <Tooltip title="取消"><button className="icon-btn" data-act="cancel" onClick={() => advance(r, "已取消")}><StopOutlined /></button></Tooltip>}
           <Tooltip title="编辑"><button className="icon-btn" data-act="edit" onClick={() => openEdit(r)}><EditOutlined /></button></Tooltip>
           <Popconfirm title="删除该检查单？" onConfirm={async () => { await deleteLabTest(r.id); message.success("已删除"); load(); }}>
@@ -182,7 +216,7 @@ export default function LabTest() {
       {/* 页头 */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "16px 24px", flexWrap: "wrap" }}>
         <div>
-          <div style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>检查检验</div>
+          <div className="md-page-title" style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>检查检验</div>
           <div style={{ color: "var(--lv-muted)", fontSize: 13, marginTop: 5 }}>检查项目开单、状态流转与报告录入。</div>
         </div>
         <div style={{ display: "flex", gap: 12 }}>
@@ -196,7 +230,7 @@ export default function LabTest() {
         <div className="lv-metric"><span className="lv-metric-label">检查总量</span><span className="lv-metric-figure tnum">{stats?.total ?? 0}</span></div>
         <div className="lv-metric"><span className="lv-metric-label">待处理</span><span className="lv-metric-figure tnum" style={{ color: "#b9770a" }}>{stats?.pending ?? 0}</span></div>
         <div className="lv-metric"><span className="lv-metric-label">已出报告</span><span className="lv-metric-figure tnum" style={{ color: "#3f8a1e" }}>{stats?.done ?? 0}</span></div>
-        <div className="lv-metric"><span className="lv-metric-label">已取消</span><span className="lv-metric-figure tnum" style={{ color: "#64748b" }}>{stats?.cancelled ?? 0}</span></div>
+        <div className="lv-metric"><span className="lv-metric-label">已取消</span><span className="lv-metric-figure tnum" style={{ color: "#9a9ab0" }}>{stats?.cancelled ?? 0}</span></div>
       </div>
 
       {/* 查询面板 */}
@@ -285,6 +319,16 @@ export default function LabTest() {
           </Form.Item>
         </Form>
       </Modal>
+
+      {/* 扫描报告（通用组件） */}
+      <DocScanner
+        open={scanOpen}
+        onClose={() => setScanOpen(false)}
+        onConfirm={handleScanConfirm}
+        showMeta
+        defaultCategory="检验单"
+        okText="识别并回填"
+      />
     </div>
   );
 }

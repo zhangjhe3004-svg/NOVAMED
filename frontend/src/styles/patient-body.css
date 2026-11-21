@@ -1,0 +1,102 @@
+/* ============================================================================
+   患者端 body 覆盖（patient-body.css）
+   必须在 glassmorphism.css 之后引入，压掉员工端深宇宙紫光斑。
+   Soft Utility 深色版：深青灰分层底（非纯黑），薄荷/蓝光斑，关闭噪点。
+   ============================================================================ */
+html, body {
+  margin: 0;
+  padding: 0;
+}
+body {
+  color: #e6f0ed;
+  background:
+    radial-gradient(120% 80% at 85% 0%, rgba(95, 208, 180, 0.16) 0%, rgba(95, 208, 180, 0) 55%),
+    radial-gradient(100% 70% at 5% 100%, rgba(138, 167, 221, 0.08) 0%, rgba(138, 167, 221, 0) 45%),
+    #16201f !important;
+}
+body::before { opacity: 0 !important; }
+
+/* ============================================================================
+   portal 弹层全局覆盖（本文件最后引入，压过 glassmorphism 的员工端玻璃令牌）
+   下拉菜单（顶栏用户胶囊等）统一患者端青灰
+   ============================================================================ */
+.ant-dropdown {
+  background: #1e2b29 !important;
+  border: 1px solid rgba(169, 216, 204, 0.16) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+.ant-dropdown .ant-dropdown-menu {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.ant-dropdown .ant-dropdown-menu-item {
+  color: #e6f0ed !important;
+  border-radius: 8px;
+}
+.ant-dropdown .ant-dropdown-menu-item:hover {
+  background: rgba(95, 208, 180, 0.12) !important;
+}
+.ant-dropdown .ant-dropdown-menu-item-danger {
+  color: #e0857a !important;
+}
+.ant-dropdown .ant-dropdown-menu-item-danger:hover {
+  background: rgba(224, 133, 122, 0.12) !important;
+}
+/* 焦点环：点击菜单项时 antd 会加 focus-visible 轮廓（默认 danger 玫瑰红），
+   与系统青灰/薄荷语汇不一致，统一去掉，改为用 hover 背景表达选中态 */
+.ant-dropdown .ant-dropdown-menu-item:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* ============================================================================
+   侧栏快速跳转 Select（portal 到 body 的下拉会被员工端玻璃皮肤刷蓝）
+   ============================================================================ */
+/* 触发器（在 .patient-app 内，但 glassmorphism 用 !important，需同级压制） */
+.patient-app .ant-select:not(.ant-select-disabled) .ant-select-selector {
+  background: rgba(95, 208, 180, 0.06) !important;
+  border-color: rgba(169, 216, 204, 0.18) !important;
+  border-radius: 10px !important;
+}
+.patient-app .ant-select-focused .ant-select-selector,
+.patient-app .ant-select:hover .ant-select-selector {
+  background: rgba(95, 208, 180, 0.10) !important;
+  border-color: rgba(95, 208, 180, 0.35) !important;
+}
+.patient-app .ant-select-selection-item {
+  color: #e6f0ed !important;
+}
+.patient-app .ant-select-arrow {
+  color: #7d9791 !important;
+}
+/* 下拉面板（portal 到 body，脱离 .patient-app 作用域） */
+.patient-select-drop {
+  background: #1e2b29 !important;
+  border: 1px solid rgba(169, 216, 204, 0.16) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  padding: 6px !important;
+}
+.patient-select-drop .ant-select-item {
+  color: #e6f0ed !important;
+  border-radius: 8px !important;
+}
+.patient-select-drop .ant-select-item-option-active {
+  background: rgba(95, 208, 180, 0.12) !important;
+}
+.patient-select-drop .ant-select-item-option-selected {
+  background: rgba(95, 208, 180, 0.16) !important;
+  color: #5fd0b4 !important;
+  font-weight: 600;
+}
+/* 分组标题 */
+.patient-select-drop .ant-select-item-group {
+  color: #7d9791 !important;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+}

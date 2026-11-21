@@ -157,7 +157,7 @@ export default function AdminReview() {
       {/* 页头 */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "16px 24px", flexWrap: "wrap" }}>
         <div>
-          <div style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>审核中心</div>
+          <div className="md-page-title" style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>审核中心</div>
           <div style={{ color: "var(--lv-muted)", fontSize: 13, marginTop: 5 }}>审核医生的诊断结果，确保医疗质量。</div>
         </div>
       </div>

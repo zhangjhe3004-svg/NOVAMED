@@ -8,19 +8,38 @@ import {
   Space, Popconfirm, Tooltip,
 } from "antd";
 import {
-  PlusOutlined, SearchOutlined, AccountBookOutlined, DeleteOutlined,
-  ReloadOutlined, WalletOutlined, RollbackOutlined,
+  PlusOutlined, SearchOutlined, DeleteOutlined,
+  ReloadOutlined, RollbackOutlined, CreditCardOutlined, CheckCircleOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import {
   listBillings, getBillingStats, createBilling, refundBilling, deleteBilling,
+  confirmBillingMethod, confirmBillingPaid,
   type BillingRecord, type BillingStats, type BillingItemInput,
 } from "../api/pharmacy";
 import { listPatients } from "../api/patients";
+import PermissionButton from "../components/PermissionButton";
 
 const { Text } = Typography;
 
 const PAY_METHODS = ["现金", "微信支付", "支付宝", "银行卡", "医保结算"];
+
+const STATUS_TAG: Record<string, string> = {
+  "待收费": "lv-tag--amber",
+  "待到账": "lv-tag--info",
+  "已收费": "lv-tag--leaf",
+  "已退费": "lv-tag--gray",
+};
+
+function billStatusTag(v?: string) {
+  const s = v || "待收费";
+  return (
+    <span className={`lv-tag ${STATUS_TAG[s] || "lv-tag--neutral"}`}>
+      <span className="lv-tag-dot" />
+      {s}
+    </span>
+  );
+}
 
 export default function Billing() {
   const [data, setData] = useState<BillingRecord[]>([]);
@@ -35,6 +54,11 @@ export default function Billing() {
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
   const [patients, setPatients] = useState<{ value: number; label: string }[]>([]);
+
+  // 确认收费方式弹窗
+  const [methodTarget, setMethodTarget] = useState<BillingRecord | null>(null);
+  const [methodValue, setMethodValue] = useState<string>("");
+  const [methodSaving, setMethodSaving] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -60,7 +84,7 @@ export default function Billing() {
 
   const openCreate = () => {
     form.resetFields();
-    form.setFieldsValue({ payment_method: "现金", items: [{ name: "", quantity: 1, price: 0 }] });
+    form.setFieldsValue({ items: [{ name: "", quantity: 1, price: 0 }] });
     setOpen(true);
   };
 
@@ -78,10 +102,9 @@ export default function Billing() {
         patient_name: v.patient_name,
         department: v.department,
         items,
-        payment_method: v.payment_method,
         remark: v.remark,
       });
-      message.success("收费已开具");
+      message.success("收费单已开具，待确认收费方式");
       setOpen(false);
       load();
     } catch (e: any) {
@@ -92,6 +115,27 @@ export default function Billing() {
   const doRefund = async (id: number) => {
     try { await refundBilling(id); message.success("已退费"); load(); }
     catch (e: any) { message.error(e?.response?.data?.detail || "退费失败"); }
+  };
+
+  const openMethod = (r: BillingRecord) => { setMethodTarget(r); setMethodValue(""); };
+
+  const submitMethod = async () => {
+    if (!methodTarget) return;
+    if (!methodValue) { message.warning("请选择支付方式"); return; }
+    setMethodSaving(true);
+    try {
+      await confirmBillingMethod(methodTarget.id, methodValue);
+      message.success("已确认收费方式，等待到账确认");
+      setMethodTarget(null);
+      load();
+    } catch (e: any) {
+      message.error(e?.response?.data?.detail || "确认失败");
+    } finally { setMethodSaving(false); }
+  };
+
+  const doConfirmPaid = async (id: number) => {
+    try { await confirmBillingPaid(id); message.success("已确认到账，收费完成"); load(); }
+    catch (e: any) { message.error(e?.response?.data?.detail || "确认失败"); }
   };
 
   const doDelete = async (id: number) => {
@@ -110,27 +154,44 @@ export default function Billing() {
       </span>
     ) },
     { title: "金额", dataIndex: "total_yuan", width: 100, align: "right" as const,
-      render: (v: number) => <span className="tnum" style={{ color: "#d6a451", fontWeight: 600 }}>¥{v.toFixed(2)}</span> },
-    { title: "支付方式", dataIndex: "payment_method", width: 100 },
-    { title: "状态", width: 100, render: (_: any, r: BillingRecord) =>
-      r.status === "已收费"
-        ? <span className="lv-tag lv-tag--leaf"><span className="lv-tag-dot" />已收费</span>
-        : <span className="lv-tag lv-tag--amber"><span className="lv-tag-dot" />已退费</span> },
+      render: (v: number) => <span className="tnum" style={{ color: "#3b82f6", fontWeight: 600 }}>¥{v.toFixed(2)}</span> },
+    { title: "支付方式", dataIndex: "payment_method", width: 110, render: (v: string) => v || <span style={{ color: "var(--lv-faint)" }}>未确认</span> },
+    { title: "状态", width: 96, render: (_: any, r: BillingRecord) => billStatusTag(r.status) },
     { title: "收费员", dataIndex: "operator", width: 100 },
     { title: "时间", width: 110, render: (_: any, r: BillingRecord) =>
       r.created_at ? <span className="tnum">{dayjs(r.created_at).format("MM-DD HH:mm")}</span> : "-" },
     {
-      title: "操作", width: 110, fixed: "right" as const, className: "col-actions",
+      title: "操作", width: 150, fixed: "right" as const, className: "col-actions",
       render: (_: any, r: BillingRecord) => (
         <div className="row-actions" onClick={(e) => e.stopPropagation()}>
-          {r.status === "已收费" && (
-            <Popconfirm title="确认退费？" onConfirm={() => doRefund(r.id)}>
-              <Tooltip title="退费"><button className="icon-btn" data-act="refund"><RollbackOutlined /></button></Tooltip>
-            </Popconfirm>
+          {r.status === "待收费" && (
+            <PermissionButton code="medicode:billing:edit">
+              <Tooltip title="确认收费方式">
+                <button className="icon-btn" data-act="confirm-method" onClick={() => openMethod(r)}><CreditCardOutlined /></button>
+              </Tooltip>
+            </PermissionButton>
           )}
-          <Popconfirm title="确认删除？" onConfirm={() => doDelete(r.id)}>
-            <Tooltip title="删除"><button className="icon-btn is-danger" data-act="delete"><DeleteOutlined /></button></Tooltip>
-          </Popconfirm>
+          {r.status === "待到账" && (
+            <PermissionButton code="medicode:billing:edit">
+              <Popconfirm title="确认该笔收费已到账？" okText="确认到账" onConfirm={() => doConfirmPaid(r.id)}>
+                <Tooltip title="确认到账">
+                  <button className="icon-btn" data-act="confirm-paid" style={{ color: "#34d399" }}><CheckCircleOutlined /></button>
+                </Tooltip>
+              </Popconfirm>
+            </PermissionButton>
+          )}
+          {r.status === "已收费" && (
+            <PermissionButton code="medicode:billing:edit">
+              <Popconfirm title="确认退费？" onConfirm={() => doRefund(r.id)}>
+                <Tooltip title="退费"><button className="icon-btn" data-act="refund"><RollbackOutlined /></button></Tooltip>
+              </Popconfirm>
+            </PermissionButton>
+          )}
+          <PermissionButton code="medicode:billing:remove">
+            <Popconfirm title="确认删除？" onConfirm={() => doDelete(r.id)}>
+              <Tooltip title="删除"><button className="icon-btn is-danger" data-act="delete"><DeleteOutlined /></button></Tooltip>
+            </Popconfirm>
+          </PermissionButton>
         </div>
       ),
     },
@@ -141,12 +202,14 @@ export default function Billing() {
       {/* 页头 */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "16px 24px", flexWrap: "wrap" }}>
         <div>
-          <div style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>财务收费</div>
+          <div className="md-page-title" style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>财务收费</div>
           <div style={{ color: "var(--lv-muted)", fontSize: 13, marginTop: 5 }}>收费开单、退费与收费汇总统计。</div>
         </div>
         <div style={{ display: "flex", gap: 12 }}>
           <button className="lv-btn" type="button" onClick={load}><ReloadOutlined /> 刷新</button>
-          <button className="lv-btn lv-btn--primary" type="button" data-act="create" onClick={openCreate}><PlusOutlined /> 开单收费</button>
+          <PermissionButton code="medicode:billing:add">
+            <button className="lv-btn lv-btn--primary" type="button" data-act="create" onClick={openCreate}><PlusOutlined /> 开单收费</button>
+          </PermissionButton>
         </div>
       </div>
 
@@ -155,7 +218,7 @@ export default function Billing() {
         <div className="lv-metric">
           <span className="lv-metric-label">收费单数</span>
           <span className="lv-metric-figure tnum">{stats?.total_count ?? 0}</span>
-          <span style={{ fontSize: 11, color: "var(--lv-faint)" }}>已收费 {stats?.paid_count ?? 0} 笔</span>
+          <span style={{ fontSize: 11, color: "var(--lv-faint)" }}>已收费 {stats?.paid_count ?? 0} 笔 · 待处理 {stats?.pending_count ?? 0} 笔</span>
         </div>
         <div className="lv-metric">
           <span className="lv-metric-label">收费总额</span>
@@ -182,7 +245,7 @@ export default function Billing() {
         />
         <Select
           allowClear placeholder="状态 · 全部" style={{ width: 140 }} value={status} onChange={setStatus}
-          options={[{ value: "已收费", label: "已收费" }, { value: "已退费", label: "已退费" }]}
+          options={["待收费", "待到账", "已收费", "已退费"].map((s) => ({ value: s, label: s }))}
         />
         <div className="lv-query-actions">
           <button className="lv-btn" type="button" data-act="reset" onClick={() => { setKwInput(""); setKeyword(""); setStatus(undefined); }}>重置</button>
@@ -209,7 +272,7 @@ export default function Billing() {
         onCancel={() => setOpen(false)}
         footer={[
           <Button key="cancel" onClick={() => setOpen(false)}>取消</Button>,
-          <Button key="ok" type="primary" loading={saving} className="lv-submit" onClick={() => form.submit()}>保存</Button>,
+          <Button key="ok" type="primary" loading={saving} className="lv-submit" onClick={() => form.submit()}>开单</Button>,
         ]}
         width={640}
         destroyOnHidden
@@ -226,9 +289,6 @@ export default function Billing() {
             </Form.Item>
             <Form.Item name="department" label="科室">
               <Input placeholder="如 内科 / 药房" />
-            </Form.Item>
-            <Form.Item name="payment_method" label="支付方式">
-              <Select options={PAY_METHODS.map((m) => ({ value: m, label: m }))} />
             </Form.Item>
           </div>
 
@@ -261,6 +321,39 @@ export default function Billing() {
             <Input.TextArea rows={2} placeholder="备注（选填）" />
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal
+        title={methodTarget ? `确认收费方式 · ${methodTarget.bill_no}` : "确认收费方式"}
+        open={!!methodTarget}
+        onCancel={() => setMethodTarget(null)}
+        footer={[
+          <Button key="cancel" onClick={() => setMethodTarget(null)}>取消</Button>,
+          <Button key="ok" type="primary" loading={methodSaving} className="lv-submit" onClick={submitMethod}>确认</Button>,
+        ]}
+        width={440}
+        destroyOnHidden
+      >
+        {methodTarget && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ fontSize: 13, color: "var(--lv-muted)" }}>
+              患者：{methodTarget.patient_name || "自费"} · 金额 <b className="tnum" style={{ color: "#3b82f6" }}>¥{methodTarget.total_yuan.toFixed(2)}</b>
+            </div>
+            <Form layout="vertical" className="lv-form">
+              <Form.Item label="支付方式" required>
+                <Select
+                  placeholder="选择支付方式"
+                  value={methodValue || undefined}
+                  onChange={setMethodValue}
+                  options={PAY_METHODS.map((m) => ({ value: m, label: m }))}
+                />
+              </Form.Item>
+            </Form>
+            <div style={{ fontSize: 12, color: "var(--lv-faint)" }}>
+              确认后该单进入「待到账」状态，仍需再次确认到账才会记为已收费。
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

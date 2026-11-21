@@ -74,8 +74,8 @@ def can_reach(db: Session, user: User, target_id: int) -> bool:
 
 # ---------- 连接（互传授权） ----------
 
-def _notify(db: Session, user_id: int, title: str, content: str, level: str = "info"):
-    db.add(Notification(user_id=user_id, title=title, content=content, level=level))
+def _notify(db: Session, user_id: int, title: str, content: str, level: str = "info", link: str = ""):
+    db.add(Notification(user_id=user_id, title=title, content=content, level=level, link=link))
 
 
 def _connection_dict(c: NearbyConnection, users: dict[int, User]) -> dict:
@@ -142,12 +142,12 @@ def request_connection(db: Session, requester: User, target_id: int, note: str =
         db.commit(); db.refresh(c)
         _notify(db, target.id, "收到连接申请",
                 f"{requester.real_name or requester.username}（L{rq_level}）请求与你建立附近互传连接"
-                + (f"：{note}" if note else ""))
+                + (f"：{note}" if note else ""), link="/nearby")
     else:
         c.status = "accepted"
         db.commit(); db.refresh(c)
         _notify(db, target.id, "新的互传连接",
-                f"{requester.real_name or requester.username}（L{rq_level}）已与你建立附近互传连接")
+                f"{requester.real_name or requester.username}（L{rq_level}）已与你建立附近互传连接", link="/nearby")
     db.commit()
     return c
 
@@ -209,16 +209,16 @@ def request_connection_pair(db: Session, actor: User, a_id: int, b_id: int, note
         db.commit(); db.refresh(c)
         _notify(db, target.id, "收到连接申请",
                 f"{actor_name} 代 {requester.real_name or requester.username}（L{rq_level}）"
-                f"向你发起附近互传连接申请" + (f"：{note}" if note else ""))
+                f"向你发起附近互传连接申请" + (f"：{note}" if note else ""), link="/nearby")
         _notify(db, requester.id, "连接申请已提交",
-                f"{actor_name} 已替你向 {target.real_name or target.username}（L{tg_level}）发起连接申请，等待对方审批")
+                f"{actor_name} 已替你向 {target.real_name or target.username}（L{tg_level}）发起连接申请，等待对方审批", link="/nearby")
     else:
         c.status = "accepted"
         db.commit(); db.refresh(c)
         _notify(db, target.id, "新的互传连接",
-                f"{actor_name} 已为你们建立附近互传连接：{requester.real_name or requester.username}（L{rq_level}）↔ {target.real_name or target.username}（L{tg_level}）")
+                f"{actor_name} 已为你们建立附近互传连接：{requester.real_name or requester.username}（L{rq_level}）↔ {target.real_name or target.username}（L{tg_level}）", link="/nearby")
         _notify(db, requester.id, "新的互传连接",
-                f"{actor_name} 已为你与 {target.real_name or target.username}（L{tg_level}）建立附近互传连接")
+                f"{actor_name} 已为你与 {target.real_name or target.username}（L{tg_level}）建立附近互传连接", link="/nearby")
     db.commit()
     return c
 
@@ -237,10 +237,10 @@ def respond_connection(db: Session, user: User, connection_id: int, accept: bool
     c.status = "accepted" if accept else "rejected"
     if accept and requester:
         _notify(db, c.requester_id, "连接申请已通过",
-                f"{user.real_name or user.username} 已通过你的连接申请，现在可以互相传输文件")
+                f"{user.real_name or user.username} 已通过你的连接申请，现在可以互相传输文件", link="/nearby")
     elif requester:
         _notify(db, c.requester_id, "连接申请被拒绝",
-                f"{user.real_name or user.username} 拒绝了你的连接申请", level="warning")
+                f"{user.real_name or user.username} 拒绝了你的连接申请", level="warning", link="/nearby")
     db.commit(); db.refresh(c)
     return c
 
@@ -262,7 +262,7 @@ def cancel_connection(db: Session, user: User, peer_id: int) -> dict:
     other = users.get(other_id)
     if other and was_accepted:
         _notify(db, other_id, "互传连接已断开",
-                f"{user.real_name or user.username} 断开了与你的附近互传连接", level="warning")
+                f"{user.real_name or user.username} 断开了与你的附近互传连接", level="warning", link="/nearby")
     return {"detail": "ok", "peer_id": peer_id}
 
 

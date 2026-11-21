@@ -1,5 +1,5 @@
 /* ============================================================================
-   MediCode · Apple 风格高级交互动效系统  (apple-motion.css)
+   NOVAMED · Apple 风格高级交互动效系统  (apple-motion.css)
    ----------------------------------------------------------------------------
    设计原则（对齐 Apple Human Interface Guidelines / SwiftUI 动效规范）：
      1. 响应即时   —— 交互按下瞬间即有反馈，动画只做「收尾」，绝不延迟启动。
@@ -36,10 +36,10 @@
   --md-press: 0.972;        /* 按压缩放比 */
 
   /* --- 阴影层级（柔和、多层、低透明度，苹果式「呼吸感」）--- */
-  --md-shadow-rest: 0 1px 2px rgba(27, 43, 69, 0.04), 0 1px 3px rgba(27, 43, 69, 0.03);
-  --md-shadow-hover: 0 4px 10px rgba(27, 43, 69, 0.06), 0 12px 28px -8px rgba(27, 43, 69, 0.12);
-  --md-shadow-active: 0 2px 6px rgba(27, 43, 69, 0.06);
-  --md-shadow-pop: 0 8px 20px rgba(27, 43, 69, 0.08), 0 24px 48px -12px rgba(27, 43, 69, 0.16);
+  --md-shadow-rest: 0 1px 2px rgba(59, 130, 246, 0.04), 0 1px 3px rgba(59, 130, 246, 0.03);
+  --md-shadow-hover: 0 4px 10px rgba(59, 130, 246, 0.06), 0 12px 28px -8px rgba(59, 130, 246, 0.12);
+  --md-shadow-active: 0 2px 6px rgba(59, 130, 246, 0.06);
+  --md-shadow-pop: 0 8px 20px rgba(59, 130, 246, 0.08), 0 24px 48px -12px rgba(59, 130, 246, 0.16);
 
   /* --- 圆角（苹果连续圆角观感）--- */
   --md-r-sm: 8px;
@@ -69,7 +69,7 @@ body {
 
 /* 文本选中色跟随主色，观感更统一 */
 ::selection {
-  background: rgba(37, 99, 235, 0.16);
+  background: rgba(59, 130, 246, 0.16);
 }
 .patient-app ::selection,
 .md-theme-patient ::selection {
@@ -79,7 +79,7 @@ body {
 /* 细滚动条（macOS 观感） */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(27, 43, 69, 0.18) transparent;
+  scrollbar-color: rgba(59, 130, 246, 0.18) transparent;
 }
 *::-webkit-scrollbar {
   width: 9px;
@@ -89,21 +89,21 @@ body {
   background: transparent;
 }
 *::-webkit-scrollbar-thumb {
-  background: rgba(27, 43, 69, 0.14);
+  background: rgba(59, 130, 246, 0.14);
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: content-box;
   transition: background 0.25s var(--md-ease-smooth);
 }
 *::-webkit-scrollbar-thumb:hover {
-  background: rgba(27, 43, 69, 0.28);
+  background: rgba(59, 130, 246, 0.28);
   background-clip: content-box;
 }
 
 /* 键盘可达性：苹果式双层焦点环（仅键盘触发，鼠标点击不出现） */
 :focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.9), 0 0 0 5.5px rgba(37, 99, 235, 0.45);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.9), 0 0 0 5.5px rgba(59, 130, 246, 0.45);
   border-radius: var(--md-r-sm);
   transition: box-shadow 0.15s var(--md-ease-out);
 }
@@ -201,7 +201,7 @@ body {
 .ant-card:hover {
   transform: translateY(var(--md-lift));
   box-shadow: var(--md-shadow-hover);
-  border-color: rgba(37, 99, 235, 0.16);
+  border-color: rgba(59, 130, 246, 0.16);
 }
 
 /* 面板不参与抬升的变体（表格容器等大面积块，抬升会显笨重） */
@@ -252,11 +252,11 @@ body {
 /* 主按钮悬浮时轻抬并加深投影，形成「浮起」的空间暗示 */
 .ant-btn-primary:not(:disabled):hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.28);
+  box-shadow: 0 6px 16px rgba(59, 130, 246, 0.28);
 }
 .ant-btn-primary:not(:disabled):active {
   transform: translateY(0) scale(var(--md-press));
-  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.22);
+  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.22);
 }
 
 /* 纯文字 / 图标按钮：悬浮底色渐显 */
@@ -352,7 +352,7 @@ body {
   transform: scale(1.14);
 }
 .md-nav-item[data-active="true"] {
-  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.1);
 }
 /* 当前项的左侧指示条（滑入） */
 .md-nav-item {
@@ -366,7 +366,7 @@ body {
   width: 3px;
   height: 0;
   border-radius: 999px;
-  background: var(--md-primary, #2563eb);
+  background: var(--md-primary, #3b82f6);
   transform: translateY(-50%);
   opacity: 0;
   transition:
@@ -398,7 +398,7 @@ body {
 }
 .md-brand:hover svg {
   transform: scale(1.05) rotate(-3deg);
-  filter: drop-shadow(0 6px 14px rgba(37, 99, 235, 0.42));
+  filter: drop-shadow(0 6px 14px rgba(59, 130, 246, 0.42));
 }
 
 /* ---------------------------------------------------------------------------
@@ -483,7 +483,7 @@ body {
 .ant-input-affix-wrapper-focused,
 .ant-select-focused .ant-select-selector,
 .ant-picker-focused {
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12) !important;
 }
 
 /* 8.4 标签页 —— 指示条平滑滑动 */
@@ -554,9 +554,9 @@ body {
 .ant-skeleton-content .ant-skeleton-title {
   background-image: linear-gradient(
     90deg,
-    rgba(27, 43, 69, 0.05) 25%,
-    rgba(27, 43, 69, 0.09) 37%,
-    rgba(27, 43, 69, 0.05) 63%
+    rgba(59, 130, 246, 0.05) 25%,
+    rgba(59, 130, 246, 0.09) 37%,
+    rgba(59, 130, 246, 0.05) 63%
   ) !important;
   background-size: 400% 100% !important;
   animation: mdShimmer 1.6s var(--md-ease-in-out) infinite !important;
@@ -646,11 +646,11 @@ nav,
    ============================================================================ */
 
 /* --- 分类色：只区分类别，不表示状态 --- */
-.cat-1 { --cat-bg: #eef5ff; --cat-ink: #4774b9; --cat-line: #d3e2f7; }
-.cat-2 { --cat-bg: #eaf7f2; --cat-ink: #298f70; --cat-line: #cfeadf; }
-.cat-3 { --cat-bg: #f3effc; --cat-ink: #7a5cc4; --cat-line: #e0d6f5; }
-.cat-4 { --cat-bg: #fdeff0; --cat-ink: #c4423e; --cat-line: #f2d4d5; }
-.cat-5 { --cat-bg: #fbf3e6; --cat-ink: #a8792a; --cat-line: #e8d9bd; }
+.cat-1 { --cat-bg: rgba(124, 156, 196, 0.16); --cat-ink: #8FB0D9; --cat-line: rgba(124, 156, 196, 0.3); }
+.cat-2 { --cat-bg: rgba(91, 191, 122, 0.14); --cat-ink: #7EC850; --cat-line: rgba(91, 191, 122, 0.3); }
+.cat-3 { --cat-bg: rgba(166, 141, 224, 0.14); --cat-ink: #B39DEB; --cat-line: rgba(166, 141, 224, 0.3); }
+.cat-4 { --cat-bg: rgba(229, 116, 107, 0.14); --cat-ink: #F0938C; --cat-line: rgba(229, 116, 107, 0.3); }
+.cat-5 { --cat-bg: rgba(59, 130, 246, 0.14); --cat-ink: #60a5fa; --cat-line: rgba(59, 130, 246, 0.3); }
 
 .tnum { font-variant-numeric: tabular-nums; }
 
@@ -666,7 +666,7 @@ nav,
   flex-direction: column;
   min-height: 300px;
   border-radius: var(--md-r-lg);
-  border: 1px solid #edf1f7;
+  border: 1px solid rgba(21,58,124,0.1);
   background: color-mix(in srgb, var(--cat-bg) 34%, #ffffff);
   transition:
     border-color var(--md-dur-base) var(--md-ease-smooth),
@@ -709,7 +709,7 @@ nav,
   min-width: 0;
   font-size: 13.5px;
   font-weight: 650;
-  color: #1b2b45;
+  color: #eaf1fb;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -731,7 +731,7 @@ nav,
   margin: 0 16px 8px;
   font-size: 10.5px;
   line-height: 1.6;
-  color: #8b98aa;
+  color: var(--muted);
 }
 
 .cb-col-body {
@@ -753,8 +753,8 @@ nav,
   gap: 10px;
   padding: 12px 14px;
   border-radius: var(--md-r-md);
-  border: 1px solid #e6ecf3;
-  background: #fff;
+  border: 1px solid rgba(21,58,124,0.11);
+  background: rgba(59, 130, 246, 0.06);
   box-shadow: var(--md-shadow-rest);
   transition:
     box-shadow var(--md-dur-base) var(--md-ease-smooth),
@@ -791,13 +791,13 @@ nav,
   color: #7d8ba0;
   white-space: nowrap;
 }
-.cb-badge.hot { background: #fdeeee; color: #c4423e; }
+.cb-badge.hot { background: rgba(229,116,107,0.12); color: #E5746B; }
 
 .cb-empty {
   margin: 18px 0;
   text-align: center;
   font-size: 11.5px;
-  color: #a9b3c0;
+  color: var(--muted);
 }
 
 /* --- 幽灵卡：外层管位移，内层管旋转缩放，两条通道互不覆盖 --- */
@@ -811,14 +811,14 @@ nav,
 }
 .cb-ghost-inner {
   transform-origin: center;
-  filter: drop-shadow(0 10px 24px rgba(27, 43, 69, 0.18));
+  filter: drop-shadow(0 10px 24px rgba(59, 130, 246, 0.18));
 }
 .cb-ghost-inner .cb-card,
 .cb-ghost-inner > * {
   width: 100%;
   cursor: grabbing;
   opacity: 0.96;
-  box-shadow: 0 8px 20px rgba(27, 43, 69, 0.14);
+  box-shadow: 0 8px 20px rgba(59, 130, 246, 0.14);
 }
 
 /* --- 卡片右上角「移动到…」键盘替代路径 --- */
@@ -832,7 +832,7 @@ nav,
   border: 0;
   border-radius: 7px;
   background: transparent;
-  color: #a9b3c0;
+  color: var(--muted);
   font-size: 14px;
   line-height: 1;
   cursor: pointer;
@@ -845,7 +845,7 @@ nav,
 .cb-card:hover .cb-menu-btn,
 .cb-menu-btn:focus-visible,
 .cb-menu-btn[aria-expanded="true"] { opacity: 1; }
-.cb-menu-btn:hover { background: #f0f3f7; color: #1b2b45; }
+.cb-menu-btn:hover { background: #f0f3f7; color: #eaf1fb; }
 
 .cb-menu {
   position: absolute;
@@ -858,8 +858,8 @@ nav,
   flex-direction: column;
   gap: 2px;
   border-radius: var(--md-r-md);
-  border: 1px solid #e6ecf3;
-  background: #fff;
+  border: 1px solid rgba(21,58,124,0.11);
+  background: rgba(59, 130, 246, 0.06);
   box-shadow: var(--md-shadow-pop);
   animation: mdPopIn 0.24s var(--md-ease-out) backwards;
 }
@@ -867,7 +867,7 @@ nav,
   padding: 0 9px 5px;
   font-size: 10px;
   letter-spacing: 1.2px;
-  color: #a9b3c0;
+  color: var(--muted);
 }
 .cb-menu-item {
   display: flex;
@@ -878,13 +878,13 @@ nav,
   border-radius: 8px;
   background: transparent;
   font-size: 12.5px;
-  color: #1b2b45;
+  color: #eaf1fb;
   text-align: left;
   cursor: pointer;
   font-family: inherit;
   transition: background-color var(--md-dur-fast) var(--md-ease-smooth), transform var(--md-dur-fast) var(--md-ease-out);
 }
-.cb-menu-item:hover { background: #f5f8fd; transform: translateX(2px); }
+.cb-menu-item:hover { background: rgba(59, 130, 246, 0.04); transform: translateX(2px); }
 
 /* ============================================================================
    【权限链路】上溯链路节点
@@ -904,8 +904,8 @@ nav,
   gap: 10px;
   padding: 10px 14px;
   border-radius: var(--md-r-md);
-  border: 1px solid #e6ecf3;
-  background: #fff;
+  border: 1px solid rgba(21,58,124,0.11);
+  background: rgba(59, 130, 246, 0.06);
   box-shadow: var(--md-shadow-rest);
   transition:
     box-shadow var(--md-dur-base) var(--md-ease-smooth),
@@ -931,7 +931,7 @@ nav,
   font-size: 13px;
   font-weight: 600;
   flex: none;
-  background: #eaf1ff;
+  background: rgba(59, 130, 246, 0.14);
   color: #4774b9;
 }
 .chain-avatar.teal { background: #e6f4f1; color: #1f8a7e; }
@@ -941,7 +941,7 @@ nav,
 .chain-meta b {
   font-size: 13px;
   font-weight: 600;
-  color: #1b2b45;
+  color: #eaf1fb;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -953,12 +953,12 @@ nav,
   font-weight: 600;
   padding: 1px 6px;
   border-radius: 4px;
-  background: #eaf1ff;
+  background: rgba(59, 130, 246, 0.14);
   color: #4774b9;
 }
 .chain-meta small {
   font-size: 10.5px;
-  color: #8b98aa;
+  color: var(--muted);
   margin-top: 3px;
   overflow: hidden;
   white-space: nowrap;
@@ -972,7 +972,7 @@ nav,
   border-radius: var(--md-r-md);
   border: 1px dashed #dbe3ee;
   font-size: 12px;
-  color: #9aa6b5;
+  color: var(--muted);
 }
 
 /* 窄屏：看板改为纵向单列，链路横向滚动 */
@@ -997,4 +997,67 @@ nav,
   }
   .cb-menu { animation: none !important; }
   .cb-ghost { display: none !important; }
+}
+
+/* ============================================================================
+   12. 患者端青绿主题动效适配
+   —— 配色保持不变（青绿 teal），仅让共享动效类里的蓝色语义反馈
+      在 .patient-app 作用域内替换为青绿，实现「同一套动效、两套主题色」。
+   ============================================================================ */
+.patient-app .stat:hover,
+.patient-app .panel:hover,
+.patient-app .ant-card:hover {
+  border-color: rgba(39, 133, 125, 0.2);
+}
+.patient-app .ant-btn-primary:not(:disabled):hover {
+  box-shadow: 0 6px 16px rgba(39, 133, 125, 0.28);
+}
+.patient-app .ant-btn-primary:not(:disabled):active {
+  box-shadow: 0 2px 6px rgba(39, 133, 125, 0.22);
+}
+.patient-app :focus-visible {
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.9), 0 0 0 5.5px rgba(39, 133, 125, 0.42);
+}
+.patient-app .md-nav-item::before {
+  background: #3b82f6;
+}
+.patient-app .md-nav-item[data-active="true"] {
+  box-shadow: inset 0 0 0 1px rgba(39, 133, 125, 0.12);
+}
+.patient-app .md-brand:hover svg {
+  filter: drop-shadow(0 6px 14px rgba(39, 133, 125, 0.42));
+}
+
+/* ── 13. NOVAMED 星核 3D 公转（JS 驱动） ────────────────────
+   两颗伴星沿绕 X 轴倾斜 30° 的轨道绕核心公转（地球绕太阳式）。
+   3D 解算与远近缩放由 BrandSparkle.tsx 的 rAF 完成，
+   此处仅保留轨道层容器定位与减动效降级提示。 */
+.bs-orbit-plane .bs-sat {
+  /* 伴星 path 以原点(0,0)为中心，scale 围绕自身缩放，勿设 transform-origin（会偏移圆心） */
+  will-change: transform, opacity;
+}
+
+/* ── 13b. NOVAMED 粒子星云 ───────────────────────────────────
+   紫/青/粉微光粒子环绕星核，缓慢漂移 + 呼吸明暗（motionpedia 粒子语汇）。 */
+@keyframes bs-dust-drift {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.5; }
+  25% { transform: translate(1.2px, -1.6px) scale(1.15); opacity: 0.9; }
+  50% { transform: translate(-1px, -0.6px) scale(0.9); opacity: 0.6; }
+  75% { transform: translate(-1.4px, 1.4px) scale(1.05); opacity: 0.85; }
+}
+.bs-dust circle {
+  transform-origin: center;
+  animation: bs-dust-drift 4.5s ease-in-out infinite;
+}
+.bs-dust .bs-dust-c { animation-delay: 0.6s; animation-duration: 5.2s; }
+.bs-dust .bs-dust-p { animation-delay: 1.2s; animation-duration: 4.1s; }
+.bs-dust .bs-dust-k { animation-delay: 1.9s; animation-duration: 5.8s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bs-orbit-plane .bs-sat {
+    will-change: auto;
+  }
+  .bs-dust circle {
+    animation: none;
+  }
 }

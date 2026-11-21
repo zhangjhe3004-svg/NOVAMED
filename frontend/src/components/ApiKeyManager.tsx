@@ -4,7 +4,7 @@
  */
 import { useEffect, useState } from "react";
 import {
-  Button, Typography, message, Tag, Form, Input, Space, Spin, Modal, Popconfirm, Tooltip,
+  Button, Typography, message, Tag, Form, Input, Space, Spin, Modal, Popconfirm, Tooltip, AutoComplete,
 } from "antd";
 import {
   KeyOutlined, PlusOutlined, SearchOutlined, ReloadOutlined, ThunderboltOutlined,
@@ -12,33 +12,32 @@ import {
   CheckOutlined,
 } from "@ant-design/icons";
 import api from "../api/client";
+import { testProvider, setActiveProvider } from "../api/ai";
+import ProviderIcon from "./ProviderIcon";
+import { AI_PROVIDERS } from "../config/aiProviders";
 
 const { Text } = Typography;
 
-const providerMeta: Record<string, { icon: string; color: string; url: string }> = {
-  openai:    { icon: "🤖", color: "#1677ff", url: "https://api.openai.com/v1" },
-  deepseek:  { icon: "🔍", color: "#4d6bfe", url: "https://api.deepseek.com/v1" },
-  qwen:      { icon: "☁️", color: "#615ced", url: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
-  anthropic: { icon: "🧠", color: "#d97757", url: "https://api.anthropic.com/v1" },
+// 品牌色 + 地址：由全站供应商目录生成，另补 workbuddy 云端（自研、无第三方图标）
+const providerMeta: Record<string, { color: string; url: string }> = {
+  workbuddy: { color: "#82dd2d", url: "WorkBuddy 云端模型（积分调用）" },
+  ...Object.fromEntries(AI_PROVIDERS.map((p) => [p.key, { color: p.color, url: p.url }])),
 };
 
-const presets: { provider: string; name: string; icon: string }[] = [
-  { provider: "openai", name: "OpenAI", icon: "🤖" },
-  { provider: "anthropic", name: "Claude", icon: "🧠" },
-  { provider: "deepseek", name: "DeepSeek", icon: "🔍" },
-  { provider: "qwen", name: "通义千问", icon: "☁️" },
-  { provider: "openai", name: "Kimi", icon: "🌙" },
-  { provider: "openai", name: "Gemini", icon: "✨" },
-  { provider: "openai", name: "Grok", icon: "🄶" },
-  { provider: "deepseek", name: "DeepSeek Coder", icon: "🅳" },
-];
+// 新增供应商弹窗的预设列表：AI 模型供应商 + 云/开发平台（含图标）
+const presets: { provider: string; name: string }[] = AI_PROVIDERS.map((p) => ({
+  provider: p.key,
+  name: p.name,
+}));
 
 export default function ApiKeyManager() {
   const [keys, setKeys] = useState<any[]>([]);
   const [keysLoading, setKeysLoading] = useState(false);
   const [selected, setSelected] = useState<string>("");
+  const [activeProvider, setActiveProviderState] = useState<string | null>(null);
   const [expandedProvider, setExpandedProvider] = useState<string | null>(null);
   const [inputKey, setInputKey] = useState("");
+  const [inputModel, setInputModel] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState<string | null>(null);
 
@@ -51,10 +50,11 @@ export default function ApiKeyManager() {
     setKeysLoading(true);
     try {
       const res = await api.get("/ai-keys");
-      setKeys(res.data.providers || []);
+      setKeys(res.data.keys || []);
+      setActiveProviderState(res.data.routing?.active_provider || null);
       if (!selected) {
-        const firstCfg = (res.data.providers || []).find((p: any) => p.configured);
-        setSelected(firstCfg?.provider || (res.data.providers?.[0]?.provider) || "");
+        const firstCfg = (res.data.keys || []).find((p: any) => p.configured);
+        setSelected(firstCfg?.provider || (res.data.keys?.[0]?.provider) || "");
       }
     } catch { /* 忽略 */ } finally { setKeysLoading(false); }
   };
@@ -62,17 +62,31 @@ export default function ApiKeyManager() {
   useEffect(() => { fetchKeys(); }, []);
 
   const handleSaveKey = async (provider: string) => {
-    if (!inputKey.trim()) { message.warning("请输入API Key"); return; }
+    const payload: any = { provider };
+    if (inputKey.trim()) payload.api_key = inputKey.trim();
+    if (inputModel.trim()) payload.model = inputModel.trim();
+    if (!payload.api_key && !payload.model) { message.warning("请输入 API Key 或选择模型"); return; }
     setSaving(true);
     try {
-      await api.post("/ai-keys", { provider, api_key: inputKey.trim() });
-      message.success("API Key 已保存");
+      await api.post(`/ai-keys/${provider}`, payload);
+      message.success("已保存");
       setExpandedProvider(null);
       setInputKey("");
+      setInputModel("");
       fetchKeys();
     } catch (err: any) {
       message.error(err.response?.data?.detail || "保存失败");
     } finally { setSaving(false); }
+  };
+
+  const handleSetActive = async (provider: string) => {
+    try {
+      await setActiveProvider(provider);
+      message.success(`已切换默认供应商：${provider}`);
+      fetchKeys();
+    } catch (err: any) {
+      message.error(err.response?.data?.detail || "切换失败");
+    }
   };
 
   const handleDeleteKey = async (provider: string) => {
@@ -90,12 +104,18 @@ export default function ApiKeyManager() {
     }
   };
 
-  const handleTest = (provider: string) => {
+  const handleTest = async (provider: string) => {
     setTesting(provider);
-    setTimeout(() => {
-      setTesting(null);
-      message.success(`${provider} 测速完成（未真正连接，仅示例）`);
-    }, 800);
+    try {
+      const r = await testProvider(provider);
+      if (r.ok) {
+        message.success(`${provider} 连接正常（${r.latency_ms ?? "-"}ms${r.method ? " · " + r.method : ""}）`);
+      } else {
+        message.error(`${provider} 连接失败：${r.error || "未知错误"}`);
+      }
+    } catch (err: any) {
+      message.error(err.response?.data?.detail || "测速失败");
+    } finally { setTesting(null); }
   };
 
   const pickPreset = (preset: any) => {
@@ -109,7 +129,12 @@ export default function ApiKeyManager() {
   const handleAdd = async () => {
     try {
       const v = await addForm.validateFields();
-      await api.post("/ai-keys", { provider: v.provider, api_key: v.api_key });
+      await api.post(`/ai-keys/${v.provider}`, {
+        provider: v.provider,
+        api_key: v.api_key,
+        name: v.name || v.provider,
+        request_url: v.request_url || "",
+      });
       message.success("供应商已添加");
       setAddOpen(false);
       addForm.resetFields();
@@ -125,10 +150,10 @@ export default function ApiKeyManager() {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <div>
-          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: "#1b2b45" }}>
-            <KeyOutlined style={{ marginRight: 8, color: "#2563eb" }} />AI 模型参数
+          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: "#eaf1fb" }}>
+            <KeyOutlined style={{ marginRight: 8, color: "#3b82f6" }} />AI 模型参数
           </h3>
-          <Text style={{ fontSize: 12, color: "#78869b", display: "block", marginTop: 2 }}>
+          <Text style={{ fontSize: 12, color: "#9a9ab0", display: "block", marginTop: 2 }}>
             供应商：{keys.length > 0 ? "已接入 " + keys.length + " 家" : "云端 · 自动选择"} · 个人偏好会覆盖系统默认值，仅作用于本人发起的分析
           </Text>
         </div>
@@ -138,33 +163,36 @@ export default function ApiKeyManager() {
       <Spin spinning={keysLoading}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, overflowX: "auto", paddingBottom: 8, marginBottom: 12 }}>
           {keys.map((k) => {
-            const meta = providerMeta[k.provider] || { icon: "🔑", color: "#8c8c8c", url: "" };
             return (
               <Tag
                 key={k.provider}
                 style={{
                   borderRadius: 8, padding: "5px 14px", cursor: "pointer",
-                  background: selected === k.provider ? "#e6f4ff" : "#f6f8fc",
-                  border: `1px solid ${selected === k.provider ? "#2563eb" : "#e8ecf2"}`,
-                  color: selected === k.provider ? "#2563eb" : "#63718a",
+                  background: selected === k.provider ? "rgba(59, 130, 246, 0.22)" : "#101b2e",
+                  border: `1px solid ${selected === k.provider ? "#3b82f6" : "rgba(59, 130, 246, 0.22)"}`,
+                  color: selected === k.provider ? "#93c5fd" : "#9a9ab0",
                   fontWeight: selected === k.provider ? 600 : 400, fontSize: 13,
                 }}
                 onClick={() => setSelected(k.provider)}
               >
-                <span style={{ marginRight: 6 }}>{meta.icon}</span>{k.label}
+                <span style={{ marginRight: 6, display: "inline-flex", verticalAlign: "-3px" }}>
+                  <ProviderIcon provider={k.provider} size={16} />
+                </span>{k.name || k.provider}
               </Tag>
             );
           })}
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ width: 7, height: 7, borderRadius: 7, background: "#52c41a" }} />
-            <Text style={{ fontSize: 11, color: "#52c41a" }}>已连接</Text>
-            <CloudOutlined style={{ color: "#52c41a", fontSize: 13 }} />
+            <span style={{ width: 7, height: 7, borderRadius: 7, background: activeProvider ? "#52c41a" : "#f87171" }} />
+            <Text style={{ fontSize: 11, color: activeProvider ? "#52c41a" : "#f87171" }}>
+              {activeProvider ? `默认：${activeProvider}` : "未设默认"}
+            </Text>
+            <CloudOutlined style={{ color: activeProvider ? "#52c41a" : "#f87171", fontSize: 13 }} />
           </div>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {keys.map((k) => {
-            const meta = providerMeta[k.provider] || { icon: "🔑", color: "#8c8c8c", url: "" };
+            const meta = providerMeta[k.provider] || { color: "#8c8c8c", url: "" };
             const isSelected = selected === k.provider;
             const isExpanded = expandedProvider === k.provider;
             return (
@@ -172,9 +200,9 @@ export default function ApiKeyManager() {
                 key={k.provider}
                 onClick={() => setSelected(k.provider)}
                 style={{
-                  border: `1px solid ${isSelected ? "#2563eb" : "#edf1f7"}`,
+                  border: `1px solid ${isSelected ? "#3b82f6" : "rgba(59, 130, 246, 0.18)"}`,
                   borderRadius: 12, padding: "14px 18px",
-                  background: isSelected ? "#f0f7ff" : "#ffffff",
+                  background: isSelected ? "rgba(59, 130, 246, 0.12)" : "#101b2e",
                   cursor: "pointer", transition: "all 0.2s",
                 }}
               >
@@ -183,17 +211,18 @@ export default function ApiKeyManager() {
                   <div style={{
                     width: 42, height: 42, borderRadius: 10,
                     background: `${meta.color}15`, color: meta.color,
-                    display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22,
+                    display: "flex", alignItems: "center", justifyContent: "center",
                   }}>
-                    {meta.icon}
+                    <ProviderIcon provider={k.provider} size={22} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <Space size={8}>
-                      <span style={{ fontWeight: 600, fontSize: 15 }}>{k.label}</span>
+                      <span style={{ fontWeight: 600, fontSize: 15, color: "#eaf1fb" }}>{k.name || k.provider}</span>
                       <Tag color="processing" style={{ borderRadius: 6, fontSize: 11 }}>需要路由</Tag>
                     </Space>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2, color: "#2563eb", fontSize: 13 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2, color: "#93c5fd", fontSize: 13 }}>
                       <LinkOutlined /> {meta.url}
+                      {k.model && <span style={{ color: "#9a9ab0" }}>· {k.model}</span>}
                     </div>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -212,15 +241,27 @@ export default function ApiKeyManager() {
                     <span style={{
                       display: "inline-block", padding: "2px 10px", borderRadius: 999,
                       fontSize: 11, fontWeight: 600,
-                      background: k.configured ? "#e6f4f1" : "#fff1f0",
-                      color: k.configured ? "#138d85" : "#c4423e",
+                      background: k.configured ? "rgba(52,211,153,0.14)" : "rgba(248,113,113,0.14)",
+                      color: k.configured ? "#34d399" : "#f87171",
                     }}>
                       {k.configured ? "已配置" : "未配置"}
                     </span>
+                    {k.is_active && (
+                      <span style={{
+                        display: "inline-block", padding: "2px 10px", borderRadius: 999,
+                        fontSize: 11, fontWeight: 600,
+                        background: "rgba(59,130,246,0.18)", color: "#93c5fd",
+                      }}>默认</span>
+                    )}
+                    {k.configured && !k.is_active && (
+                      <Tooltip title="切换为该供应商作为默认（Switch）">
+                        <Button size="small" onClick={(e) => { e.stopPropagation(); handleSetActive(k.provider); }}>设为默认</Button>
+                      </Tooltip>
+                    )}
                     <Button
                       size="small"
                       type={isExpanded ? "default" : "primary"}
-                      onClick={(e) => { e.stopPropagation(); setExpandedProvider(isExpanded ? null : k.provider); setInputKey(""); }}
+                      onClick={(e) => { e.stopPropagation(); setExpandedProvider(isExpanded ? null : k.provider); setInputKey(""); setInputModel(k.model || ""); }}
                     >
                       {k.configured ? "更换" : "配置"}
                     </Button>
@@ -233,7 +274,15 @@ export default function ApiKeyManager() {
                 </div>
 
                 {isExpanded && (
-                  <div style={{ marginTop: 12, padding: "12px 16px", background: "#f6f8fc", borderRadius: 8, border: "1px solid #e8ecf2" }}>
+                  <div style={{ marginTop: 12, padding: "12px 16px", background: "#0f0f1e", borderRadius: 8, border: "1px solid rgba(59, 130, 246, 0.22)" }}>
+                    <Text type="secondary" style={{ fontSize: 12, display: "block", marginBottom: 6 }}>模型（切换模型，可直接输入）</Text>
+                    <AutoComplete
+                      style={{ width: "100%", marginBottom: 10 }}
+                      placeholder="模型名，例如 deepseek-chat"
+                      value={inputModel}
+                      onChange={(v) => setInputModel(v)}
+                      options={(k.models || (k.model ? [k.model] : [])).map((m: string) => ({ value: m }))}
+                    />
                     <Space.Compact style={{ width: "100%" }}>
                       <Input.Password
                         placeholder={k.placeholder || "sk-..."}
@@ -245,7 +294,7 @@ export default function ApiKeyManager() {
                       <Button type="primary" loading={saving} icon={<SaveOutlined />} onClick={() => handleSaveKey(k.provider)}>保存</Button>
                     </Space.Compact>
                     <Text type="secondary" style={{ fontSize: 11, display: "block", marginTop: 6 }}>
-                      Key 安全存储在服务器端 .env 文件
+                      切换模型选填上方即可；更换 Key 再填写下方。Key 存储于服务器端 data/ai_keys.json
                     </Text>
                   </div>
                 )}
@@ -292,12 +341,15 @@ export default function ApiKeyManager() {
                   key={p.name}
                   style={{
                     borderRadius: 8, padding: "4px 10px", cursor: "pointer",
-                    background: addForm.getFieldValue("name") === p.name ? "#e6f4ff" : "#f6f8fc",
-                    border: `1px solid ${addForm.getFieldValue("name") === p.name ? "#2563eb" : "#e8ecf2"}`,
+                    background: addForm.getFieldValue("name") === p.name ? "rgba(59, 130, 246, 0.22)" : "#101b2e",
+                    border: `1px solid ${addForm.getFieldValue("name") === p.name ? "#3b82f6" : "rgba(59, 130, 246, 0.22)"}`,
+                    color: addForm.getFieldValue("name") === p.name ? "#93c5fd" : "#9a9ab0",
                   }}
                   onClick={() => pickPreset(p)}
                 >
-                  <span style={{ marginRight: 4 }}>{p.icon}</span>{p.name}
+                  <span style={{ marginRight: 4, display: "inline-flex", verticalAlign: "-3px" }}>
+                    <ProviderIcon provider={p.provider} size={16} />
+                  </span>{p.name}
                 </Tag>
               ))}
           </div>
@@ -331,9 +383,9 @@ function RadioGroup() {
         <div key={o.value} onClick={() => setV(o.value)}
           style={{
             padding: "9px 14px", borderRadius: 9, cursor: "pointer", fontSize: 13, textAlign: "center",
-            border: `1px solid ${v === o.value ? "#2563eb" : "#e6ecf3"}`,
-            background: v === o.value ? "#eaf1ff" : "#fff",
-            color: v === o.value ? "#2563eb" : "#5b6b82",
+            border: `1px solid ${v === o.value ? "#3b82f6" : "rgba(59, 130, 246, 0.22)"}`,
+            background: v === o.value ? "rgba(59, 130, 246, 0.18)" : "#101b2e",
+            color: v === o.value ? "#93c5fd" : "#9a9ab0",
           }}>
           {v === o.value ? "● " : "○ "}{o.label}
         </div>

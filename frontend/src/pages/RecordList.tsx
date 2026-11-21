@@ -18,6 +18,7 @@ import {
   SafetyCertificateOutlined, CheckCircleOutlined,
   SearchOutlined, DownloadOutlined, PlusOutlined,
   FilterOutlined, RightOutlined,
+  ScanOutlined, FileImageOutlined, DeleteOutlined,
 } from "@ant-design/icons";
 import {
   listRecords, getRecord, reviewAiSuggestion,
@@ -29,6 +30,12 @@ import { useAuth } from "../stores/auth";
 import type { MedicalRecordInfo } from "../api/records";
 import VoiceTextArea from "../components/VoiceTextArea";
 import HoverCard, { HoverCardHead, HoverCardRows } from "../components/HoverCard";
+import DocScanner from "../components/DocScanner";
+import { parseMedicalOcr } from "../utils/medicalOcr";
+import {
+  listDocuments, uploadDocument, deleteDocument, getDocument,
+  type ScannedDocumentMeta,
+} from "../api/documents";
 
 const aiReviewLabels: Record<number, { text: string; color: string }> = {
   0: { text: "未审核", color: "default" },
@@ -86,6 +93,13 @@ export default function RecordList() {
   const [createSaving, setCreateSaving] = useState(false);
   const [createForm] = Form.useForm();
   const [exporting, setExporting] = useState(false);
+
+  // 扫描文档：mode = create 新建回填 / edit 编辑回填 / archive 详情归档
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scanMode, setScanMode] = useState<"create" | "edit" | "archive">("create");
+  const [pendingScan, setPendingScan] = useState<{ images: string[]; ocr_text: string }>({ images: [], ocr_text: "" });
+  const [detailDocs, setDetailDocs] = useState<ScannedDocumentMeta[]>([]);
+  const [docPreview, setDocPreview] = useState<{ title: string; images: string[]; ocr_text: string } | null>(null);
 
   // 详情面板（右侧）
   const [detail, setDetail] = useState<MedicalRecordInfo | null>(null);
@@ -157,18 +171,81 @@ export default function RecordList() {
     }).catch(() => {});
   }, []);
 
+  const loadDetailDocs = async (recordId: number) => {
+    try {
+      const r = await listDocuments({ record_id: recordId });
+      setDetailDocs(r.items || []);
+    } catch {
+      setDetailDocs([]);
+    }
+  };
+
   const handleView = async (id: number) => {
     try {
       const r = await getRecord(id);
       setDetail(r);
       setSimilarList([]);
       setSimilarLoading(true);
+      loadDetailDocs(id);
       const sim = await searchSimilar(r.id);
       setSimilarList(sim.results || []);
     } catch {
       message.error("加载详情失败");
     } finally {
       setSimilarLoading(false);
+    }
+  };
+
+  // 扫描识别：新建 / 编辑场景回填表单，归档场景直接上传
+  const handleScanConfirm = async (result: { title: string; category: string; images: string[]; ocr_text: string }) => {
+    setScanOpen(false);
+    if (scanMode === "archive") {
+      if (!detail) return;
+      try {
+        await uploadDocument({
+          title: result.title || `病历扫描件 ${new Date().toLocaleDateString("zh-CN")}`,
+          category: result.category,
+          record_id: detail.id,
+          patient_id: detail.patient_id,
+          images: result.images,
+          ocr_text: result.ocr_text,
+        });
+        message.success("扫描件已归档到该记录");
+        loadDetailDocs(detail.id);
+      } catch {
+        message.error("归档失败");
+      }
+      return;
+    }
+    // 回填表单
+    const parsed = parseMedicalOcr(result.ocr_text);
+    const form = scanMode === "edit" ? editForm : createForm;
+    if (parsed.symptoms) form.setFieldValue("symptoms", parsed.symptoms);
+    if (parsed.diagnosis) form.setFieldValue("diagnosis", parsed.diagnosis);
+    if (parsed.prescription) form.setFieldValue("prescription", parsed.prescription);
+    if (parsed.rest) form.setFieldValue("notes", parsed.rest);
+    if (result.ocr_text) {
+      setPendingScan({ images: result.images, ocr_text: result.ocr_text });
+      message.success("已识别并回填，请核对后再保存");
+    }
+  };
+
+  const handleDocPreview = async (id: number) => {
+    try {
+      const d = await getDocument(id);
+      setDocPreview({ title: d.title, images: d.images, ocr_text: d.ocr_text });
+    } catch {
+      message.error("加载文档失败");
+    }
+  };
+
+  const handleDocDelete = async (id: number) => {
+    try {
+      await deleteDocument(id);
+      message.success("已删除");
+      if (detail) loadDetailDocs(detail.id);
+    } catch {
+      message.error("删除失败");
     }
   };
 
@@ -203,6 +280,7 @@ export default function RecordList() {
   // 新建记录
   const handleCreateOpen = () => {
     createForm.resetFields();
+    setPendingScan({ images: [], ocr_text: "" });
     setCreateOpen(true);
   };
 
@@ -210,7 +288,21 @@ export default function RecordList() {
     try {
       const values = await createForm.validateFields();
       setCreateSaving(true);
-      await createRecord(values);
+      const record = await createRecord(values);
+      // 新建时若有扫描件，自动归档到新记录
+      if (pendingScan.images.length && record?.id) {
+        try {
+          await uploadDocument({
+            title: `病历扫描件 ${new Date().toLocaleDateString("zh-CN")}`,
+            category: "病历",
+            record_id: record.id,
+            patient_id: values.patient_id,
+            images: pendingScan.images,
+            ocr_text: pendingScan.ocr_text,
+          });
+        } catch { /* 归档失败不阻断记录创建 */ }
+      }
+      setPendingScan({ images: [], ocr_text: "" });
       message.success("就诊记录已创建");
       setCreateOpen(false);
       setPage(1);
@@ -415,7 +507,7 @@ export default function RecordList() {
       {/* 页面标题 */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "16px 24px", flexWrap: "wrap" }}>
         <div>
-          <div style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>就诊记录</div>
+          <div className="md-page-title" style={{ fontSize: 28, fontWeight: 740, letterSpacing: "-0.03em", color: "var(--lv-ink)" }}>就诊记录</div>
           <div style={{ color: "var(--lv-muted)", fontSize: 13, marginTop: 5 }}>按患者、医生与审核状态检索每一次就诊，保证记录可追溯。</div>
         </div>
         <div style={{ display: "flex", gap: 12 }}>
@@ -466,7 +558,7 @@ export default function RecordList() {
           </div>
           <div className="toolbar">
             <label className="input" style={{ flex: 1 }}>
-              <SearchOutlined style={{ color: "#9aa6b6" }} />
+              <SearchOutlined style={{ color: "var(--muted)" }} />
               <Input
                 placeholder="按患者姓名 / 档案号筛选"
                 variant="borderless"
@@ -497,7 +589,7 @@ export default function RecordList() {
               content={
                 <div style={{ width: 280, display: "grid", gap: 12 }}>
                   <div>
-                    <div style={{ fontSize: 11, color: "#8190a4", marginBottom: 6 }}>医生审核状态</div>
+                    <div style={{ fontSize: 11, color: "#9a9ab0", marginBottom: 6 }}>医生审核状态</div>
                     <Select
                       mode="multiple"
                       style={{ width: "100%" }}
@@ -512,7 +604,7 @@ export default function RecordList() {
                     />
                   </div>
                   <div>
-                    <div style={{ fontSize: 11, color: "#8190a4", marginBottom: 6 }}>管理员审核状态</div>
+                    <div style={{ fontSize: 11, color: "#9a9ab0", marginBottom: 6 }}>管理员审核状态</div>
                     <Select
                       mode="multiple"
                       style={{ width: "100%" }}
@@ -669,9 +761,58 @@ export default function RecordList() {
                     </div>
                     <div style={{ paddingBottom: 0 }} className="tl">
                       <b>归档</b>
-                      <span>审核通过后对患者端可见</span>
+                      <span>审核通过后对客户端可见</span>
                     </div>
                   </div>
+                </div>
+              </section>
+
+              {/* 扫描件归档 */}
+              <section className="panel">
+                <div className="panel-head">
+                  <div>
+                    <h2><FileImageOutlined /> 扫描件</h2>
+                    <small>该记录归档的纸质病历 / 处方扫描件</small>
+                  </div>
+                  <Button
+                    size="small"
+                    icon={<ScanOutlined />}
+                    onClick={() => { setScanMode("archive"); setScanOpen(true); }}
+                  >
+                    扫描归档
+                  </Button>
+                </div>
+                <div className="panel-body">
+                  {detailDocs.length === 0 ? (
+                    <div style={{ textAlign: "center", color: "var(--muted)", fontSize: 12, padding: "10px 0" }}>
+                      暂无扫描件，可点击「扫描归档」上传
+                    </div>
+                  ) : (
+                    detailDocs.map((d, i) => (
+                      <div
+                        key={d.id}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 10,
+                          padding: "9px 0", fontSize: 12,
+                          borderBottom: i < detailDocs.length - 1 ? "1px solid #f0f3f8" : "none",
+                        }}
+                      >
+                        <FileImageOutlined style={{ color: "#7a88a0", fontSize: 16 }} />
+                        <span
+                          style={{ flex: 1, color: "#2d527e", cursor: "pointer", fontWeight: 500 }}
+                          onClick={() => handleDocPreview(d.id)}
+                        >
+                          {d.title}
+                        </span>
+                        <span className="badge gray">{d.image_count} 页</span>
+                        <Tooltip title="删除">
+                          <button type="button" className="icon-btn" onClick={() => handleDocDelete(d.id)} aria-label="删除扫描件">
+                            <DeleteOutlined />
+                          </button>
+                        </Tooltip>
+                      </div>
+                    ))
+                  )}
                 </div>
               </section>
 
@@ -686,13 +827,13 @@ export default function RecordList() {
                 </div>
                 <div className="panel-body">
                   {similarLoading ? (
-                    <div style={{ textAlign: "center", padding: 20, color: "#9aa6b6", fontSize: 12 }}>加载中…</div>
+                    <div style={{ textAlign: "center", padding: 20, color: "var(--muted)", fontSize: 12 }}>加载中…</div>
                   ) : similarList.length === 0 ? (
                     <Empty description="暂无相似病例" />
                   ) : (
                     similarList.slice(0, 3).map((s, i) => (
                       <div key={i} style={{ display: "flex", gap: 11, alignItems: "flex-start", padding: "11px 0", borderBottom: i < Math.min(similarList.length, 3) - 1 ? "1px solid #f0f3f8" : "none", fontSize: 11, lineHeight: 1.7 }}>
-                        <FileTextOutlined style={{ color: "#9aa6b6", flexShrink: 0, marginTop: 2 }} />
+                        <FileTextOutlined style={{ color: "var(--muted)", flexShrink: 0, marginTop: 2 }} />
                         <div>
                           <b style={{ display: "block", color: "#2d527e", fontWeight: 600, fontSize: 12 }}>
                             相似度 {((s.similarity_score || 0) * 100).toFixed(0)}% · {s.diagnosis || "未知诊断"}
@@ -710,7 +851,7 @@ export default function RecordList() {
           ) : (
             <section className="panel">
               <div className="panel-body" style={{ paddingTop: 40, textAlign: "center" }}>
-                <div style={{ color: "#9aa6b6", fontSize: 12 }}>点击左侧记录查看详情</div>
+                <div style={{ color: "var(--muted)", fontSize: 12 }}>点击左侧记录查看详情</div>
               </div>
             </section>
           )}
@@ -727,6 +868,17 @@ export default function RecordList() {
         okText="创建"
       >
         <Form form={createForm} layout="vertical">
+          <div style={{ marginBottom: 12 }}>
+            <Button
+              icon={<ScanOutlined />}
+              onClick={() => { setScanMode("create"); setScanOpen(true); }}
+            >
+              扫描识别病历（拍照/上传）
+            </Button>
+            <span style={{ fontSize: 11, color: "var(--muted)", marginLeft: 10 }}>
+              识别纸质病历并自动回填下方字段
+            </span>
+          </div>
           <Form.Item name="patient_id" label="患者" rules={[{ required: true, message: "请选择患者" }]}>
             <Select
               placeholder="选择患者"
@@ -745,6 +897,14 @@ export default function RecordList() {
       {/* 管理员编辑弹窗 */}
       <Modal title="修改就诊记录" open={editModalOpen} onCancel={() => setEditModalOpen(false)} onOk={handleEditSave}>
         <Form form={editForm} layout="vertical">
+          <div style={{ marginBottom: 12 }}>
+            <Button
+              icon={<ScanOutlined />}
+              onClick={() => { setScanMode("edit"); setScanOpen(true); }}
+            >
+              扫描识别病历
+            </Button>
+          </div>
           {user?.role === "admin" && (
             <>
               <Form.Item name="room" label="诊室"><Input placeholder="分配诊室" /></Form.Item>
@@ -758,6 +918,43 @@ export default function RecordList() {
           <Form.Item name="prescription" label="处方"><VoiceTextArea rows={2} /></Form.Item>
           <Form.Item name="notes" label="备注"><VoiceTextArea rows={2} /></Form.Item>
         </Form>
+      </Modal>
+
+      {/* 扫描文档（通用组件） */}
+      <DocScanner
+        open={scanOpen}
+        onClose={() => setScanOpen(false)}
+        onConfirm={handleScanConfirm}
+        showMeta={scanMode === "archive"}
+        okText={scanMode === "archive" ? "保存归档" : "填入表单"}
+      />
+
+      {/* 扫描件内容预览 */}
+      <Modal
+        title={docPreview?.title || "扫描件"}
+        open={!!docPreview}
+        onCancel={() => setDocPreview(null)}
+        footer={null}
+        width={640}
+        destroyOnHidden
+      >
+        {docPreview && (
+          <div style={{ display: "grid", gap: 14 }}>
+            {docPreview.images.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, maxHeight: 380, overflow: "auto" }}>
+                {docPreview.images.map((src, i) => (
+                  <img key={i} src={src} alt={`第${i + 1}页`} style={{ width: 210, borderRadius: 8, border: "1px solid #e6ecf3" }} />
+                ))}
+              </div>
+            )}
+            <div>
+              <div style={{ fontSize: 12, color: "#9a9ab0", marginBottom: 6 }}>识别文本</div>
+              <pre style={{ whiteSpace: "pre-wrap", background: "#101b2e", padding: 12, borderRadius: 8, fontSize: 12, margin: 0, maxHeight: 220, overflow: "auto", color: "#c8d0dc" }}>
+                {docPreview.ocr_text || "（无识别文本）"}
+              </pre>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );
