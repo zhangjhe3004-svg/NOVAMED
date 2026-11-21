@@ -1,4 +1,4 @@
-# MediCode 医院诊疗协同系统
+# NOVAMED 医院诊疗协同系统
 
 基于 **React 19 + TypeScript + antd 6 + FastAPI + SQLite 双库** 的医院诊疗协同平台，包含员工端（诊疗业务、排班、AI 辅助、附近互传）与患者端（预约挂号、就诊记录、个人中心）。
 
@@ -57,7 +57,7 @@ npm run dev:patient
 ## 目录结构
 
 ```
-MediCode/
+NOVAMED/
 ├── backend/
 │   ├── app/
 │   │   ├── main.py              # FastAPI 入口（CORS/路由注册/启动任务）

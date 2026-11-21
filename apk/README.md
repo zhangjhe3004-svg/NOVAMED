@@ -1,6 +1,6 @@
-# MediCode 移动端（React Native + Expo）
+# NOVAMED 移动端（React Native + Expo）
 
-本目录包含 MediCode 智慧医疗系统的两个移动端 App，基于 Expo SDK 57（React Native 0.86 + React 19）开发，与 Web 前端共享同一后端 API。
+本目录包含 NOVAMED 智慧医疗系统的两个移动端 App，基于 Expo SDK 57（React Native 0.86 + React 19）开发，与 Web 前端共享同一后端 API。
 
 ## 目录结构
 
@@ -64,4 +64,17 @@ npx eas build --platform android --profile preview   # 患者端 APK
 - Expo SDK 57 / React Native 0.86 / React 19.2
 - React Navigation 7（Stack + Bottom Tabs）
 - @react-native-async-storage/async-storage（token 持久化）
-- npm workspaces monorepo（共享 `@medicode/shared` 包）
+- npm workspaces monorepo（共享 `@novamed/shared` 包）
+
+## 视觉风格（SwiftUI）
+
+移动端采用 **Apple SwiftUI 视觉语言**（跨平台 RN 实现），对齐 iOS 原生设计规范：
+
+- **系统色**：系统蓝 `#007AFF`（员工端）、系统绿 `#34C759`（患者端）、系统红 `#FF3B30`、系统橙 `#FF9500`
+- **分组底色**：`#F2F2F7`（iOS 标准浅灰分组背景），内容卡片纯白
+- **卡片**：大圆角（12–16px）+ 柔和弥散阴影（低透明度、大模糊半径）
+- **按钮**：胶囊形（pill）+ 主色投影
+- **字体**：iOS San Francisco（Android 回退系统字体），大标题 34px
+- **图标**：SF Symbols 风格简洁线条符号
+
+设计令牌集中在 `packages/shared/src/theme.ts`（`colors` / `spacing` / `radius` / `fontSize` / `shadow` / `font`），两端共用。
