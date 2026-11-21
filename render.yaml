@@ -2,17 +2,13 @@ services:
   - type: web
     name: novamed-api
     runtime: python
-    plan: starter
+    plan: free
     region: oregon
     branch: main
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1
     healthCheckPath: /api/health
-    disk:
-      name: novamed-uploads
-      mountPath: /opt/render/project/src/backend/db/nearby_files
-      sizeGB: 1
     envVars:
       - key: DEBUG
         value: "false"
@@ -27,4 +23,6 @@ services:
       - key: BOOTSTRAP_ADMIN_PASSWORD
         sync: false
       - key: ENABLE_TASK_SCHEDULER
-        value: "true"
+        value: "false"
+      - key: ENABLE_FILE_UPLOADS
+        value: "false"

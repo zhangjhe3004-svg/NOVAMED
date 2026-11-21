@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     HOST: str = os.environ.get("BACKEND_HOST", "0.0.0.0")
     PORT: int = int(os.environ.get("BACKEND_PORT", "18001"))
     ENABLE_TASK_SCHEDULER: bool = True
+    ENABLE_FILE_UPLOADS: bool = True
 
     # ---- 数据库 ----
     # 开发环境默认使用SQLite，生产环境使用PostgreSQL
