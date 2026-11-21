@@ -11,6 +11,10 @@
       "destination": "/patient/index.html"
     },
     {
+      "source": "/api/:path*",
+      "destination": "https://novamed-api-ev6k.onrender.com/api/:path*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
